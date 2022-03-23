@@ -1,4 +1,4 @@
 [submodule "citation-style-language-locales"]
 	path = citation-style-language-locales
-	url = https://github.com/citation-style-language/locales.git
+	url = git@github.com:citation-style-language/locales.git
 	branch = master
