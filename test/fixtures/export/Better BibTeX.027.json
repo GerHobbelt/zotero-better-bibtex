@@ -1,45 +1,42 @@
 {
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "preferences": {
+      "bibtexURL": "note",
+      "citekeyFormat": "[authors][year]"
+    }
+  },
   "items": [
     {
-      "itemType": "journalArticle",
-      "volume": "55",
-      "issue": "1",
-      "pages": "122",
-      "publicationTitle": "American psychologist",
-      "date": "2000",
-      "title": "Wisdom: a metaheuristic (pragmatic) to orchestrate mind and virtue toward excellence.",
+      "attachments": [
+        {
+          "contentType": "application/pdf",
+          "path": "attachments/Baltes_Staudinger_2000_Wisdom.pdf",
+          "title": "Baltes_Staudinger_2000_Wisdom.pdf"
+        }
+      ],
       "creators": [
         {
           "creatorType": "author",
           "firstName": "Paul B",
-          "lastName": "Baltes",
-          "fieldMode": ""
+          "lastName": "Baltes"
         },
         {
           "creatorType": "author",
           "firstName": "Ursula M",
-          "lastName": "Staudinger",
-          "fieldMode": ""
+          "lastName": "Staudinger"
         }
       ],
-      "attachments": [
-        {
-          "title": "Baltes_Staudinger_2000_Wisdom.pdf",
-          "mimeType": "application/pdf",
-          "path": "attachments/Baltes_Staudinger_2000_Wisdom.pdf"
-        }
-      ]
+      "date": "2000",
+      "issue": "1",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "pages": "122",
+      "publicationTitle": "American psychologist",
+      "title": "Wisdom: a metaheuristic (pragmatic) to orchestrate mind and virtue toward excellence.",
+      "volume": "55"
     }
-  ],
-  "config": {
-    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
-    "label": "BetterBibTeX JSON",
-    "preferences": {
-      "citekeyFormat": "[authors][year]",
-      "bibtexURL": "note",
-      "jabrefFormat": 0
-    }
-  },
-  "collections": {
-  }
+  ]
 }

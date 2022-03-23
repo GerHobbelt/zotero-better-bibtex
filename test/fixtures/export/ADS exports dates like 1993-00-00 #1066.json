@@ -1,0 +1,62 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {},
+    "preferences": {
+      "citekeyFormat": "[auth][shorttitle][year]",
+      "itemObserverDelay": 100,
+      "kuroshiro": true
+    }
+  },
+  "items": [
+    {
+      "DOI": "10.1063/1.44135",
+      "abstractNote": "A powerful, streamlined new Astrophysics Data System",
+      "accessDate": "2018-09-24T16:52:14Z",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "R. B.",
+          "lastName": "Wilson"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "G. J.",
+          "lastName": "Fishman"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "M. H.",
+          "lastName": "Finger"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "G. N.",
+          "lastName": "Pendleton"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "T. A.",
+          "lastName": "Prince"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "D.",
+          "lastName": "Chakrabarty"
+        }
+      ],
+      "date": "1993-00-00",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "language": "en",
+      "libraryCatalog": "ui.adsabs.harvard.edu",
+      "pages": "291",
+      "publicationTitle": "American Institute of Physics Conference Series",
+      "title": "Observations of isolated pulsars and disk-fed X-ray binaries.",
+      "url": "https://ui.adsabs.harvard.edu/#abs/1993AIPC..280..291W/abstract",
+      "volume": "280"
+    }
+  ]
+}

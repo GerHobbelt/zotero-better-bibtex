@@ -1,0 +1,152 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "asciiBibTeX": false,
+      "autoAbbrevStyle": "http://www.zotero.org/styles/cell",
+      "citekeyFormat": "[zotero:clean][firstpage:prefix=_]",
+      "itemObserverDelay": 100
+    }
+  },
+  "items": [
+    {
+      "DOI": "10.1016/0039-6028(94)90559-2",
+      "ISSN": "0039-6028",
+      "abstractNote": "The adsorption site of pyridine (C5H5N) on Ni{111} has been investigated by scanned-energy mode photoelectron diffraction using the N 1s core level. It was found that the nitrogen atom adsorbs close to the atop position with an angle of 18\u00b0( + 2\u00b0\u2212 4\u00b0) between the N\ue5f8Ni bond and the surface normal. The N\ue5f8Ni bond length is 1.97 \u00b1 0.03 \u00c5. Since recent X-ray absorption studies show that the \u03c0 system of the pyridine is also tilted by about 20\u00b0 away from the surface normal, we conclude that the N\ue5f8Ni bond and the ring plane are co-planar.",
+      "accessDate": "2018-07-17T09:51:47Z",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "V.",
+          "lastName": "Fritzsche"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "S.",
+          "lastName": "Bao"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Ph.",
+          "lastName": "Hofmann"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "M.",
+          "lastName": "Pol\u010dik"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "K. -M.",
+          "lastName": "Schindler"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "A. M.",
+          "lastName": "Bradshaw"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "R.",
+          "lastName": "Davis"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "D. P.",
+          "lastName": "Woodruff"
+        }
+      ],
+      "date": "November 1, 1994",
+      "issue": "1",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "journalAbbreviation": "Surf. Sci.",
+      "libraryCatalog": "ScienceDirect",
+      "pages": "L1-L6",
+      "publicationTitle": "Surface Science",
+      "tags": [
+        {
+          "tag": "Ni(111)"
+        },
+        {
+          "tag": "pyridine"
+        }
+      ],
+      "title": "The adsorption site of pyridine on Ni{111} determined by low-energy photoelectron diffraction",
+      "url": "http://www.sciencedirect.com/science/article/pii/0039602894905592",
+      "volume": "319"
+    },
+    {
+      "DOI": "10.1016/0039-6028(94)90559-2",
+      "ISSN": "0039-6028",
+      "abstractNote": "The adsorption site of pyridine (C5H5N) on Ni{111} has been investigated by scanned-energy mode photoelectron diffraction using the N 1s core level. It was found that the nitrogen atom adsorbs close to the atop position with an angle of 18\u00b0( + 2\u00b0\u2212 4\u00b0) between the N\ue5f8Ni bond and the surface normal. The N\ue5f8Ni bond length is 1.97 \u00b1 0.03 \u00c5. Since recent X-ray absorption studies show that the \u03c0 system of the pyridine is also tilted by about 20\u00b0 away from the surface normal, we conclude that the N\ue5f8Ni bond and the ring plane are co-planar.",
+      "accessDate": "2018-07-17T09:51:47Z",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "V.",
+          "lastName": "Fritzsche"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "S.",
+          "lastName": "Bao"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Ph.",
+          "lastName": "Hofmann"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "M.",
+          "lastName": "Pol\u010dik"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "K. -M.",
+          "lastName": "Schindler"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "A. M.",
+          "lastName": "Bradshaw"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "R.",
+          "lastName": "Davis"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "D. P.",
+          "lastName": "Woodruff"
+        }
+      ],
+      "date": "November 1, 1994",
+      "issue": "1",
+      "itemID": 2,
+      "itemType": "journalArticle",
+      "journalAbbreviation": "Surf. Sci.",
+      "libraryCatalog": "ScienceDirect",
+      "pages": "L1\u2013L6",
+      "publicationTitle": "Surface Science",
+      "tags": [
+        {
+          "tag": "Ni(111)"
+        },
+        {
+          "tag": "pyridine"
+        }
+      ],
+      "title": "The adsorption site of pyridine on Ni{111} determined by low-energy photoelectron diffraction",
+      "url": "http://www.sciencedirect.com/science/article/pii/0039602894905592",
+      "volume": "319"
+    }
+  ]
+}

@@ -1,17 +1,16 @@
 {
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
-    "label": "BetterBibTeX JSON"
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "dmy",
+    "options": {},
+    "preferences": {
+      "citekeyFormat": "[auth][year]"
+    }
   },
   "items": [
     {
-      "itemType": "bookSection",
-      "series": "SpringerMaterials - The Landolt-Börnstein Database",
-      "volume": "III/41c",
-      "publisher": "Springer-Verlag",
-      "date": "1998",
-      "extra": "Citation Key: Madelung_1998_LB_10681727_56 \nbibtex[owner=Francesco] \nDOI: 10.1007/10681727_56",
-      "title": "Cuprous oxide (Cu₂O) crystal structure, lattice parameters",
+      "citationKey": "Madelung_1998_LB_10681727_56",
       "creators": [
         {
           "creatorType": "author",
@@ -30,7 +29,7 @@
         {
           "creatorType": "editor",
           "firstName": "U.",
-          "lastName": "Rössler"
+          "lastName": "R\u00f6ssler"
         },
         {
           "creatorType": "editor",
@@ -38,10 +37,20 @@
           "lastName": "Schulz"
         }
       ],
-      "itemID": 0,
-      "publicationTitle": "Landolt-Börnstein"
+      "date": "1998",
+      "extra": [
+        "Citation Key: Madelung_1998_LB_10681727_56",
+        "DOI: 10.1007/10681727_56",
+        "tex.owner: Francesco",
+        "tex.timestamp: 2010.02.22"
+      ],
+      "itemID": 1,
+      "itemType": "bookSection",
+      "publicationTitle": "Landolt-B\u00f6rnstein",
+      "publisher": "Springer-Verlag",
+      "series": "SpringerMaterials - the landolt-b\u00f6rnstein database",
+      "title": "Cuprous oxide (Cu\u2082O) crystal structure, lattice parameters",
+      "volume": "III/41c"
     }
-  ],
-  "collections": {
-  }
+  ]
 }

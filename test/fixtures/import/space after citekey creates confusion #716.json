@@ -2,39 +2,45 @@
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
     "label": "BetterBibTeX JSON",
-    "preferences": {
-    },
+    "localeDateOrder": "ymd",
     "options": {
-      "exportFileData": false,
       "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "[auth][year]",
+      "itemObserverDelay": 100
     }
-  },
-  "collections": {
   },
   "items": [
     {
-      "creators": [
-        {
-          "creatorType": "author",
-          "name": "Hoffmann"
-        }
-      ],
-      "extra": "Citation Key: HoSp-87",
-      "itemID": 0,
-      "itemType": "journalArticle",
-      "title": "Phase transitions"
-    },
-    {
+      "citationKey": "HoSp-90",
       "creators": [
         {
           "creatorType": "editor",
           "name": "Sprekels"
         }
       ],
-      "extra": "Citation Key: HoSp-90",
-      "itemID": 1,
+      "extra": [
+        "Citation Key: HoSp-90"
+      ],
+      "itemID": 2,
       "itemType": "book",
-      "title": "Free Boundary Problems"
+      "title": "Free boundary problems"
+    },
+    {
+      "citationKey": "HoSp-87",
+      "creators": [
+        {
+          "creatorType": "author",
+          "name": "Hoffmann"
+        }
+      ],
+      "extra": [
+        "Citation Key: HoSp-87"
+      ],
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "title": "Phase transitions"
     }
   ]
 }

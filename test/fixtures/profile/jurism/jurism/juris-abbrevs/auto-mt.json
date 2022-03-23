@@ -1,0 +1,12 @@
+{
+  "filename": "auto-mt.json",
+  "name": "Malta",
+  "version": "2020-09-07 21:01:30 UTC",
+  "xdata": {
+    "default": {
+      "place": {
+        "MT": "Malta"
+      }
+    }
+  }
+}

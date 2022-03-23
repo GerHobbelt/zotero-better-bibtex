@@ -1,0 +1,51 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {},
+    "preferences": {
+      "DOIandURL": "doi",
+      "autoAbbrevStyle": "http://www.zotero.org/styles/cell",
+      "citekeyFormat": "[auth][shorttitle][year]",
+      "importCaseProtection": "off",
+      "itemObserverDelay": 100,
+      "keyConflictPolicy": "change",
+      "kuroshiro": true,
+      "qualityReport": true,
+      "skipFields": "abstract, copyright, googlebooks",
+      "workers": 4
+    }
+  },
+  "items": [
+    {
+      "citationKey": "HopfieldTank85",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "J. J.",
+          "lastName": "Hopfield"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "D. W.",
+          "lastName": "Tank"
+        }
+      ],
+      "date": "xx 1985",
+      "extra": [
+        "Citation Key: HopfieldTank85"
+      ],
+      "itemID": 1,
+      "itemType": "webpage",
+      "publicationTitle": "Biological Cybernetics",
+      "tags": [
+        {
+          "tag": "#LaTeX"
+        }
+      ],
+      "title": "{`Neural'} computation of decisions in optimization problems.",
+      "url": "http://www.ncbi.nlm.nih.gov/pubmed/4027280"
+    }
+  ]
+}

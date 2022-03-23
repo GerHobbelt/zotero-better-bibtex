@@ -1,291 +1,184 @@
-declare const Zotero: any
-
 import { XULoki as Loki } from './loki'
-import * as log from '../debug'
-import { Preferences as Prefs } from '../prefs'
+import { Preference } from '../../gen/preferences'
+import { schema } from '../../gen/preferences/meta'
 import { getItemsAsync } from '../get-items-async'
+import { log } from '../logger'
 
-import { createFile } from '../create-file'
+import { SQLite } from './store/sqlite'
 
-const prefOverrides = require('../../gen/preferences/auto-export-overrides.json')
-const prefOverridesSchema = require('../../gen/preferences/auto-export-overrides-schema.json')
+import * as Translators from '../../gen/translators.json'
 
-class DBStore {
-  public mode = 'reference'
+export function scrubAutoExport(ae: any): void { // eslint-disable-line @typescript-eslint/explicit-module-boundary-types
+  const translator = schema.translator[Translators.byId[ae.translatorID].label]
 
-  private conn: any = {}
-  private validName = /^better-bibtex[-_a-zA-Z0-9]*$/
-
-  public async exportDatabase(dbname, dbref, callback) {
-    log.debug('DBStore.exportDatabase:', dbname)
-
-    const conn = this.conn[dbname]
-    if (conn === false) {
-      log.debug('DBStore: save of', dbname, 'attempted after close')
-      return callback(null)
-    }
-
-    if (!conn) throw new Error(`Database ${dbname} not loaded`)
-
-    try {
-      await conn.executeTransaction(async () => {
-        for (const coll of dbref.collections) {
-          if (coll.dirty) {
-            const name = `${dbname}.${coll.name}`
-            log.debug('DBStore.exportDatabase:', name)
-            await conn.queryAsync(`REPLACE INTO "${dbname}" (name, data) VALUES (?, ?)`, [name, JSON.stringify(coll)])
-          }
-        }
-
-        // TODO: only save if dirty? What about collection removal? Other data that may have changed on the DB?
-        await conn.queryAsync(`REPLACE INTO "${dbname}" (name, data) VALUES (?, ?)`, [
-          dbname,
-          JSON.stringify({ ...dbref, ...{collections: dbref.collections.map(coll => `${dbname}.${coll.name}`)} }),
-        ])
-      })
-      callback(null)
-    } catch (err) {
-      callback(err)
+  for (const k of (schema.autoExport.preferences as string[]).concat(schema.autoExport.displayOptions)) {
+    if (typeof ae[k] !== 'undefined' && !translator.types[k]) {
+      delete ae[k]
+      log.debug('ae: stripping', k, 'from', ae)
     }
   }
 
-  // this assumes Zotero.initializationPromise has resolved, will throw an error if not
-  public async loadDatabase(dbname, callback) {
-    log.debug('DBStore.loadDatabase:', dbname)
-    if (!dbname.match(this.validName)) throw new Error(`Invalid database name '${dbname}'`)
-    if (this.conn[dbname] === false) throw new Error(`Database '${dbname}' already closed`)
-    if (this.conn[dbname]) throw new Error(`Database '${dbname}' already loaded`)
+  return ae // eslint-disable-line @typescript-eslint/no-unsafe-return
+}
 
-    const conn = (this.conn[dbname] = new Zotero.DBConnection(dbname))
+class Main extends Loki {
+  public async init() {
+    await this.loadDatabaseAsync()
 
-    try {
-      await conn.executeTransaction(async () => {
-        await conn.queryAsync(`CREATE TABLE IF NOT EXISTS \"${dbname}\" (name TEXT PRIMARY KEY NOT NULL, data TEXT NOT NULL)`)
+    const citekeys = this.schemaCollection('citekey', {
+      indices: [ 'itemID', 'itemKey', 'libraryID', 'citekey', 'pinned' ],
+      unique: [ 'itemID' ],
+      logging: true,
+      schema: {
+        type: 'object',
+        properties: {
+          itemID: { type: 'integer' },
+          itemKey: { type: 'string' },
+          libraryID: { type: 'integer' },
+          citekey: { type: 'string', minLength: 1 },
+          pinned: { type: 'boolean', default: false },
 
-        let db = null
-        const collections = {}
-        for (const row of await conn.queryAsync(`SELECT name, data FROM "${dbname}" ORDER BY name ASC`)) {
-          log.debug('DBStore.loadDatabase:', dbname, '.', row.name)
-          if (row.name === dbname) {
-            log.debug(`DBStore.loadDatabase: loading ${dbname}`)
-            db = JSON.parse(row.data)
-          } else {
-            try {
-              log.debug(`DBStore.loadDatabase: loading ${row.name}`)
-              collections[row.name] = JSON.parse(row.data)
+          // LokiJS
+          meta: { type: 'object' },
+          $loki: { type: 'integer' },
+        },
+        required: [ 'itemID', 'libraryID', 'citekey', 'pinned' ],
+        additionalProperties: false,
+      },
+    })
 
-              collections[row.name].cloneObjects = true // https://github.com/techfort/LokiJS/issues/47#issuecomment-362425639
-              collections[row.name].adaptiveBinaryIndices = false // https://github.com/techfort/LokiJS/issues/654
+    // https://github.com/retorquere/zotero-better-bibtex/issues/1073
+    if (Preference.scrubDatabase) {
+      for (const citekey of citekeys.find()) {
+        if (typeof(citekey.extra) !== 'undefined') {
+          delete citekey.extra
+          citekeys.update(citekey)
+        }
+      }
+    }
 
-              log.debug(`DBStore.loadDatabase: ${row.name} has`, collections[row.name].data.length, 'records')
-            } catch (err) {
-              log.error(`DBStore.loadDatabase: failed to parse ${row.name}`)
+    if (Zotero.Libraries.userLibraryID) {
+      for (const citekey of citekeys.where(ck => ck.libraryID === 1 || !ck.libraryID )) {
+        citekey.libraryID = Zotero.Libraries.userLibraryID
+        citekeys.update(citekey)
+      }
+    }
+
+    const config = {
+      indices: [
+        'type',
+        'id',
+        'status',
+        'path',
+        'translatorID',
+
+        ...schema.autoExport.displayOptions,
+        ...schema.autoExport.preferences,
+      ],
+      unique: [ 'path' ],
+      logging: true,
+      schema: {
+        oneOf: [],
+      },
+    }
+    for (const [name, translator] of Object.entries(schema.translator)) {
+      if (!translator.autoexport) continue
+
+      config.schema.oneOf.push({
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          type: { enum: [ 'collection', 'library' ] },
+          id: { type: 'integer' },
+          path: { type: 'string', minLength: 1 },
+          status: { enum: [ 'scheduled', 'running', 'done', 'error' ] },
+          translatorID: { const: Translators.byName[name].translatorID },
+
+          // options
+          exportNotes: { type: 'boolean' },
+          useJournalAbbreviation: { type: 'boolean' },
+
+          // prefs
+          ...(translator.types),
+
+          // status
+          error: { type: 'string' },
+          recursive: { type: 'boolean' },
+
+          // LokiJS
+          meta: { type: 'object' },
+          $loki: { type: 'integer' },
+        },
+        required: [ 'type', 'id', 'path', 'status', 'translatorID', ...(translator.displayOptions), ...(translator.preferences) ],
+      })
+    }
+    log.debug('ae schema:', JSON.stringify(config, null, 2))
+
+    const autoexport = this.schemaCollection('autoexport', config)
+
+    if (Preference.scrubDatabase) {
+      // directly change the data objects and rebuild indexes https://github.com/techfort/LokiJS/issues/660
+      let length = autoexport.data.length
+      for (const ae of autoexport.data) {
+        if (typeof ae.recursive !== 'boolean') {
+          ae.recursive = false
+          scrubAutoExport(ae)
+          length = -1
+        }
+      }
+      autoexport.data = autoexport.data.filter(doc => typeof doc.$loki === 'number' && typeof doc.meta === 'object' && autoexport.validate(doc)) // eslint-disable-line @typescript-eslint/no-unsafe-return
+      if (length !== autoexport.data.length) {
+        autoexport.ensureId()
+        autoexport.ensureAllIndexes(true)
+      }
+
+      // https://github.com/techfort/LokiJS/issues/47#issuecomment-362425639
+      for (const [name, coll] of Object.entries({ citekeys, autoexport })) {
+        let corrupt
+        try {
+          corrupt = coll.checkAllIndexes({ repair: true })
+        }
+        catch (err) {
+          corrupt = [ '*' ]
+          coll.ensureAllIndexes(true)
+        }
+        if (corrupt.length > 0) {
+          for (const index of corrupt) {
+            if (index === '*') {
+              Zotero.logError(new Error(`LokiJS: rebuilt index ${name}.${index}`))
+            }
+            else {
+              Zotero.logError(new Error(`LokiJS: corrupt index ${name}.${index} repaired`))
             }
           }
         }
+      }
 
-        if (db) {
-          log.debug('DBStore.loadDatabase: restoring collections:', db.collections)
-          db.collections = db.collections.filter(coll => collections[coll]).map(coll => collections[coll])
-        }
+      // old bibtex*: entries
+      const re = /(?:^|\s)bibtex\*:[^\S\n]*([^\s]*)(?:\s|$)/
+      const itemIDs = await Zotero.DB.columnQueryAsync('SELECT itemID FROM items')
+      const items = await getItemsAsync(itemIDs)
+      for (const item of items) {
+        const extra = item.getField('extra')
+        if (!extra) continue
 
-        const dump = createFile(`_${dbname}.json`)
-        Zotero.File.putContents(dump, JSON.stringify(db))
+        const clean = extra.replace(re, '\n').trim()
 
-        callback(db)
-      })
-    } catch (err) {
-      log.error('DBStore.loadDatabase: error loading', dbname, err)
-      callback(err)
-    }
-  }
+        if (clean === extra) continue
 
-  public async close(dbname, callback) {
-    log.debug('DBStore.close', dbname)
+        item.setField('extra', clean)
+        await item.saveTx()
+      }
 
-    if (!this.conn[dbname]) return callback(null)
-
-    const conn = this.conn[dbname]
-    this.conn[dbname] = false
-
-    try {
-      await conn.closeDatabase(true)
-      log.debug('DBStore.close OK', dbname)
-      callback(null)
-    } catch (err) {
-      log.error('DBStore.close FAILED', dbname, err)
-      callback(err)
+      Preference.scrubDatabase = false
     }
   }
 }
 
 // export singleton: https://k94n.com/es6-modules-single-instance-pattern
-export let DB = new Loki('better-bibtex', { // tslint:disable-line:variable-name
+export const DB = new Main('better-bibtex', { // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
   autosave: true,
   autosaveInterval: 5000,
   autosaveOnIdle: true,
-  adapter: new DBStore(),
+  adapter: new SQLite(),
 })
-
-DB.init = async () => {
-  await DB.loadDatabaseAsync()
-
-  const citekeys = DB.schemaCollection('citekey', {
-    indices: [ 'itemID', 'itemKey', 'libraryID', 'citekey', 'pinned' ],
-    unique: [ 'itemID' ],
-    schema: {
-      type: 'object',
-      properties: {
-        itemID: { type: 'integer' },
-        itemKey: { type: 'string' },
-        libraryID: { type: 'integer' },
-        citekey: { type: 'string', minLength: 1 },
-        pinned: { type: 'boolean', default: false },
-
-        // LokiJS
-        meta: { type: 'object' },
-        $loki: { type: 'integer' },
-      },
-      required: [ 'itemID', 'libraryID', 'citekey', 'pinned' ],
-      additionalProperties: false,
-    },
-  })
-
-  log.debug('Keymanager: userLibraryID =', Zotero.Libraries.userLibraryID)
-  if (Zotero.Libraries.userLibraryID) {
-    for (const citekey of citekeys.where(ck => ck.libraryID === 1 || !ck.libraryID )) {
-      citekey.libraryID = Zotero.Libraries.userLibraryID
-      citekeys.update(citekey)
-    }
-  }
-
-  const autoexport = DB.schemaCollection('autoexport', {
-    indices: [
-      'type',
-      'id',
-      'status',
-      'path',
-      'translatorID',
-
-      'useJournalAbbreviation',
-      'exportNotes',
-
-      ...prefOverrides,
-    ],
-    unique: [ 'path' ],
-    logging: true,
-    schema: {
-      type: 'object',
-      properties: {
-        type: { enum: [ 'collection', 'library' ] },
-        id: { type: 'integer' },
-        path: { type: 'string', minLength: 1 },
-        status: { enum: [ 'scheduled', 'running', 'done', 'error' ] },
-        translatorID: { type: 'string', minLength: 1 },
-
-        // options
-        exportNotes: { type: 'boolean', default: false },
-        useJournalAbbreviation: { type: 'boolean', default: false },
-
-        // prefs
-        ...prefOverridesSchema,
-
-        error: { type: 'string', default: '' },
-
-        // LokiJS
-        meta: { type: 'object' },
-        $loki: { type: 'integer' },
-      },
-      required: [ 'type', 'id', 'path', 'status', 'translatorID', 'exportNotes', 'useJournalAbbreviation', ...prefOverrides ],
-
-      additionalProperties: false,
-    },
-  })
-
-  // directly change the data objects and rebuild indexes https://github.com/techfort/LokiJS/issues/660
-  const length = autoexport.data.length
-  autoexport.data = autoexport.data.filter(doc => typeof doc.$loki === 'number' && typeof doc.meta === 'object')
-  if (length !== autoexport.data.length) {
-    autoexport.ensureId()
-    autoexport.ensureAllIndexes(true)
-  }
-
-  // https://github.com/techfort/LokiJS/issues/47#issuecomment-362425639
-  for (const [name, coll] of Object.entries({ citekeys, autoexport })) {
-    let corrupt
-    try {
-      corrupt = coll.checkAllIndexes({ repair: true })
-    } catch (err) {
-      corrupt = [ '*' ]
-      coll.ensureAllIndexes(true)
-    }
-    if (corrupt.length > 0) {
-      for (const index of corrupt) {
-        if (index === '*') {
-          Zotero.logError(new Error(`LokiJS: rebuilt index ${name}.${index}`))
-        } else {
-          Zotero.logError(new Error(`LokiJS: corrupt index ${name}.${index} repaired`))
-        }
-      }
-    }
-  }
-
-  // https://github.com/retorquere/zotero-better-bibtex/issues/903
-  for (const ae of autoexport.find()) {
-    let update = false
-
-    if (ae.updated) {
-      delete ae.updated
-      update = true
-    }
-
-    for (const pref of prefOverrides) {
-      if (typeof ae[pref] === 'undefined') {
-        ae[pref] = Prefs.get(pref)
-        update = true
-      }
-    }
-
-    if (update) autoexport.update(ae)
-  }
-
-  if (Prefs.get('scrubDatabase')) {
-    const re = /(?:^|\s)bibtex\*:[^\S\n]*([^\s]*)(?:\s|$)/
-    const itemIDs = await Zotero.DB.columnQueryAsync('SELECT itemID FROM items')
-    const items = await getItemsAsync(itemIDs)
-    for (const item of items) {
-      const extra = item.getField('extra')
-      if (!extra) continue
-
-      const clean = extra.replace(re, '\n').trim()
-
-      if (clean === extra) continue
-
-      item.setField('extra', clean)
-      await item.saveTx()
-    }
-  }
-}
-
-/* old junk, only for json-backed storage
-DB.removeCollection('metadata') if DB.getCollection('metadata')
-DB.removeCollection('keys') if DB.getCollection('keys')
-*/
-
-/* only for json-backed storage
-for ae in autoexports.data()
-  * upgrade old autoexports
-  if ae.collection
-    [ ae.type, ae.id ] = ae.collection.split(':')
-    ae.id ?= Zotero.Libraries.userLibraryID
-    delete ae.collection
-    autoexports.update(ae)
-
-  * interrupted at start
-  if ae.status == 'running'
-    ae.scheduled = new Date()
-    ae.status = 'done'
-  else
-    delete ae.scheduled
-  autoexports.update(ae)
-*/

@@ -1,0 +1,208 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "[auth][year]"
+    }
+  },
+  "items": [
+    {
+      "DOI": "10.1038/nature24290",
+      "ISSN": "0028-0836, 1476-4687",
+      "accessDate": "2020-01-09T18:12:24Z",
+      "citationKey": "Troja2017",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "E.",
+          "lastName": "Troja"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "L.",
+          "lastName": "Piro"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "H.",
+          "lastName": "van Eerten"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "R. T.",
+          "lastName": "Wollaeger"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "M.",
+          "lastName": "Im"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "O. D.",
+          "lastName": "Fox"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "N. R.",
+          "lastName": "Butler"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "S. B.",
+          "lastName": "Cenko"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "T.",
+          "lastName": "Sakamoto"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "C. L.",
+          "lastName": "Fryer"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "R.",
+          "lastName": "Ricci"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "A.",
+          "lastName": "Lien"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "R. E.",
+          "lastName": "Ryan"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "O.",
+          "lastName": "Korobkin"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "S.-K.",
+          "lastName": "Lee"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "J. M.",
+          "lastName": "Burgess"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "W. H.",
+          "lastName": "Lee"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "A. M.",
+          "lastName": "Watson"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "C.",
+          "lastName": "Choi"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "S.",
+          "lastName": "Covino"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "P.",
+          "lastName": "D\u2019Avanzo"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "C. J.",
+          "lastName": "Fontes"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "J. Becerra",
+          "lastName": "Gonz\u00e1lez"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "H. G.",
+          "lastName": "Khandrika"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "J.",
+          "lastName": "Kim"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "S.-L.",
+          "lastName": "Kim"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "C.-U.",
+          "lastName": "Lee"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "H. M.",
+          "lastName": "Lee"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "A.",
+          "lastName": "Kutyrev"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "G.",
+          "lastName": "Lim"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "R.",
+          "lastName": "S\u00e1nchez-Ram\u00edrez"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "S.",
+          "lastName": "Veilleux"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "M. H.",
+          "lastName": "Wieringa"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Y.",
+          "lastName": "Yoon"
+        }
+      ],
+      "date": "11/2017",
+      "extra": [
+        "arXiv: 1710.05433"
+      ],
+      "issue": "7678",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "journalAbbreviation": "Nature",
+      "language": "en",
+      "libraryCatalog": "DOI.org (Crossref)",
+      "pages": "71-74",
+      "publicationTitle": "Nature",
+      "title": "The X-ray counterpart to the gravitational-wave event GW170817",
+      "url": "http://www.nature.com/articles/nature24290",
+      "volume": "551"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+
+import plistlib
+import os
+import sys
+from types import SimpleNamespace
+
+clients = [
+  SimpleNamespace(exe='zotero', installdir='Zotero'),
+  SimpleNamespace(exe='zotero', installdir='Zotero-beta'),
+  SimpleNamespace(exe='jurism', installdir='Jurism'),
+]
+
+for client in clients:
+  root = f'/Applications/{client.installdir}.app/Contents'
+  exe = root + f'/MacOS/{client.exe}'
+  launcher = root + f'/MacOS/{client.exe}-p-datadir'
+  info = root + '/Info.plist'
+
+  if not os.path.exists(exe):
+    print('skipping', client)
+    continue
+
+  with open(launcher, 'w') as f:
+    f.write('#!/bin/bash\n')
+    f.write('set -x\n')
+    f.write(f'{exe} -P -datadir profile\n')
+
+  os.chmod(launcher, os.stat(exe).st_mode)
+
+  print(info)
+  with open(info, 'rb') as f:
+    plist = plistlib.load(f)
+  plist['CFBundleExecutable'] = os.path.basename(launcher)
+  with open(info, 'wb') as f:
+    plistlib.dump(plist, f)
+
+os.system('find /System/Library/Frameworks -type f -name "lsregister" -exec {} -kill -seed -r \;')

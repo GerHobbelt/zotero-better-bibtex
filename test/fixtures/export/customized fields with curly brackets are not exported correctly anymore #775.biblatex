@@ -1,12 +1,15 @@
+
 @book{knoblauch_dialogen_1789-1,
-  author = {family=Knoblauch, given=Karl, prefix=von, useprefix=false},
-  date = {1789},
-  keywords = {anonym,Knoblauch,Monographie,Quelle},
-  langid = {german},
-  location = {{[Marburg]}},
-  options = {pseudoauthor=true},
-  pagetotal = {72},
-  publisher = {{Krieger}},
+  title = {Dialogen \"uber einige Gegenst\"ande der politischen Oekonomie und Philosophie},
   shorttitle = {Dialogen},
-  title = {Dialogen \"uber einige Gegenst\"ande der politischen Oekonomie und Philosophie}
+  author = {family=Knoblauch, given=Karl, prefix=von, useprefix=false},
+  options = {pseudoauthor=true},
+  date = {1789},
+  publisher = {{Krieger}},
+  location = {{[Marburg]}},
+  langid = {german},
+  pagetotal = {72},
+  keywords = {anonym,Knoblauch,Monographie,Quelle}
 }
+
+

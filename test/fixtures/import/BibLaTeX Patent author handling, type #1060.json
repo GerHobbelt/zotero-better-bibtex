@@ -1,0 +1,120 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "[auth][year]",
+      "itemObserverDelay": 100
+    }
+  },
+  "items": [
+    {
+      "assignee": "Hughes Aircraft Company",
+      "citationKey": "sorace",
+      "creators": [
+        {
+          "creatorType": "inventor",
+          "firstName": "Ronald E.",
+          "lastName": "Sorace"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Victor S.",
+          "lastName": "Reinhardt"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Steven A.",
+          "lastName": "Vaughn"
+        }
+      ],
+      "date": "1997-09-16",
+      "extra": [
+        "Citation Key: sorace"
+      ],
+      "itemID": 1,
+      "itemType": "patent",
+      "number": "US5668842",
+      "title": "High-speed digital-to-RF converter"
+    },
+    {
+      "assignee": "Robert Bosch GmbH; Daimler Chrysler AG; Bayerische Motoren Werke AG",
+      "citationKey": "laufenberg",
+      "creators": [
+        {
+          "creatorType": "inventor",
+          "firstName": "Xaver",
+          "lastName": "Laufenberg"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Dominique",
+          "lastName": "Eynius"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Helmut",
+          "lastName": "Suelzle"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Stephan",
+          "lastName": "Usbeck"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Matthias",
+          "lastName": "Spaeth"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Miriam",
+          "lastName": "Neuser-Hoffmann"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Christian",
+          "lastName": "Myrzik"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Manfred",
+          "lastName": "Schmid"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Franz",
+          "lastName": "Nietfeld"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Alexander",
+          "lastName": "Thiel"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Harald",
+          "lastName": "Braun"
+        },
+        {
+          "creatorType": "inventor",
+          "firstName": "Norbert",
+          "lastName": "Ebner"
+        }
+      ],
+      "date": "2006-09-13",
+      "extra": [
+        "Citation Key: laufenberg"
+      ],
+      "itemID": 2,
+      "itemType": "patent",
+      "number": "EP1700367",
+      "title": "Elektrische einrichtung und betriebsverfahren",
+      "url": "http://v3.espacenet.com/textdoc?IDX=EP1700367"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {},
+    "preferences": {
+      "citekeyFormat": "[auth][shorttitle][year]",
+      "itemObserverDelay": 100,
+      "kuroshiro": true
+    }
+  },
+  "items": [
+    {
+      "citationKey": "Shelahcombinatorialproblemstability1999",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Saharon",
+          "lastName": "Shelah"
+        }
+      ],
+      "date": "--",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "notes": [
+        "<p>MR 46:7018</p>"
+      ],
+      "pages": "247\u2013261",
+      "publicationTitle": "Pacific Journal of Mathematics",
+      "title": "A combinatorial problem; stability and order for models and theories in infinitary languages",
+      "volume": "41"
+    }
+  ]
+}

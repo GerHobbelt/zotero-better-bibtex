@@ -1,56 +1,84 @@
-# Better Bib(La)TeX for Zotero [![Circle CI](https://circleci.com/gh/retorquere/zotero-better-bibtex.svg?style=shield)](https://circleci.com/gh/retorquere/zotero-better-bibtex)
+# Better BibTeX for Zotero
 
-[![Join the chat at https://gitter.im/retorquere/zotero-better-bibtex](https://badges.gitter.im/retorquere/zotero-better-bibtex.svg)](https://gitter.im/retorquere/zotero-better-bibtex?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at https://gitter.im/retorquere/zotero-better-bibtex](https://badges.gitter.im/retorquere/zotero-better-bibtex.svg)](https://gitter.im/retorquere/zotero-better-bibtex?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Greenkeeper badge](https://badges.greenkeeper.io/retorquere/zotero-better-bibtex.svg)](https://greenkeeper.io/)
 
-This extension aims to make Zotero (and soon Juris-M) effective for us text-based authoring holdouts;
-currently, that translates to the LaTeX/Markdown crowd. To get started, read the
-[Installation](https://retorquere.github.io/zotero-better-bibtex/installation) instructions. At its core,
-it behaves like any Zotero import/export module; anywhere you can export or import bibliography items in Zotero,
-you'll find *Better Bib(La)TeX* listed as one of the choices.  If nothing else, you could keep your existing workflow as-is,
-and just enjoy the improved LaTeX &harr; unicode translation on import and export and more accurate field mapping. 
+Better BibTeX (BBT) is an extension for [Zotero](https://www.zotero.org) and [Juris-M](https://juris-m.github.io) that makes it easier to manage bibliographic data, especially for people authoring documents using text-based toolchains (e.g. based on [LaTeX](https://www.latex-project.org) / [Markdown](https://www.markdownguide.org)).
 
-Zotero does all its work in UTF-8 Unicode, which is absolutely the right thing to do. Unfortunately, for those shackled
+## Features
+
+### Facilities for generating citation keys
+
+* Automatically generate [citation keys](https://retorque.re/zotero-better-bibtex/citing/) without key clashes! Generate citation keys that take into account existing keys in your library even when they are not part of the items you export. Prevent random breakage!
+* Generate citation keys based on [JabRef patterns](https://docs.jabref.org/setup/citationkeypatterns).
+* Set your own, stable citation keys, drag and drop LaTeX citations, add other custom BibLaTeX fields.
+
+
+### Conversion between formats and encodings
+* Zotero does all its work in UTF-8 Unicode, which is absolutely the right thing to do. Unfortunately, for those shackled
 to BibTeX and who cannot (yet) move to BibLaTeX, unicode is a major PITA. Also, Zotero supports some simple HTML markup
-in your references that Bib(La)TeX won't understand.
+in your items that Bib(La)TeX won't understand.
 
-BBT will convert from/to HTML/LaTeX; Currently supports &lt;i&gt;&#8660;\emph &amp; \textit, &lt;b&gt;&#8660;\textbf,
-&lt;sub&gt;&#8660;\_{...}, &lt;sup&gt;&#8660;^{...} and &lt;sc&gt;&#8660;\\textsc{...}; more can be added on request.
-BBT contains a comprehensive list of LaTeX constructs, so stuff like `\"{o}` or `\"o` will be converted to their unicode
-equivalents on import, and their unicode equivalents back to `\"{o}` if you have that option enabled (but you don't
-have to if you use BibLaTeX, which has fairly good Unicode support). With BBT you'll have:
+* BBT will convert from/to HTML/LaTeX:
 
-* Stable [Citation Keys](https://retorquere.github.io/zotero-better-bibtex/citation-keys), without key clashes! Generates citation keys that take into account other existing keys in your library
-  that are not part of the items you export. Prevent random breakage!
-* Converts from/to HTML/LaTeX: Currently supports `<i>...</i>`/`\emph{...}`/`\textit{...}`, `<b>...</b>`/`\textbf{...}`, `<sup>...</sup>`/`\_{...}` and `<sub>...</sub>`/`^{...}`. 
-  The plugin contains a comprehensive list of LaTeX constructs, so stuff like `\"{o}` or `\"o` will be converted to their unicode equivalents on import (e.g., `\"{o}` to `ö`). If you need
-  literal LaTeX in your export: surround it with `<pre>`...`</pre>` tags.
-* Set your own, fixed [Citation Keys](https://retorquere.github.io/zotero-better-bibtex/citation-keys), generate citation keys from [JabRef patterns](https://help.jabref.org/en/BibtexKeyPatterns), drag and drop LaTeX citations, add other custom BibLaTeX fields.
-* Highly [Customized Exports](https://retorquere.github.io/zotero-better-bibtex/customized-exports).
+  - `<i>...</i>`&#8660;`\emph{...}`/`\textit{...}`
+  - `<b>...</b>`&#8660;`\textbf{...}`
+  - `<sup>...</sup>`&#8660;`\textsuperscript{...}` and `<sub>...</sub>`&#8660;`\textsubscript{...}`. 
+  
+  More can be added on request.
+  
+  BBT contains a comprehensive list of LaTeX constructs, so stuff like `\"{o}` or `\"o` will be converted to their unicode equivalents on import (e.g., `\"{o}` to `ö`), and their unicode equivalents back to `\"{o}` if you have that option enabled (but you don't have to if you use BibLaTeX, which has fairly good Unicode support).
+  
+  If you need literal LaTeX in your export: surround it with `<script>`...`</script>` (or `<pre>`...`</pre>`, which do the same) markers.
+  
+### Facilities for exporting data from Zotero
+* Highly [customized exports](https://retorque.re/zotero-better-bibtex/exporting/).
 * Fixes date field exports: export dates like 'forthcoming' as 'forthcoming' instead of empty, but normalize valid dates
   to unambiguous international format.
-* [Push/Pull Export](https://retorquere.github.io/zotero-better-bibtex/push-and-pull) from the embedded webserver.
-* Automatic [journal abbreviation](https://retorquere.github.io/zotero-better-bibtex/citation-keys).
+* [Auto export](https://retorque.re/zotero-better-bibtex/exporting/auto/) of collections or entire libraries when they change.
+* [Pull export](https://retorque.re/zotero-better-bibtex/exporting/pull/) from the embedded webserver.
+* Automatic [journal abbreviation](https://retorque.re/zotero-better-bibtex/citing/).
 
+## Getting started
+To get started, read the [installation instructions](https://retorque.re/zotero-better-bibtex/installation/).
 
-Better Bib(La)TeX works from [BibTeXing](http://ctan.cs.uu.nl/biblio/bibtex/base/btxdoc.pdf) and [Tame the
+## How does it work ?
+At its core, BBT behaves like any Zotero import/export module; anywhere you can export or import bibliography items in Zotero,
+you'll find *Better X* listed among the choices.  
+
+If nothing else, you could keep your existing workflow as-is, and just enjoy the improved LaTeX &harr; unicode translation on import and export and more accurate field mapping.
+
+Better BibTeX works from [BibTeXing](http://ctan.cs.uu.nl/biblio/bibtex/base/btxdoc.pdf) and [Tame the
 BeaST](http://www.lsv.ens-cachan.fr/~markey/BibTeX/doc/ttb_en.pdf) for BibTeX, and
-[The Biblatex Package](http://ctan.mirrorcatalogs.com/macros/latex/contrib/biblatex/doc/biblatex.pdf) for BibLaTeX, but
+[The Biblatex Package](http://mirrors.ctan.org/macros/latex/contrib/biblatex/doc/biblatex.pdf) for BibLaTeX, but
 since there isn't really a definitive manual for either format that is universally followed by Bib(La)TeX
 editors/processors, I'm pragmatic about implementing what works.
 
-# Got problems? We got fixes!
+## Got problems? We got fixes!
 
-If you have any questions on the use of the plugin, please do not hesitate to [file a GitHub issue](https://github.com/retorquere/zotero-better-bibtex/issues/new)
-to ask for help. If you're reporting a bug in the plugin, please take a moment to glance through the 
-[Support Request Guidelines](https://retorquere.github.io/zotero-better-bibtex/support);
-it will make sure I get your problem fixed as quick as possible. Clear bug reports commonly have really short
-time-to-fix, so if you report something, stick around -- it may be done as you wait.
-The support request guidelines are very detailed, perhaps to the point of being off-putting, but please do not fret;
-these guidelines simply express my ideal bug submission.
-I of course prefer very clearly documented issue reports over fuzzy ones,
-but I prefer fuzzy ones over missed ones.
+If you have any questions on BBT's use, do not hesitate to [file a GitHub issue](https://github.com/retorquere/zotero-better-bibtex/issues/new/choose) and ask for help. 
 
-# Sponsoring BBT
+If you're reporting a bug in BBT, please take a moment to glance through the [support request guidelines](https://retorque.re/zotero-better-bibtex/support/); it will make sure I get your problem fixed as quick as possible.
+Clear bug reports commonly have really short time-to-fix, so if you report something, stick around -- it may be done as you wait.
 
-While the development needs of BBT are to a large extent covered by the use of services such as github and circleci, my development system does require the occasional upgrade.
-My trusty MacBook Air is not really hacking it anymore, and in order to do decent cross-platform support, a MacBook (or a system capable of running macOS in VMware player) is what I need. [Anything you can spare](https://www.paypal.me/retorquere)  towards making that upgrade a reality is very much appreciated. If you'd rather contribute a little bit each month (and a little means a lot) so I can save up for a replacement a year or so down the line, head on over to [Patreon](https://www.patreon.com/retorquere). Many, many thanks, also to the existing contributors -- thanks to you I'm currently at 34.5% of target; *so* looking forward to replace my trusty `manchineel`.
+The support request guidelines are very detailed, perhaps to the point of being off-putting, but please do not fret; these guidelines simply express my ideal bug submission.
+I of course prefer very clearly documented issue reports over fuzzy ones, but I prefer fuzzy ones over missed ones.
+
+## Sponsoring BBT
+
+While the development needs of BBT are to a large extent covered
+by the generosity towards open-source developers of services such
+as github, my development system does require the
+occasional upgrade; also, I enjoy getting the occasional frivolous
+tech-toy that I wouldn't otherwise grant myself. While you should
+feel in no way obligated to pay for BBT, [anything you can spare](https://www.paypal.me/retorquere) is very much appreciated.
+If you'd rather contribute a little bit each month (and a little
+means a lot) so I can save up for a replacement a year or so down
+the line, head on over to [Patreon](https://www.patreon.com/retorquere),
+but mind that Patreon takes a fairly large cut of what you give.
+
+Many, many thanks, also to the existing contributors -- thanks to you I've hit my first target and have been able to replace my trusty macbook air with a newer macbook pro which has much more breathing room.
+
+
+![My github stats](https://github-readme-stats.vercel.app/api?username=retorquere&show_icons=true&hide_border=true&theme=dark)
+
+![Metrics](https://metrics.lecoq.io/retorquere?template=classic&config.timezone=Europe%2FOslo)

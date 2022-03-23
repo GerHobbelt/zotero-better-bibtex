@@ -1,11 +1,13 @@
 Generated File. Do not edit.
 
 [HEADER]
-Version:0.18t:$
+Version:0.19t:$
 Arch:x86_64-gcc3:$
 
 [PLUGINS]
 
 [INVALID]
-/usr/lib/mozilla/plugins/libgnome-shell-browser-plugin.so:$
-1510175942000:$
+/Library/Internet Plug-Ins/AdobePDFViewer.plugin:$
+1603789126000:$
+/Library/Internet Plug-Ins/AdobePDFViewerNPAPI.plugin:$
+1603789139000:$

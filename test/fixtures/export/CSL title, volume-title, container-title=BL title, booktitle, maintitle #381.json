@@ -2,37 +2,17 @@
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
     "label": "BetterBibTeX JSON",
-    "release": "1.5.11",
+    "localeDateOrder": "ymd",
     "options": {
-      "exportFileData": false,
       "exportNotes": true
     },
     "preferences": {
-      "skipFields": "",
-      "postscript": "",
-      "csquotes": "",
-      "DOIandURL": "both",
-      "preserveBibTeXVariables": false,
-      "asciiBibLaTeX": false,
-      "asciiBibTeX": true,
-      "citekeyFormat": "[auth][year]",
       "bibtexURL": "note",
-      "jabrefFormat": 0
+      "citekeyFormat": "[auth][year]"
     }
-  },
-  "collections": {
   },
   "items": [
     {
-      "itemType": "book",
-      "series": "Oxford classical texts CSL-VAR",
-      "volume": "4",
-      "place": "Oxford",
-      "publisher": "Clarendon Press",
-      "date": "1902",
-      "extra": "{:volume-title: Clitophon, Republic, Timaeus, Critias}",
-      "language": "en-GB",
-      "title": "Opera",
       "creators": [
         {
           "creatorType": "author",
@@ -40,24 +20,24 @@
         },
         {
           "creatorType": "editor",
-          "lastName": "Burnet",
-          "firstName": "John"
+          "firstName": "John",
+          "lastName": "Burnet"
         }
       ],
-      "itemID": 276
+      "date": "1902",
+      "extra": [
+        "{:volume-title: Clitophon, Republic, Timaeus, Critias}"
+      ],
+      "itemID": 2,
+      "itemType": "book",
+      "language": "en-GB",
+      "place": "Oxford",
+      "publisher": "Clarendon Press",
+      "series": "Oxford classical texts CSL-VAR",
+      "title": "Opera",
+      "volume": "4"
     },
     {
-      "itemType": "bookSection",
-      "series": "Oxford classical texts",
-      "volume": "4",
-      "place": "Oxford",
-      "publisher": "Clarendon Press",
-      "pages": "327–621",
-      "date": "1901",
-      "extra": "volume-title: Clitophon, Republic, Timaeus, Critias",
-      "language": "en-GB",
-      "title": "Republic",
-      "bookTitle": "Opera",
       "creators": [
         {
           "creatorType": "author",
@@ -65,12 +45,24 @@
         },
         {
           "creatorType": "editor",
-          "lastName": "Burnet",
-          "firstName": "John"
+          "firstName": "John",
+          "lastName": "Burnet"
         }
       ],
-      "itemID": 277,
-      "publicationTitle": "Opera"
+      "date": "1901",
+      "extra": [
+        "volume-title: Clitophon, Republic, Timaeus, Critias"
+      ],
+      "itemID": 1,
+      "itemType": "bookSection",
+      "language": "en-GB",
+      "pages": "327\u2013621",
+      "place": "Oxford",
+      "publicationTitle": "Opera",
+      "publisher": "Clarendon Press",
+      "series": "Oxford classical texts",
+      "title": "Republic",
+      "volume": "4"
     }
   ]
 }

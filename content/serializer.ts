@@ -1,155 +1,118 @@
-declare const Zotero: any
-
+import type { Attachment, Item } from '../gen/typings/serialized-item'
 import { JournalAbbrev } from './journal-abbrev'
-import * as log from './debug'
-
 import { DB as Cache } from './db/cache'
-import { KeyManager } from './key-manager'
-import * as ZoteroDB from './db/zotero'
+import { $and } from './db/loki'
+import { Preference } from '../gen/preferences'
+
+type CacheEntry = {
+  itemID: number
+  item: Item
+}
 
 // export singleton: https://k94n.com/es6-modules-single-instance-pattern
-export let Serializer = new class { // tslint:disable-line:variable-name
-  public simplify: Function
-  public validFields: { [key: string]: { [key: string]: boolean } }
+export const Serializer = new class { // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
+  private cache
 
-  private collection = 'itemToExportFormat'
-
-  public async init() {
-    JournalAbbrev.init()
-
-    log.debug('Serializer.init')
-
-    let fields = await ZoteroDB.queryAsync(`
-      SELECT DISTINCT bf.fieldName, f.fieldName as fieldAlias
-      FROM itemTypes it
-      JOIN itemTypeFields itf ON it.itemTypeID = itf.itemTypeID
-      JOIN fields f ON f.fieldID = itf.fieldID
-      JOIN baseFieldMappingsCombined bfmc ON it.itemTypeID = bfmc.itemTypeID AND f.fieldID = bfmc.fieldID
-      JOIN fields bf ON bf.fieldID = bfmc.baseFieldID
-      ORDER BY 1
-    `)
-    let simplify = ''
-    const alias = {}
-    for (const field of fields) {
-      // just to make sure
-      if (alias[field.fieldAlias] && alias[field.fieldAlias] !== field.fieldName) throw new Error(`field alias ${field.fieldAlias} maps to ${alias[field.fieldAlias]} and ${field.fieldName}`)
-      alias[field.fieldAlias] = field.fieldName
-
-      simplify += `if (typeof item.${field.fieldAlias} != 'undefined') { item.${field.fieldName} = item.${field.fieldAlias}; delete item.${field.fieldAlias}; }\n`
-    }
-    simplify += `
-      if (mode == 'export') {
-        item.tags = item.tags ? item.tags.map(function(tag) { return tag.tag }) : [];
-        item.notes = item.notes ? item.notes.map(function(note) { return note.note || note }) : [];
-      }
-      if (item.creators) {
-        // import & export translators expect different creator formats... nice
-        for (const creator of item.creators) {
-          if (mode == 'export' && creator.fieldMode == 1) {
-            creator.name = creator.name || creator.lastName;
-            delete creator.lastName
-            delete creator.firstName;
-            delete creator.fieldMode;
-          }
-          if (mode == 'import' && creator.name) {
-            creator.lastName = creator.lastName || creator.name;
-            creator.fieldMode = 1;
-            delete creator.firstName
-            delete creator.name
-          }
-        }
-      }
-
-      return item;
-    `
-    log.debug('Serializer.init: simplify =\n', simplify)
-    this.simplify = new Function('item', 'mode', simplify)
-
-    this.validFields = {}
-    fields = await ZoteroDB.queryAsync(`
-      SELECT it.typeName, COALESCE(bf.fieldName, f.fieldName) as fieldName, CASE WHEN bf.fieldName IS NULL THEN NULL ELSE f.fieldName END as fieldAlias
-      FROM itemTypes it
-      JOIN itemTypeFields itf ON it.itemTypeID = itf.itemTypeID
-      JOIN fields f ON f.fieldID = itf.fieldID
-      LEFT JOIN baseFieldMappingsCombined bfmc ON it.itemTypeID = bfmc.itemTypeID AND f.fieldID = bfmc.fieldID
-      LEFT JOIN fields bf ON bf.fieldID = bfmc.baseFieldID
-      ORDER BY 2
-    `)
-    this.validFields = {
-      note: {
-        itemType: true,
-        tags: true,
-        note: true,
-        id: true,
-        itemID: true,
-        dateAdded: true,
-        dateModified: true,
-      },
-    }
-    for (const field of fields) {
-      if (!this.validFields[field.typeName]) {
-        this.validFields[field.typeName] = {
-          itemType: true,
-          creators: true,
-          tags: true,
-          attachments: true,
-          notes: true,
-          seeAlso: true,
-          id: true,
-          itemID: true,
-          dateAdded: true,
-          dateModified: true,
-          multi: true, // accomodate Juris-M
-        }
-      }
-
-      this.validFields[field.typeName][field.fieldName] = true
-      if (field.fieldAlias) this.validFields[field.typeName][field.fieldAlias] = true
-    }
-
-    log.debug('Serializer.init: done', this.validFields)
+  public init() {
+    JournalAbbrev.init().then(() => {
+      this.cache = Cache.getCollection('itemToExportFormat')
+    }).catch(err => {
+      Zotero.debug(`Serializer.init failed: ${err.message}`)
+    })
   }
 
-  public fetch(item, legacy, skipChildItems) {
-    const cache = Cache.getCollection(this.collection)
-    if (!cache) return null
+  private fetch(item: ZoteroItem): Item {
+    if (!Preference.caching || !this.cache) return null
 
-    const cached = cache.findOne({ itemID: item.id, legacy: !!legacy, skipChildItems: !!skipChildItems})
+    const cached: CacheEntry = this.cache.findOne($and({ itemID: item.id }))
     if (!cached) return null
 
     return this.enrich(cached.item, item)
   }
 
-  public store(item, serialized, legacy, skipChildItems) {
-    const cache = Cache.getCollection(this.collection)
-
-    // come on -- these are used in the collections export but not provided on the items?!
-    serialized.itemID = item.id
-    serialized.key = item.key
-
-    if (cache) {
-      cache.insert({itemID: item.id, legacy: !!legacy, skipChildItems: !!skipChildItems, item: serialized})
-    } else {
-      Zotero.logError(new Error('Serializer.store ignored, DB not yet loaded'))
+  private store(item: ZoteroItem, serialized: Item): Item {
+    if (this.cache) {
+      if (Preference.caching) this.cache.insert({ itemID: item.id, item: serialized })
+    }
+    else {
+      Zotero.debug('Serializer.store ignored, DB not yet loaded')
     }
 
     return this.enrich(serialized, item)
   }
 
-  public serialize(item) { return Zotero.Utilities.Internal.itemToExportFormat(item, false, true) }
+  public serialize(item: ZoteroItem): Item {
+    return Zotero.Utilities.Internal.itemToExportFormat(item, false, true) as Item
+  }
 
-  private enrich(serialized, item) {
+  public fast(item: ZoteroItem): Item {
+    let serialized = this.fetch(item)
+
+    if (!serialized) {
+      serialized = item.toJSON()
+      serialized.uri = Zotero.URI.getItemURI(item)
+      serialized.itemID = item.id
+
+      switch (serialized.itemType) {
+        case 'note':
+        case 'annotation':
+          break
+
+        case 'attachment':
+          serialized = this.fastAttachment(serialized as unknown as Attachment, item)
+          break
+
+        default:
+          serialized.attachments = item.getAttachments().map(id => {
+            const att = Zotero.Items.get(id)
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            return this.fastAttachment({ ...att.toJSON(), uri: Zotero.URI.getItemURI(att) }, att)
+          })
+
+          serialized.notes = item.getNotes().map(id => {
+            const note = Zotero.Items.get(id)
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            return { ...note.toJSON(), uri: Zotero.URI.getItemURI(note) }
+          })
+      }
+      this.store(item, serialized)
+    }
+
+    // since the cache doesn't clone, these will be written into the cache, but since we override them always anyways, that's OK
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return this.enrich(serialized, item)
+  }
+
+  private fastAttachment(serialized: Attachment, att): Attachment {
+    if (att.attachmentLinkMode !== Zotero.Attachments.LINK_MODE_LINKED_URL) {
+      serialized.localPath = att.getFilePath()
+      if (serialized.localPath) serialized.defaultPath = `files/${att.id}/${OS.Path.basename(serialized.localPath)}`
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return serialized
+  }
+
+  public enrich(serialized: Item, item: ZoteroItem): Item {
     switch (serialized.itemType) {
       case 'note':
+      case 'annotation':
       case 'attachment':
         break
 
       default:
-        serialized.citekey = KeyManager.get(item.id).citekey
-        serialized.journalAbbreviation = JournalAbbrev.get(serialized)
-        serialized.libraryID = item.libraryID
+        serialized.citationKey = Zotero.BetterBibTeX.KeyManager.get(item.id).citekey;
+        (serialized as any).citekey = serialized.citationKey // legacy
+        if (!serialized.journalAbbreviation) serialized.autoJournalAbbreviation = JournalAbbrev.get(serialized)
         break
     }
+
+    // come on -- these are used in the collections export but not provided on the items?!
+    serialized.itemID = item.id
+    // serialized.key = serialized.itemKey = item.key
+    serialized.itemKey = item.key
+    serialized.libraryID = item.libraryID
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return serialized
   }
 }

@@ -1,32 +1,69 @@
 {
 	"translatorID": "99b62ba4-065c-4e83-a5c0-d8cc0c75d388",
+	"translatorType": 4,
 	"label": "Open Journal Systems",
 	"creator": "Aurimas Vinckevicius",
 	"target": "/article/view/",
 	"minVersion": "2.1.9",
-	"maxVersion": "",
+	"maxVersion": null,
 	"priority": 100,
 	"inRepository": true,
-	"translatorType": 4,
 	"browserSupport": "gcsibv",
-	"lastUpdated": "2017-06-18 22:34:25"
+	"lastUpdated": "2021-06-24 22:00:00"
 }
 
-function detectWeb(doc, url) {
+/*
+	***** BEGIN LICENSE BLOCK *****
+
+	Copyright © 2012-2021 Aurimas Vinckevicius
+
+	This file is part of Zotero.
+
+	Zotero is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	Zotero is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with Zotero. If not, see <http://www.gnu.org/licenses/>.
+
+	***** END LICENSE BLOCK *****
+*/
+
+function detectWeb(doc, _url) {
 	var pkpLibraries = ZU.xpath(doc, '//script[contains(@src, "/lib/pkp/js/")]');
-	if ( ZU.xpathText(doc, '//a[@id="developedBy"]/@href') == 'http://pkp.sfu.ca/ojs/' ||	//some sites remove this
-		pkpLibraries.length >= 10) {
+	if (ZU.xpathText(doc, '//a[@id="developedBy"]/@href') == 'http://pkp.sfu.ca/ojs/'	// some sites remove this
+		|| pkpLibraries.length >= 1
+		|| attr(doc, 'meta[name="generator"]', 'content').startsWith('Open Journal Systems')) {
 		return 'journalArticle';
 	}
+	return false;
 }
 
 function doWeb(doc, url) {
-	//use Embeded Metadata
+	// In OJS 3, up to at least version 3.1.1-2, the PDF view does not
+	// include metadata, so we must get it from the article landing page.
+	var urlParts = url.match(/(.+\/article\/view\/)([^/]+)\/[^/]+/);
+	if (urlParts) { // PDF view
+		ZU.processDocuments(urlParts[1] + urlParts[2], scrape);
+	}
+	else { // Article view
+		scrape(doc, url);
+	}
+}
+
+function scrape(doc, url) {
+	// use Embeded Metadata
 	var trans = Zotero.loadTranslator('web');
 	trans.setTranslator('951c027d-74ac-47d4-a107-9c3069ab7b48');
 	trans.setDocument(doc);
 
-	trans.setHandler('itemDone', function(obj, item) {
+	trans.setHandler('itemDone', function (obj, item) {
 		if (!item.itemType) {
 			item.itemType = "journalArticle";
 		}
@@ -35,45 +72,86 @@ function doWeb(doc, url) {
 			item.title = doc.getElementById('articleTitle');
 		}
 		
-		if (item.creators.length==0) {
+		if (item.creators.length == 0) {
 			var authorString = doc.getElementById("authorString");
 			if (authorString) {
 				var authorsList = authorString.textContent.split(',');
-				for (var i=0; i<authorsList.length; i++) {
+				for (let i = 0; i < authorsList.length; i++) {
 					item.creators.push(ZU.cleanAuthor(authorsList[i], "author"));
 				}
-		
 			}
 		}
 		
+		// OJS journal abbreviations are rarely correct. sometimes they're
+		// generated from the journal's URL slug, other times they're just the
+		// number "1", or the full name of the journal, or an abbreviation that
+		// isn't correct according to ISO 4 or the journal's editors
+		// (see MeteoHistory test).
+		delete item.journalAbbreviation;
+
 		var doiNode = doc.getElementById('pub-id::doi');
 		if (!item.DOI && doiNode) {
 			item.DOI = doiNode.textContent;
 		}
 		
-		//abstract is supplied in DC:description, so it ends up in extra
-		//abstractNote is pulled from description, which is same as title
+		// abstract is supplied in DC:description, so it ends up in extra
+		// abstractNote is pulled from description, which is same as title
 		item.abstractNote = item.extra;
 		item.extra = undefined;
 
-		//if we still don't have abstract, we can try scraping from page
-		if(!item.abstractNote) {
-			item.abstractNote = ZU.xpathText(doc, '//div[@id="articleAbstract"]/div[1]');
+		// if we still don't have abstract, we can try scraping from page
+		if (!item.abstractNote) {
+			item.abstractNote = ZU.xpathText(doc, '//div[@id="articleAbstract"]/div[1]')
+				|| ZU.xpathText(doc, '//div[contains(@class, "main_entry")]/div[contains(@class, "abstract")]');
+		}
+		if (item.abstractNote) {
+			item.abstractNote = item.abstractNote.trim().replace(/^Abstract:?\s*/, '');
 		}
 		
-		//some journals link to a PDF view page in the header, not the PDF itself
-		for(var i=0; i<item.attachments.length; i++) {
-			if(item.attachments[i].mimeType == 'application/pdf') {
+		var pdfAttachment = false;
+		
+		// some journals link to a PDF view page in the header, not the PDF itself
+		for (let i = 0; i < item.attachments.length; i++) {
+			if (item.attachments[i].mimeType == 'application/pdf') {
+				pdfAttachment = true;
 				item.attachments[i].url = item.attachments[i].url.replace(/\/article\/view\//, '/article/download/');
+			}
+		}
+		
+		var pdfUrl = doc.querySelector("a.obj_galley_link.pdf");
+		// add linked PDF if there isn't one listed in the header
+		if (!pdfAttachment && pdfUrl) {
+			pdfAttachment = true;
+			item.attachments.push({
+				title: "Full Text PDF",
+				mimeType: "application/pdf",
+				url: pdfUrl.href.replace(/\/article\/view\//, '/article/download/')
+			});
+		}
+		
+		// add linked PDF if there isn't one listed in the header
+		if (!pdfAttachment) {
+			for (let link of doc.querySelectorAll("a.obj_galley_link")) {
+				if (link.textContent.includes('PDF')) {
+					item.attachments.push({
+						title: "Full Text PDF",
+						mimeType: "application/pdf",
+						url: link.href.replace(/\/article\/view\//, '/article/download/')
+					});
+					break;
+				}
 			}
 		}
 
 		item.complete();
 	});
 
-	trans.translate();
-
+	trans.getTranslatorObject(function (trans) {
+		trans.doWeb(doc, url);
+	});
 }
+
+
 /** BEGIN TEST CASES **/
 var testCases = [
 	{
@@ -120,7 +198,7 @@ var testCases = [
 				"pages": "279-311",
 				"publicationTitle": "Dialogue & Discourse",
 				"shortTitle": "On Incrementality in Dialogue",
-				"url": "362.html",
+				"url": "http://journals.linguisticsociety.org/elanguage/dad/article/view/362.html",
 				"volume": "2",
 				"attachments": [
 					{
@@ -128,7 +206,8 @@ var testCases = [
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [],
@@ -156,28 +235,51 @@ var testCases = [
 						"creatorType": "author"
 					}
 				],
-				"date": "2013/11/19",
+				"date": "2013-11-21",
 				"DOI": "10.2218/ijdc.v8i2.263",
 				"ISSN": "1746-8256",
-				"abstractNote": "Academic librarians are increasingly engaging in data curation by providing infrastructure (e.g., institutional repositories) and offering services (e.g., data management plan consultations) to support the management of research data on their campuses. Efforts to develop these resources may benefit from a greater understanding of disciplinary differences in research data management needs. After conducting a survey of data management practices and perspectives at our research university, we categorized faculty members into four research domainsâ€”arts and humanities, social sciences, medical sciences, and basic sciencesâ€”and analyzed variations in their patterns of survey responses. We found statistically significant differences among the four research domains for nearly every survey item, revealing important disciplinary distinctions in data management actions, attitudes, and interest in support services. Serious consideration of both the similarities and dissimilarities among disciplines will help guide academic librarians and other data curation professionals in developing a range of data-management services that can be tailored to the unique needs of different scholarly researchers.",
+				"abstractNote": "Academic librarians are increasingly engaging in data curation by providing infrastructure (e.g., institutional repositories) and offering services (e.g., data management plan consultations) to support the management of research data on their campuses. Efforts to develop these resources may benefit from a greater understanding of disciplinary differences in research data management needs. After conducting a survey of data management practices and perspectives at our research university, we categorized faculty members into four research domains—arts and humanities, social sciences, medical sciences, and basic sciences—and analyzed variations in their patterns of survey responses. We found statistically significant differences among the four research domains for nearly every survey item, revealing important disciplinary distinctions in data management actions, attitudes, and interest in support services. Serious consideration of both the similarities and dissimilarities among disciplines will help guide academic librarians and other data curation professionals in developing a range of data-management services that can be tailored to the unique needs of different scholarly researchers.",
 				"issue": "2",
 				"language": "en",
 				"libraryCatalog": "www.ijdc.net",
 				"pages": "5-26",
 				"publicationTitle": "International Journal of Digital Curation",
 				"rights": "Copyright (c)",
-				"url": "http://www.ijdc.net/index.php/ijdc/article/view/8.2.5",
+				"url": "http://www.ijdc.net/index.php/ijdc/article/view/8.2.5/",
 				"volume": "8",
 				"attachments": [
 					{
-						"title": "Full Text PDF",
-						"mimeType": "application/pdf"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Full Text PDF",
+						"mimeType": "application/pdf"
 					}
 				],
-				"tags": [],
+				"tags": [
+					{
+						"tag": "DCC"
+					},
+					{
+						"tag": "IJDC"
+					},
+					{
+						"tag": "International Journal of Digital Curation"
+					},
+					{
+						"tag": "curation"
+					},
+					{
+						"tag": "digital curation"
+					},
+					{
+						"tag": "digital preservation"
+					},
+					{
+						"tag": "preservation"
+					}
+				],
 				"notes": [],
 				"seeAlso": []
 			}
@@ -185,7 +287,7 @@ var testCases = [
 	},
 	{
 		"type": "web",
-		"url": "http://journals.ub.uni-heidelberg.de/index.php/ip/article/view/31976/26301",
+		"url": "https://journals.ub.uni-heidelberg.de/index.php/ip/article/view/31976/26301",
 		"items": [
 			{
 				"itemType": "journalArticle",
@@ -223,13 +325,15 @@ var testCases = [
 					}
 				],
 				"date": "2016/08/16",
+				"DOI": "10.11588/ip.2016.2.31976",
 				"ISSN": "2297-3249",
+				"abstractNote": "Zwischen dem 7. und 11. März 2016 fand der erste Bibcast, eine Webcast-Serie zu bibliothekarisch relevanten Themen statt. Aus der Idee heraus entstanden, abgelehnten Einreichungen für den Bibliothekskongress ein alternatives Forum zu bieten, hat sich der Bibcast als interessantes, flexibles und innovatives Format herausgestellt, das die Landschaft der Präsenzkonferenzen zukünftig sinnvoll ergänzen kann. In diesem Praxisbeitrag soll über Entstehung und Ablauf berichtet, Mehrwerte und Stolpersteine veranschaulicht und damit zugleich eine Anleitung zur Organisation von Webkonferenzen gegeben werden.",
 				"issue": "2",
 				"language": "de",
 				"libraryCatalog": "journals.ub.uni-heidelberg.de",
 				"publicationTitle": "Informationspraxis",
 				"rights": "Copyright (c) 2016 Daniel Beucke, Arvid Deppe, Tracy Hoffmann, Felix Lohmeier, Christof Rodejohann, Pascal Ngoc Phu Tu",
-				"url": "http://journals.ub.uni-heidelberg.de/index.php/ip/article/view/31976",
+				"url": "https://journals.ub.uni-heidelberg.de/index.php/ip/article/view/31976",
 				"volume": "2",
 				"attachments": [
 					{
@@ -237,7 +341,8 @@ var testCases = [
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [],
@@ -261,6 +366,8 @@ var testCases = [
 					}
 				],
 				"date": "2016/06/23",
+				"DOI": "10.17169/mae.2016.50",
+				"ISSN": "2567-9309",
 				"abstractNote": "This study deals with the question of genre cinema in terms of an aesthetic experience that also accounts for a shared experience. The focus will be on the historical framework that constituted the emotional mobilization of the American public during World War II when newsreels and fictional war films were screened together as part of the staple program in movie theaters. Drawing on existing concepts of cinema and public sphere as well as on a phenomenological theory of spectator engagement this study sets out to propose a definition of the term moviegoing experience. On these grounds a historiographical account of the institutional practice of staple programming shall be explored together with a theoretical conceptualization of the spectator within in the realm of genre cinema.Diese Studie befragt das Genrekino als Modus ästhetischer Erfahrung in Hinblick auf die konkrete geteilten Erfahrung des Kinosaals. Der Fokus liegt auf den historischen Rahmenbedingen der emotionalen Mobilisierung der US-amerikanischen Öffentlichkeit während des Zweiten Weltkriegs und der gemeinsamen Vorführung von Kriegsnachrichten und fiktionalen Kriegsfilmen in Kinoprogrammen. Dabei wird auf Konzepte des Kinos als öffentlichem Raum und auf phänomenologische Theorien der Zuschaueradressierung Bezug genommen und ein integrative Definition der moviegoing experience entworfen. Dadurch ist es möglich, historiographische Schilderungen der institutionalisierten Praktiken der Kinoprogrammierung mit theoretischen Konzeptualisierungen der Zuschauererfahrung und des Genrekinos ins Verhältnis zu setzen.David Gaertner, M.A. is currently writing his dissertation on the cinematic experience of World War II and is a lecturer at the division of Film Studies at Freie Universität Berlin. From 2011 to 2014 he was research associate in the project “Staging images of war as a mediated experience of community“. He is co-editor of the book “Mobilisierung der Sinne. Der Hollywood-Kriegsfilm zwischen Genrekino und Historie” (Berlin 2013). // David Gaertner, M.A. arbeitet an einer Dissertation zur Kinoerfahrung im Zweiten Weltkrieg und lehrt am Seminar für Filmwissenschaft an der Freien Universität Berlin. 2011 bis 2014 war er wissenschaftlicher Mitarbeiter im DFG-Projekt „Inszenierungen des Bildes vom Krieg als Medialität des Gemeinschaftserlebens“. Er ist Mitherausgeber des Sammelbands “Mobilisierung der Sinne. Der Hollywood-Kriegsfilm zwischen Genrekino und Historie” (Berlin 2013).",
 				"issue": "1",
 				"language": "en",
@@ -269,10 +376,11 @@ var testCases = [
 				"rights": "Copyright (c) 2016 David Gaertner",
 				"shortTitle": "World War II in American Movie Theatres from 1942-45",
 				"url": "http://www.mediaesthetics.org/index.php/mae/article/view/50",
-				"volume": "1",
+				"volume": "0",
 				"attachments": [
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [],
@@ -283,7 +391,7 @@ var testCases = [
 	},
 	{
 		"type": "web",
-		"url": "http://0277.ch/ojs/index.php/cdrs_0277/article/view/101",
+		"url": "https://0277.ch/ojs/index.php/cdrs_0277/article/view/101",
 		"items": [
 			{
 				"itemType": "journalArticle",
@@ -298,14 +406,13 @@ var testCases = [
 				"date": "2016/03/14",
 				"DOI": "10.12685/027.7-4-1-101",
 				"ISSN": "2296-0597",
-				"abstractNote": "Der Artikel beschreibt die drei Preisverfahren, die im Preismanagement angewendet werden und zeigt, dass trotz neuer Preisverfahren die Preismodelle bei wissenschaftlichen Zeitschriften immer noch kostenorientiert oder wettbewerbsorientiert sind. Das nutzenorientierte Preisverfahren wartet noch auf seine Umsetzung.This article describes the three modes of pricing which have been applied by price management. Although new pricing models are existing pricing models at scientific journals remain cost oriented or competitor oriented. The value oriented pricing is still waiting for realisation.",
 				"issue": "1",
 				"language": "de",
 				"libraryCatalog": "0277.ch",
 				"pages": "11-17",
-				"publicationTitle": "027.7 Zeitschrift für Bibliothekskultur / Journal for Library Culture",
+				"publicationTitle": "027.7 Zeitschrift für Bibliothekskultur",
 				"rights": "Copyright (c) 2016 027.7 Zeitschrift für Bibliothekskultur / Journal for Library Culture",
-				"url": "http://0277.ch/ojs/index.php/cdrs_0277/article/view/101",
+				"url": "https://0277.ch/index.php/cdrs_0277/article/view/101",
 				"volume": "4",
 				"attachments": [
 					{
@@ -313,7 +420,8 @@ var testCases = [
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [],
@@ -324,7 +432,7 @@ var testCases = [
 	},
 	{
 		"type": "web",
-		"url": "http://www.qualitative-research.net/index.php/fqs/article/view/2477",
+		"url": "https://www.qualitative-research.net/index.php/fqs/article/view/2477",
 		"items": [
 			{
 				"itemType": "journalArticle",
@@ -342,6 +450,7 @@ var testCases = [
 					}
 				],
 				"date": "2016/07/28",
+				"DOI": "10.17169/fqs-17.3.2477",
 				"ISSN": "1438-5627",
 				"abstractNote": "The application of computer-assisted qualitative data analysis software (CAQDAS) in the field of qualitative sociology is becoming more popular. However, in Polish scientific research, the use of computer software to aid qualitative data analysis is uncommon. Nevertheless, the Polish qualitative research community is turning to CAQDAS software increasingly often. One noticeable result of working with CAQDAS is an increase in methodological awareness, which is reflected in higher accuracy and precision in qualitative data analysis. Our purpose in this article is to describe the qualitative researchers' environment in Poland and to consider the use of computer-assisted qualitative data analysis. In our deliberations, we focus mainly on the social sciences, especially sociology.URN: http://nbn-resolving.de/urn:nbn:de:0114-fqs160344",
 				"issue": "3",
@@ -349,7 +458,7 @@ var testCases = [
 				"libraryCatalog": "www.qualitative-research.net",
 				"publicationTitle": "Forum Qualitative Sozialforschung / Forum: Qualitative Social Research",
 				"rights": "Copyright (c) 2016 Jakub Niedbalski, Izabela Ślęzak",
-				"url": "http://www.qualitative-research.net/index.php/fqs/article/view/2477",
+				"url": "https://www.qualitative-research.net/index.php/fqs/article/view/2477",
 				"volume": "17",
 				"attachments": [
 					{
@@ -357,19 +466,23 @@ var testCases = [
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [
-					"CAQDAS",
-					"Polen",
-					"Polish sociology",
-					"Software",
-					"Soziologie",
-					"computer-assisted qualitative data analysis",
-					"computergestützte Datenanalyse",
-					"qualitative Forschung",
-					"qualitative research"
+					{
+						"tag": "CAQDAS"
+					},
+					{
+						"tag": "Polish sociology"
+					},
+					{
+						"tag": "computer-assisted qualitative data analysis"
+					},
+					{
+						"tag": "qualitative research"
+					}
 				],
 				"notes": [],
 				"seeAlso": []
@@ -378,7 +491,7 @@ var testCases = [
 	},
 	{
 		"type": "web",
-		"url": "http://heiup.uni-heidelberg.de/journals/index.php/transcultural/article/view/23541",
+		"url": "https://heiup.uni-heidelberg.de/journals/index.php/transcultural/article/view/23541",
 		"items": [
 			{
 				"itemType": "journalArticle",
@@ -398,28 +511,25 @@ var testCases = [
 				"language": "en",
 				"libraryCatalog": "heiup.uni-heidelberg.de",
 				"pages": "149-186",
-				"publicationTitle": "Transcultural Studies",
+				"publicationTitle": "The Journal of Transcultural Studies",
 				"rights": "Copyright (c) 2016 Samuel Thevoz",
 				"shortTitle": "On the Threshold of the \"Land of Marvels",
-				"url": "http://heiup.uni-heidelberg.de/journals/index.php/transcultural/article/view/23541",
-				"volume": "0",
+				"url": "https://heiup.uni-heidelberg.de/journals/index.php/transcultural/article/view/23541",
+				"volume": "7",
 				"attachments": [
 					{
 						"title": "Full Text PDF",
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [
-					"Alexandra David-Neel",
-					"Cultural Globalization",
-					"Himalayan Borderlands",
-					"Modern Buddhism",
-					"Tibetan Buddhism",
-					"Travel Writing",
-					"World Literature"
+					{
+						"tag": "World Literature"
+					}
 				],
 				"notes": [],
 				"seeAlso": []
@@ -456,7 +566,8 @@ var testCases = [
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [],
@@ -467,7 +578,7 @@ var testCases = [
 	},
 	{
 		"type": "web",
-		"url": "http://journals.ub.uni-heidelberg.de/index.php/miradas/article/view/22445",
+		"url": "https://journals.ub.uni-heidelberg.de/index.php/miradas/article/view/22445",
 		"items": [
 			{
 				"itemType": "journalArticle",
@@ -483,13 +594,12 @@ var testCases = [
 				"DOI": "10.11588/mira.2015.0.22445",
 				"ISSN": "2363-8087",
 				"abstractNote": "La obra fotográfica del artista puertorriqueño Carlos Ruiz-Valarino plantea un marcado contraste con una de las tradiciones más arraigadas en la historia del arte de esta isla del Caribe, que es la representación de una identidad cultural construida a través de símbolos. Recurriendo a la parodia a través de tres géneros pictóricos, como son el paisaje, el retrato y el objeto (en el marco de la naturaleza muerta), Ruiz-Valarino cuestiona los símbolos que reiteradamente se emplean en la construcción de un concepto tan controvertido como es el de identidad, conversando para ello con la tradición iconográfica de la fotografía antropológica y etnográfica, así como la de la ilustración científica o la caricatura.",
-				"issue": "0",
 				"language": "es",
 				"libraryCatalog": "journals.ub.uni-heidelberg.de",
 				"pages": "36-49",
-				"publicationTitle": "Miradas - Elektronische Zeitschrift für Iberische und Ibero-amerikanische Kunstgeschichte",
-				"rights": "Copyright (c) 2015 Miradas - Elektronische Zeitschrift für Iberische und Ibero-amerikanische Kunstgeschichte",
-				"url": "http://journals.ub.uni-heidelberg.de/index.php/miradas/article/view/22445",
+				"publicationTitle": "Miradas - Zeitschrift für Kunst- und Kulturgeschichte der Amérikas und der iberischen Halbinsel",
+				"rights": "Copyright (c) 2015",
+				"url": "https://journals.ub.uni-heidelberg.de/index.php/miradas/article/view/22445",
 				"volume": "2",
 				"attachments": [
 					{
@@ -497,16 +607,11 @@ var testCases = [
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
-				"tags": [
-					"Fotografía",
-					"Puerto Rico",
-					"antropología",
-					"etnografía",
-					"iconografía"
-				],
+				"tags": [],
 				"notes": [],
 				"seeAlso": []
 			}
@@ -527,22 +632,21 @@ var testCases = [
 					}
 				],
 				"date": "2015/05/17",
-				"ISSN": "0342-9635",
 				"abstractNote": "-",
 				"issue": "99",
 				"language": "de",
 				"libraryCatalog": "ojs.ub.uni-konstanz.de",
-				"publicationTitle": "Willkommen bei Bibliothek aktuell",
+				"publicationTitle": "Bibliothek aktuell",
 				"rights": "Copyright (c) 2015 Willkommen bei Bibliothek aktuell",
 				"url": "https://ojs.ub.uni-konstanz.de/ba/article/view/6175",
-				"volume": "0",
 				"attachments": [
 					{
 						"title": "Full Text PDF",
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [],
@@ -584,20 +688,41 @@ var testCases = [
 				"volume": "17",
 				"attachments": [
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [
-					"Anonymität",
-					"Bestattung",
-					"Genderdifferenzen",
-					"Säkularisierung",
-					"Tod",
-					"anonymity",
-					"burial",
-					"death",
-					"gender difference",
-					"secularisation"
+					{
+						"tag": "Anonymität"
+					},
+					{
+						"tag": "Bestattung"
+					},
+					{
+						"tag": "Genderdifferenzen"
+					},
+					{
+						"tag": "Säkularisierung"
+					},
+					{
+						"tag": "Tod"
+					},
+					{
+						"tag": "anonymity"
+					},
+					{
+						"tag": "burial"
+					},
+					{
+						"tag": "death"
+					},
+					{
+						"tag": "gender difference"
+					},
+					{
+						"tag": "secularisation"
+					}
 				],
 				"notes": [],
 				"seeAlso": []
@@ -648,7 +773,7 @@ var testCases = [
 						"creatorType": "author"
 					}
 				],
-				"date": "2011-01-01",
+				"date": "2011/10/17",
 				"DOI": "10.4314/thrb.v13i4.63347",
 				"ISSN": "1821-9241",
 				"abstractNote": "The synergistic interaction between Human Immunodeficiency virus (HIV) disease and Malaria makes it mandatory for patients with HIV to respond appropriately in preventing and treating malaria. Such response will help to control the two diseases. This study assessed the knowledge of 495 patients attending the HIV clinic, in Lagos University Teaching Hospital, Nigeria.  Their treatment seeking, preventive practices with regards to malaria, as well as the impact of socio – demographic / socio - economic status were assessed. Out of these patients, 245 (49.5 %) used insecticide treated bed nets; this practice was not influenced by socio – demographic or socio – economic factors.  However, knowledge of the cause, knowledge of prevention of malaria, appropriate use of antimalarial drugs and seeking treatment from the right source increased with increasing level of education (p < 0.05). A greater proportion of the patients, 321 (64.9 %) utilized hospitals, pharmacy outlets or health centres when they perceived an attack of malaria. Educational intervention may result in these patients seeking treatment from the right place when an attack of malaria fever is perceived.",
@@ -656,7 +781,7 @@ var testCases = [
 				"language": "en",
 				"libraryCatalog": "www.ajol.info",
 				"publicationTitle": "Tanzania Journal of Health Research",
-				"rights": "Copyright for articles published in this journal is retained by the journal.",
+				"rights": "Copyright (c)",
 				"url": "https://www.ajol.info/index.php/thrb/article/view/63347",
 				"volume": "13",
 				"attachments": [
@@ -665,16 +790,29 @@ var testCases = [
 						"mimeType": "application/pdf"
 					},
 					{
-						"title": "Snapshot"
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [
-					"HIV patients",
-					"Nigeria",
-					"knowledge",
-					"malaria",
-					"prevention",
-					"treatment"
+					{
+						"tag": "HIV patients"
+					},
+					{
+						"tag": "Nigeria"
+					},
+					{
+						"tag": "knowledge"
+					},
+					{
+						"tag": "malaria"
+					},
+					{
+						"tag": "prevention"
+					},
+					{
+						"tag": "treatment"
+					}
 				],
 				"notes": [],
 				"seeAlso": []
@@ -683,11 +821,11 @@ var testCases = [
 	},
 	{
 		"type": "web",
-		"url": "http://ejournals.library.vanderbilt.edu/ojs/index.php/ameriquests/article/view/220",
+		"url": "https://ejournals.library.vanderbilt.edu/index.php/ameriquests/article/view/220",
 		"items": [
 			{
 				"itemType": "journalArticle",
-				"title": "Open Journal Systems",
+				"title": "Canadian Literature in the Early Twenty-First Century: The Emergence of an Inter-American Perspective",
 				"creators": [
 					{
 						"firstName": "Earl E.",
@@ -695,30 +833,274 @@ var testCases = [
 						"creatorType": "author"
 					}
 				],
+				"date": "2011/07/28",
 				"DOI": "10.15695/amqst.v8i1.220",
-				"abstractNote": "Historically, Canadian literature has been chary of entering too far into the new discipline of inter-American literary study.  Rightly concerned about the danger of blurring its identity as a distinctive national literature (one made up, as is well known, of two great strands, the French and the English), Canadian writing has, however, come of age, both nationally and internationally.  One dramatic aspect of this transformation is that we now have mounting evidence that both English and French Canadian writers are actively engaging with the literatures and cultures of their hemispheric neighbors.  By extending the methodologies of Comparative Literature to the inter-American paradigm, Canadian writers, critics, and literary historians are finding ways to maintain their status as members of a unique and under-appreciated national literature while also entering into the kinds of comparative studies that demonstrate their New World ties as well.",
+				"ISSN": "1553-4316",
+				"issue": "1",
+				"language": "en",
 				"libraryCatalog": "ejournals.library.vanderbilt.edu",
-				"url": "http://ejournals.library.vanderbilt.edu/ojs/index.php/ameriquests/article/view/220",
+				"publicationTitle": "AmeriQuests",
+				"rights": "Copyright (c) 2015 AmeriQuests",
+				"shortTitle": "Canadian Literature in the Early Twenty-First Century",
+				"url": "https://ejournals.library.vanderbilt.edu/index.php/ameriquests/article/view/220",
+				"volume": "8",
 				"attachments": [
 					{
-						"title": "Snapshot"
+						"title": "Full Text PDF",
+						"mimeType": "application/pdf"
+					},
+					{
+						"title": "Snapshot",
+						"mimeType": "text/html"
+					}
+				],
+				"tags": [],
+				"notes": [],
+				"seeAlso": []
+			}
+		]
+	},
+	{
+		"type": "web",
+		"url": "http://jms.uwinnipeg.ca/index.php/jms/article/view/1369",
+		"items": [
+			{
+				"itemType": "journalArticle",
+				"title": "Mennonites in Unexpected Places: Sociologist and Settler in Latin America",
+				"creators": [
+					{
+						"firstName": "Ben",
+						"lastName": "Nobbs-Thiessen",
+						"creatorType": "author"
+					}
+				],
+				"date": "2010",
+				"ISSN": "1918-610X",
+				"language": "en",
+				"libraryCatalog": "jms.uwinnipeg.ca",
+				"pages": "203-224",
+				"publicationTitle": "Journal of Mennonite Studies",
+				"rights": "Copyright (c)",
+				"shortTitle": "Mennonites in Unexpected Places",
+				"url": "http://jms.uwinnipeg.ca/index.php/jms/article/view/1369",
+				"volume": "28",
+				"attachments": [
+					{
+						"title": "Full Text PDF",
+						"mimeType": "application/pdf"
+					},
+					{
+						"title": "Snapshot",
+						"mimeType": "text/html"
+					}
+				],
+				"tags": [],
+				"notes": [],
+				"seeAlso": []
+			}
+		]
+	},
+	{
+		"type": "web",
+		"url": "https://journals.sfu.ca/jmde/index.php/jmde_1/article/view/100/115",
+		"items": [
+			{
+				"itemType": "journalArticle",
+				"title": "The Value of Evaluation Standards: A Comparative Assessment",
+				"creators": [
+					{
+						"firstName": "Robert",
+						"lastName": "Picciotto",
+						"creatorType": "author"
+					}
+				],
+				"date": "2005",
+				"ISSN": "1556-8180",
+				"issue": "3",
+				"language": "en",
+				"libraryCatalog": "journals.sfu.ca",
+				"pages": "30-59",
+				"publicationTitle": "Journal of MultiDisciplinary Evaluation",
+				"rights": "Copyright (c)",
+				"shortTitle": "The Value of Evaluation Standards",
+				"url": "https://journals.sfu.ca/jmde/index.php/jmde_1/article/view/100",
+				"volume": "2",
+				"attachments": [
+					{
+						"title": "Full Text PDF",
+						"mimeType": "application/pdf"
+					},
+					{
+						"title": "Snapshot",
+						"mimeType": "text/html"
+					}
+				],
+				"tags": [],
+				"notes": [],
+				"seeAlso": []
+			}
+		]
+	},
+	{
+		"type": "web",
+		"url": "https://jecs.pl/index.php/jecs/article/view/551",
+		"items": [
+			{
+				"itemType": "journalArticle",
+				"title": "PREPARING FUTURE LEADERS OF THEIR RACES -THE POLITICAL FUNCTION OF CHILDREN’S CHARACTERS IN CONTEMPORARY AFRICAN AMERICAN PICTURE-BOOKS",
+				"creators": [
+					{
+						"firstName": "Ewa",
+						"lastName": "Klęczaj-Siara",
+						"creatorType": "author"
+					}
+				],
+				"date": "2019/06/30",
+				"DOI": "10.15503/jecs20191.173.184",
+				"ISSN": "2081-1640",
+				"issue": "1",
+				"language": "en",
+				"libraryCatalog": "jecs.pl",
+				"pages": "173-184",
+				"publicationTitle": "Journal of Education Culture and Society",
+				"rights": "Copyright (c) 2019 Ewa Klęczaj-Siara",
+				"url": "https://jecs.pl/index.php/jecs/article/view/551",
+				"volume": "10",
+				"attachments": [
+					{
+						"title": "Full Text PDF",
+						"mimeType": "application/pdf"
+					},
+					{
+						"title": "Snapshot",
+						"mimeType": "text/html"
 					}
 				],
 				"tags": [
-					"American studies",
-					"Canadian studies",
-					"american dream",
-					"brazilian studies",
-					"center for the americas",
-					"free trade",
-					"inter-american literature",
-					"latin american studies",
-					"literature and law",
-					"migration",
-					"native american studies",
-					"quebec studies",
-					"storytelling",
-					"vanderbilt"
+					{
+						"tag": "political agents"
+					}
+				],
+				"notes": [],
+				"seeAlso": []
+			}
+		]
+	},
+	{
+		"type": "web",
+		"url": "https://journal.meteohistory.org/index.php/hom/article/view/79",
+		"items": [
+			{
+				"itemType": "journalArticle",
+				"title": "Trajectories and reconversions of the Center for Weather Forecasting and Climate Studies (CPTEC): Forming the meteorological science elite in Brazil",
+				"creators": [
+					{
+						"firstName": "Thales de",
+						"lastName": "Andrade",
+						"creatorType": "author"
+					},
+					{
+						"firstName": "Paulo",
+						"lastName": "Escada",
+						"creatorType": "author"
+					}
+				],
+				"date": "2021/05/18",
+				"ISSN": "1555-5763",
+				"archiveLocation": "Brazil, 1970-2000",
+				"language": "en",
+				"libraryCatalog": "journal.meteohistory.org",
+				"pages": "1-23",
+				"publicationTitle": "History of Meteorology",
+				"rights": "Copyright (c) 2021 Thales de Andrade, Paulo Escada",
+				"shortTitle": "Trajectories and reconversions of the Center for Weather Forecasting and Climate Studies (CPTEC)",
+				"url": "https://journal.meteohistory.org/index.php/hom/article/view/79",
+				"volume": "10",
+				"attachments": [
+					{
+						"title": "Full Text PDF",
+						"mimeType": "application/pdf"
+					},
+					{
+						"title": "Snapshot",
+						"mimeType": "text/html"
+					}
+				],
+				"tags": [
+					{
+						"tag": "scientific elites"
+					}
+				],
+				"notes": [],
+				"seeAlso": []
+			}
+		]
+	},
+	{
+		"type": "web",
+		"url": "https://www.revistacomunicar.com/ojs/index.php/comunicar/article/view/C67-2021-02",
+		"items": [
+			{
+				"itemType": "journalArticle",
+				"title": "Jóvenes ante el ciberodio: El rol de la mediación parental y el apoyo familiar",
+				"creators": [
+					{
+						"firstName": "Michelle F.",
+						"lastName": "Wright",
+						"creatorType": "author"
+					},
+					{
+						"firstName": "Sebastian",
+						"lastName": "Wachs",
+						"creatorType": "author"
+					},
+					{
+						"firstName": "Manuel",
+						"lastName": "Gámez-Guadix",
+						"creatorType": "author"
+					}
+				],
+				"date": "2021/04/01",
+				"DOI": "10.3916/C67-2021-02",
+				"ISSN": "1988-3293",
+				"issue": "67",
+				"language": "es",
+				"libraryCatalog": "www.revistacomunicar.com",
+				"pages": "21-33",
+				"publicationTitle": "Comunicar",
+				"rights": "Derechos de autor",
+				"shortTitle": "Jóvenes ante el ciberodio",
+				"url": "https://www.revistacomunicar.com/ojs/index.php/comunicar/article/view/C67-2021-02",
+				"volume": "29",
+				"attachments": [
+					{
+						"title": "Snapshot",
+						"mimeType": "text/html"
+					},
+					{
+						"title": "Full Text PDF",
+						"mimeType": "application/pdf"
+					}
+				],
+				"tags": [
+					{
+						"tag": "Ciberodio"
+					},
+					{
+						"tag": "afrontamiento"
+					},
+					{
+						"tag": "apoyo familiar"
+					},
+					{
+						"tag": "discurso del odio"
+					},
+					{
+						"tag": "educación mediática"
+					},
+					{
+						"tag": "mediación parental"
+					}
 				],
 				"notes": [],
 				"seeAlso": []

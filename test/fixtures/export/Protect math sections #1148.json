@@ -1,0 +1,25 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "bibtexURL": "note",
+      "citekeyFormat": "[auth:lower][shorttitle3_3][year]",
+      "itemObserverDelay": 100,
+      "mapUnicode": "math"
+    }
+  },
+  "items": [
+    {
+      "accessDate": "2019-03-11T07:01:19Z",
+      "itemID": 1,
+      "itemType": "webpage",
+      "title": "<\\input Wiki .:. goLaTeX - Mein LaTeX-Forum",
+      "url": "https://golatex.de/wiki/%5Cinput"
+    }
+  ]
+}

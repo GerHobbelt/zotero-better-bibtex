@@ -2,66 +2,59 @@
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
     "label": "BetterBibTeX JSON",
-    "release": "0.7.1",
+    "localeDateOrder": "ymd",
+    "options": {},
     "preferences": {
-      "citekeyFormat": "[auth][year]",
       "bibtexURL": "note",
-      "jabrefFormat": 0
-    },
-    "options": {
-      "exportFileData": false,
-      "exportNotes": false,
-      "Export collections": false
+      "citekeyFormat": "[auth][year]"
     }
-  },
-  "collections": {
   },
   "items": [
     {
-      "itemID": 4178,
-      "itemType": "book",
-      "url": "http://site.ebrary.com/lib/alltitles/docDetail.action?docID=10296302",
-      "place": "Hoboken, NJ, USA",
-      "publisher": "IEEE Computer Society Press",
       "ISBN": "9780470165164",
-      "date": "2007",
       "accessDate": "2015-01-09 12:03:46",
-      "libraryCatalog": "ebrary",
-      "title": "Automated Defect Prevention : Best Practices in Software Management",
-      "shortTitle": "Automated Defect Prevention",
       "creators": [
         {
           "creatorType": "author",
           "firstName": "Adam",
-          "lastName": "Kolawa",
-          "fieldMode": ""
+          "lastName": "Kolawa"
         },
         {
           "creatorType": "author",
           "firstName": "Dorota",
-          "lastName": "Huizinga",
-          "fieldMode": ""
+          "lastName": "Huizinga"
         },
         {
           "creatorType": "author",
           "name": "Wiley InterScience (Online service)"
         }
       ],
-      "attachments": [
+      "date": "2007",
+      "itemID": 1,
+      "itemType": "book",
+      "libraryCatalog": "ebrary",
+      "place": "Hoboken, NJ, USA",
+      "publisher": "IEEE Computer Society Press",
+      "shortTitle": "Automated Defect Prevention",
+      "tags": [
         {
-          "path": "C:\\Users\\hnse\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\m4txxg8x.default\\zotero\\storage\\EQ27DZRS\\docDetail.html",
-          "title": "ebrary Snapshot",
-          "mimeType": "text/html",
-          "url": "http://site.ebrary.com/lib/alltitles/docDetail.action?docID=10296302"
+          "tag": "Computer programs -- Correctness."
+        },
+        {
+          "tag": "Computer programs -- Testing -- Data processing."
+        },
+        {
+          "tag": "Debugging in computer science -- Automatic control."
+        },
+        {
+          "tag": "Software failures -- Prevention -- Data processing."
+        },
+        {
+          "tag": "Software maintenance -- Data processing."
         }
       ],
-      "tags": [
-        "Computer programs -- Correctness.",
-        "Computer programs -- Testing -- Data processing.",
-        "Debugging in computer science -- Automatic control.",
-        "Software failures -- Prevention -- Data processing.",
-        "Software maintenance -- Data processing."
-      ]
+      "title": "Automated Defect Prevention : Best Practices in Software Management",
+      "url": "http://site.ebrary.com/lib/alltitles/docDetail.action?docID=10296302"
     }
   ]
 }

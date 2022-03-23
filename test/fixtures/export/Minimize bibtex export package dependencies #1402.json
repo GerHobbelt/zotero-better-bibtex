@@ -1,0 +1,61 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "[auth:lower][shorttitle3_3][year]",
+      "mapUnicode": "minimal-packages",
+      "workers": 4
+    }
+  },
+  "items": [
+    {
+      "DOI": "10.1103/PhysRevLett.73.2027",
+      "abstractNote": "We point out a simple relation between the nuclear vertex constant (NVC) and the overall normalization of the astrophysical S factor. Using predicted values of the NVC for the virtual decay of 8B\u21927Be+p we find S17(0)\u224817.6 eVb for 7Be(p,\u03b3)8B reactions, consistent with the low values extrapolated from direct capture measurements by Filippone et al. and by Vaughn et al. New possibilities, using proton transfer reactions, to measure the astrophysical S factor indirectly are proposed.",
+      "accessDate": "2020-01-16T09:57:08Z",
+      "citationKey": "xuOverallNormalizationAstrophysical1994",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "H. M.",
+          "lastName": "Xu"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "C. A.",
+          "lastName": "Gagliardi"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "R. E.",
+          "lastName": "Tribble"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "A. M.",
+          "lastName": "Mukhamedzhanov"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "N. K.",
+          "lastName": "Timofeyuk"
+        }
+      ],
+      "date": "October 10, 1994",
+      "issue": "15",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "journalAbbreviation": "Phys. Rev. Lett.",
+      "libraryCatalog": "APS",
+      "pages": "2027-2030",
+      "publicationTitle": "Physical Review Letters",
+      "title": "Overall Normalization of the Astrophysical \u2192 Reactions",
+      "url": "https://link.aps.org/doi/10.1103/PhysRevLett.73.2027",
+      "volume": "73"
+    }
+  ]
+}

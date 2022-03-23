@@ -1,0 +1,182 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "DOIandURL": "doi",
+      "autoAbbrev": true,
+      "citekeyFormat": "[auth:lower][year][shorttitle3_3]",
+      "postscript": "if (Translator.BetterTeX) {\n  // the bib(la)tex fields are ordered according to this array.\n  // If a field is not in this list, it will show up at after the ordered fields.\n  // https://github.com/retorquere/zotero-better-bibtex/issues/512\n\n  const order = ['author', 'editor', 'title', 'shorttitle', 'booktitle', 'journaltitle', 'shortjournal', 'edition', 'volume', 'pages', 'publisher', 'address', 'institution', 'location', 'date', 'issn', 'doi', 'url', 'urldate']\n  for (const field of order.concat(Object.keys(reference.has).filter(other => !order.includes(other)))) {\n    const value = reference.has[field]\n    if (value) {\n      delete reference.has[field]\n      reference.has[field] = value\n    }\n  }\n}\n",
+      "qualityReport": true,
+      "skipFields": "file, abstract, note"
+    }
+  },
+  "items": [
+    {
+      "DOI": "10.1109/TETC.2016.2606384",
+      "ISSN": "2376-4562",
+      "abstractNote": "Internet of Things (IoT), also referred to as the Internet of Objects, is envisioned as a transformative approach for providing numerous services. Compact smart devices constitute an essential part of IoT. They range widely in use, size, energy capacity, and computation power. However, the integration of these smart things into the standard Internet introduces several security challenges because the majority of Internet technologies and communication protocols were not designed to support IoT. Moreover, commercialization of IoT has led to public security concerns, including personal privacy issues, threat of cyber attacks, and organized crime. In order to provide a guideline for those who want to investigate IoT security and contribute to its improvement, this survey attempts to provide a comprehensive list of vulnerabilities and countermeasures against them on the edge-side layer of IoT, which consists of three levels: (i) edge nodes, (ii) communication, and (iii) edge computing. To achieve this goal, we first briefly describe three widely-known IoT reference models and define security in the context of IoT. Second, we discuss the possible applications of IoT and potential motivations of the attackers who target this new paradigm. Third, we discuss different attacks and threats. Fourth, we describe possible countermeasures against these attacks. Finally, we introduce two emerging security challenges not yet explained in detail in previous literature.",
+      "citationKey": "mosenia2017ComprehensiveStudySecurity",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Arsalan",
+          "lastName": "Mosenia"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Niraj K.",
+          "lastName": "Jha"
+        }
+      ],
+      "date": "October 2017",
+      "extra": [
+        "ZSCC: NoCitationData[s0]",
+        "Publisher: IEEE"
+      ],
+      "issue": "4",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "journalAbbreviation": "IEEE Trans. Emerg. Top. Comput.",
+      "libraryCatalog": "IEEE Xplore",
+      "pages": "586-602",
+      "publicationTitle": "IEEE Transactions on Emerging Topics in Computing",
+      "tags": [
+        {
+          "tag": "Availability",
+          "type": 1
+        },
+        {
+          "tag": "Biological system modeling",
+          "type": 1
+        },
+        {
+          "tag": "compact smart devices",
+          "type": 1
+        },
+        {
+          "tag": "computation power",
+          "type": 1
+        },
+        {
+          "tag": "Computational modeling",
+          "type": 1
+        },
+        {
+          "tag": "confidentiality",
+          "type": 1
+        },
+        {
+          "tag": "countermeasures",
+          "type": 1
+        },
+        {
+          "tag": "cyber attacks",
+          "type": 1
+        },
+        {
+          "tag": "data privacy",
+          "type": 1
+        },
+        {
+          "tag": "edge computing",
+          "type": 1
+        },
+        {
+          "tag": "edge nodes",
+          "type": 1
+        },
+        {
+          "tag": "energy capacity",
+          "type": 1
+        },
+        {
+          "tag": "integrity",
+          "type": 1
+        },
+        {
+          "tag": "Internet",
+          "type": 1
+        },
+        {
+          "tag": "Internet of things",
+          "type": 1
+        },
+        {
+          "tag": "Internet of Things",
+          "type": 1
+        },
+        {
+          "tag": "Internet technologies",
+          "type": 1
+        },
+        {
+          "tag": "Internet-of-Things",
+          "type": 1
+        },
+        {
+          "tag": "IoT reference models",
+          "type": 1
+        },
+        {
+          "tag": "IoT security",
+          "type": 1
+        },
+        {
+          "tag": "Monitoring",
+          "type": 1
+        },
+        {
+          "tag": "organized crime",
+          "type": 1
+        },
+        {
+          "tag": "personal privacy issues",
+          "type": 1
+        },
+        {
+          "tag": "privacy",
+          "type": 1
+        },
+        {
+          "tag": "public security concerns",
+          "type": 1
+        },
+        {
+          "tag": "security",
+          "type": 1
+        },
+        {
+          "tag": "Security",
+          "type": 1
+        },
+        {
+          "tag": "security of data",
+          "type": 1
+        },
+        {
+          "tag": "Smart devices",
+          "type": 1
+        },
+        {
+          "tag": "smart things",
+          "type": 1
+        },
+        {
+          "tag": "vulnerabilities",
+          "type": 1
+        },
+        {
+          "tag": "Wireless sensor networks",
+          "type": 1
+        }
+      ],
+      "title": "A Comprehensive Study of Security of Internet-of-Things",
+      "volume": "5"
+    }
+  ]
+}

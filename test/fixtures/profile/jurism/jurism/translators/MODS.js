@@ -14,8 +14,7 @@
 	},
 	"inRepository": true,
 	"translatorType": 3,
-	"browserSupport": "gcsibv",
-	"lastUpdated": "2017-12-25 13:29:42"
+	"lastUpdated": "2020-05-29 00:25:03"
 }
 
 var fromMarcGenre = {
@@ -273,11 +272,14 @@ var modsInternetMediaTypes = {
 };
 
 var marcRelators = {
-	"aut":"author",
-	"edt":"editor",
-	"ctb":"contributor",
-	"pbd":"seriesEditor",
-	"trl":"translator"
+	aut: "author",
+	edt: "editor",
+	ctb: "contributor",
+	pbd: "seriesEditor",
+	trl: "translator",
+	cmp: "composer",
+	lyr: "wordsBy",
+	prf: "performer"
 };
 
 // Boilerplate
@@ -301,7 +303,15 @@ var ns = "http://www.loc.gov/mods/v3",
 var xmlns = "http://www.w3.org/XML/1998/namespace";
 
 function detectImport() {
-	var doc = Zotero.getXML().documentElement;
+	let doc;
+	try {
+		doc = Zotero.getXML().documentElement;
+	}
+	catch (err) {
+		// most likely just not XML
+		return false;
+	}
+
 	if (!doc) {
 		return false;
 	}
@@ -492,7 +502,18 @@ function doExport() {
 				roleTerm = "trl";
 			} else if(creator.creatorType == "seriesEditor") {
 				roleTerm = "pbd";
-			} else {
+			}
+			else if (creator.creatorType == "composer") {
+				roleTerm = "cmp";
+			}
+			else if (creator.creatorType == "wordsBy") {
+				roleTerm = "lyr";
+			}
+			else if (creator.creatorType == "performer") {
+				roleTerm = "prf";
+			}
+
+			else {
 				roleTerm = "ctb";
 			}
 
@@ -1196,20 +1217,22 @@ function processExtent(extent, newItem) {
 			if(rt = ma[1].match(/\b(\d{2,3})(\d{2})(\d{2})\b/)) {
 				newItem.runningTime = rt[1] + ':' + rt[2] + ':' + rt[3];
 			// (ca. 124 min.)
-			} else if(rt = ma[1].match(/((\d+)\s*((?:hours?|hrs?)|(?:minutes?|mins?)|(?:seconds?|secs?))\.?\s+)?((\d+)\s*((?:hours?|hrs?)|(?:minutes?|mins?)|(?:seconds?|secs?))\.?\s+)?((\d+)\s*((?:hours?|hrs?)|(?:minutes?|mins?)|(?:seconds?|secs?))\.?)/i)) {
-				var hrs=0, mins=0, secs=0;
-				for(var i=2; i<7; i+=2) {
-					if(!rt[i]) continue;
+			}
+			// eslint-disable-next-line no-cond-assign
+			else if (rt = ma[1].match(/((\d+)\s*((?:hours?|hrs?)|(?:minutes?|mins?)|(?:seconds?|secs?))\.?\s+)?((\d+)\s*((?:hours?|hrs?)|(?:minutes?|mins?)|(?:seconds?|secs?))\.?\s+)?((\d+)\s*((?:hours?|hrs?)|(?:minutes?|mins?)|(?:seconds?|secs?))\.?)/i)) {
+				var hrs = 0, mins = 0, secs = 0;
+				for (let i = 2; i < 7; i += 2) {
+					if (!rt[i]) continue;
 
-					switch(rt[i].charAt(0).toLowerCase()) {
+					switch (rt[i].charAt(0).toLowerCase()) {
 						case 'h':
-							hrs = rt[i-1];
+							hrs = rt[i - 1];
 							break;
 						case 'm':
-							mins = rt[i-1];
+							mins = rt[i - 1];
 							break;
 						case 's':
-							secs = rt[i-1];
+							secs = rt[i - 1];
 							break;
 					}
 				}
