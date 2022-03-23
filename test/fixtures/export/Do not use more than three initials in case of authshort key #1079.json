@@ -1,0 +1,52 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {},
+    "preferences": {
+      "citekeyFormat": "[authshort:nopunct][shortyear]",
+      "itemObserverDelay": 100,
+      "kuroshiro": true
+    }
+  },
+  "items": [
+    {
+      "ISBN": "978-953-51-0396-7",
+      "accessDate": "2018-11-08T19:36:39Z",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Ion",
+          "lastName": "Iancu"
+        },
+        {
+          "creatorType": "author",
+          "lastName": "Alpha"
+        },
+        {
+          "creatorType": "author",
+          "lastName": "Beta"
+        },
+        {
+          "creatorType": "author",
+          "lastName": "Gamma"
+        },
+        {
+          "creatorType": "author",
+          "lastName": "Delta"
+        }
+      ],
+      "date": "2012-03-28",
+      "extra": [
+        "DOI: 10.5772/2662"
+      ],
+      "itemID": 1,
+      "itemType": "bookSection",
+      "language": "en",
+      "publicationTitle": "Fuzzy Logic - Controls, Concepts, Theories and Applications",
+      "title": "A Mamdani Type Fuzzy Logic Controller",
+      "url": "https://www.intechopen.com/books/fuzzy-logic-controls-concepts-theories-and-applications"
+    }
+  ]
+}

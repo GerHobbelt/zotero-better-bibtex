@@ -1,0 +1,66 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "asciiBibTeX": false,
+      "citekeyFormat": "[Auth.etal].[origyear].[PublicationTitle:postfix=.][shorttitle3_3].[firstpage]",
+      "keyScope": "global",
+      "qualityReport": true,
+      "quickCopyMode": "orgRef",
+      "warnBulkModify": 0,
+      "workers": 4
+    }
+  },
+  "items": [
+    {
+      "ISBN": "84-7166-852-1",
+      "citationKey": "Brennan.1982.MagiaExperimental.",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "J. H",
+          "lastName": "Brennan"
+        }
+      ],
+      "date": "1982",
+      "extra": [
+        "{:original-date: 1976}"
+      ],
+      "itemID": 1,
+      "itemType": "book",
+      "language": "Spanish",
+      "place": "Madrid",
+      "publisher": "Edaf",
+      "title": "Magia experimental"
+    },
+    {
+      "ISBN": "978-85-86019-05-0",
+      "citationKey": "Vieira.1994.700ExperimentosdaConscienciologia.Capitulo.p.22",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Waldo",
+          "lastName": "Vieira"
+        }
+      ],
+      "date": "2002",
+      "edition": "1. ed.",
+      "extra": [
+        "{:original-date: 1994}"
+      ],
+      "itemID": 2,
+      "itemType": "bookSection",
+      "language": "pt",
+      "pages": "p.22",
+      "place": "Rio de Janeiro",
+      "publicationTitle": "700 Experimentos da Conscienciologia",
+      "publisher": "Instituto Internacional de Projeciologia",
+      "title": "Cap\u00edtulo 5"
+    }
+  ]
+}

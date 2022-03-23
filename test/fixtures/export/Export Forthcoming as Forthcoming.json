@@ -2,59 +2,41 @@
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
     "label": "BetterBibTeX JSON",
-    "release": "0.7.19",
+    "localeDateOrder": "ymd",
+    "options": {},
     "preferences": {
-      "citekeyFormat": "[auth][year]",
       "bibtexURL": "note",
-      "jabrefFormat": 0
-    },
-    "options": {
-      "exportFileData": false,
-      "exportNotes": false,
-      "Export collections": false
+      "citekeyFormat": "[auth][year]"
     }
-  },
-  "collections": {
   },
   "items": [
     {
-      "itemID": 375,
-      "itemType": "bookSection",
-      "url": "http://www.econ-pol.unisi.it/bartolini/papers/BARTOLINI-BILANCINI-SARRACINO.pdf",
-      "place": "Oxford",
-      "publisher": "Oxford University Press",
-      "date": "Forthcoming",
       "accessDate": "2015-02-07 20:13:23",
-      "title": "Social Capital Predicts Happiness: World-Wide Evidence From Time Series",
-      "bookTitle": "Policies for Happiness",
       "creators": [
         {
           "creatorType": "author",
           "firstName": "Stefano",
-          "lastName": "Bartolini",
-          "fieldMode": ""
+          "lastName": "Bartolini"
         },
         {
           "creatorType": "author",
           "firstName": "Ennio",
-          "lastName": "Bilancini",
-          "fieldMode": ""
+          "lastName": "Bilancini"
         },
         {
           "creatorType": "author",
           "firstName": "Francesco",
-          "lastName": "Sarracino",
-          "fieldMode": ""
+          "lastName": "Sarracino"
         }
       ],
-      "attachments": [
-        {
-          "title": "BARTOLINI-BILANCINI-SARRACINO - BARTOLINI-BILANCINI-SARRACINO.pdf",
-          "mimeType": "application/pdf",
-          "url": "http://www.econ-pol.unisi.it/bartolini/papers/BARTOLINI-BILANCINI-SARRACINO.pdf"
-        }
-      ],
-      "publicationTitle": "Policies for Happiness"
+      "date": "Forthcoming",
+      "itemID": 1,
+      "itemType": "bookSection",
+      "place": "Oxford",
+      "publicationTitle": "Policies for Happiness",
+      "publisher": "Oxford University Press",
+      "title": "Social Capital Predicts Happiness: World-Wide Evidence From Time Series",
+      "url": "http://www.econ-pol.unisi.it/bartolini/papers/BARTOLINI-BILANCINI-SARRACINO.pdf"
     }
   ]
 }

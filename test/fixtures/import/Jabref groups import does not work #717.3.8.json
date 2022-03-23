@@ -1,408 +1,237 @@
 {
+  "collections": {
+    "coll:00000": {
+      "collections": [
+        "coll:00001"
+      ],
+      "items": [
+        2,
+        4,
+        6,
+        7
+      ],
+      "key": "coll:00000",
+      "name": "Jabref groups import does not work #717.3.8"
+    },
+    "coll:00001": {
+      "collections": [
+        "coll:00003",
+        "coll:00008"
+      ],
+      "items": [
+        7
+      ],
+      "key": "coll:00001",
+      "name": "my-main-group-3",
+      "parent": "coll:00000"
+    },
+    "coll:00002": {
+      "collections": [
+        "coll:00004"
+      ],
+      "items": [
+        1,
+        3,
+        5
+      ],
+      "key": "coll:00002",
+      "name": "Jabref groups import does not work #717.2.10"
+    },
+    "coll:00003": {
+      "collections": [
+        "coll:00005"
+      ],
+      "items": [
+        2,
+        6
+      ],
+      "key": "coll:00003",
+      "name": "my-subgroup-3",
+      "parent": "coll:00001"
+    },
+    "coll:00004": {
+      "collections": [
+        "coll:00006",
+        "coll:00007"
+      ],
+      "items": [],
+      "key": "coll:00004",
+      "name": "my-main-group-2",
+      "parent": "coll:00002"
+    },
+    "coll:00005": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00005",
+      "name": "sub-sub-group-3",
+      "parent": "coll:00003"
+    },
+    "coll:00006": {
+      "collections": [],
+      "items": [
+        1
+      ],
+      "key": "coll:00006",
+      "name": "my-subgroup-2",
+      "parent": "coll:00004"
+    },
+    "coll:00007": {
+      "collections": [],
+      "items": [
+        3
+      ],
+      "key": "coll:00007",
+      "name": "my-other-subgroup-2",
+      "parent": "coll:00004"
+    },
+    "coll:00008": {
+      "collections": [],
+      "items": [
+        4,
+        6
+      ],
+      "key": "coll:00008",
+      "name": "my-other-subgroup-3",
+      "parent": "coll:00001"
+    }
+  },
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
     "label": "BetterBibTeX JSON",
-    "release": {
-      "Zotero": {
-        "version": "5.0.18",
-        "platform": "Linux x86_64",
-        "oscpu": "Linux x86_64",
-        "locale": "en-US",
-        "appName": "Zotero",
-        "appVersion": "5.0.18"
-      },
-      "BetterBibTeX": "5.0.2.emile.java-cotton"
-    },
+    "localeDateOrder": "ymd",
+    "options": {},
     "preferences": {
-      "asciiBibLaTeX": false,
-      "asciiBibTeX": true,
-      "autoAbbrev": false,
-      "autoAbbrevStyle": "",
-      "autoExport": "immediate",
-      "autoExportIdleWait": 10,
-      "cacheFlushInterval": 5,
-      "itemObserverDelay": 100,
-      "citeCommand": "cite",
-      "citekeyFormat": "[auth][year]",
-      "citekeyFold": true,
-      "DOIandURL": "both",
-      "bibtexURL": "off",
-      "csquotes": "",
-      "keyConflictPolicy": "keep",
-      "preserveBibTeXVariables": false,
-      "skipFields": [
-
-      ],
-      "skipWords": [
-        "a",
-        "ab",
-        "aboard",
-        "about",
-        "above",
-        "across",
-        "after",
-        "against",
-        "al",
-        "along",
-        "amid",
-        "among",
-        "an",
-        "and",
-        "anti",
-        "around",
-        "as",
-        "at",
-        "before",
-        "behind",
-        "below",
-        "beneath",
-        "beside",
-        "besides",
-        "between",
-        "beyond",
-        "but",
-        "by",
-        "d",
-        "da",
-        "das",
-        "de",
-        "del",
-        "dell",
-        "dello",
-        "dei",
-        "degli",
-        "della",
-        "dell",
-        "delle",
-        "dem",
-        "den",
-        "der",
-        "des",
-        "despite",
-        "die",
-        "do",
-        "down",
-        "du",
-        "during",
-        "ein",
-        "eine",
-        "einem",
-        "einen",
-        "einer",
-        "eines",
-        "el",
-        "en",
-        "et",
-        "except",
-        "for",
-        "from",
-        "gli",
-        "i",
-        "il",
-        "in",
-        "inside",
-        "into",
-        "is",
-        "l",
-        "la",
-        "las",
-        "le",
-        "les",
-        "like",
-        "lo",
-        "los",
-        "near",
-        "nor",
-        "of",
-        "off",
-        "on",
-        "onto",
-        "or",
-        "over",
-        "past",
-        "per",
-        "plus",
-        "round",
-        "save",
-        "since",
-        "so",
-        "some",
-        "sur",
-        "than",
-        "the",
-        "through",
-        "to",
-        "toward",
-        "towards",
-        "un",
-        "una",
-        "unas",
-        "under",
-        "underneath",
-        "une",
-        "unlike",
-        "uno",
-        "unos",
-        "until",
-        "up",
-        "upon",
-        "versus",
-        "via",
-        "von",
-        "while",
-        "with",
-        "within",
-        "without",
-        "yet",
-        "zu",
-        "zum"
-      ],
-      "warnBulkModify": 10,
-      "postscript": "",
-      "bibtexParticleNoOp": false,
-      "biblatexExtendedNameFormat": false,
-      "biblatexExtendedDateFormat": false,
-      "quickCopyMode": "latex",
-      "quickCopyPandocBrackets": false,
-      "jurismPreferredLanguage": "zh-alalc97",
-      "qualityReport": false,
-      "suppressTitleCase": false,
-      "parseParticles": true,
-      "jabrefFormat": 0
-    },
-    "options": {
-      "exportNotes": true,
-      "exportFileData": false,
-      "exportPath": "/home/emile/github/bbt/better-bibtex/test/fixtures/import",
-      "exportFilename": "Jabref groups import does not work #717.3.8.json"
-    }
-  },
-  "collections": {
-    "SQJ3ALNX": {
-      "id": 4,
-      "key": "SQJ3ALNX",
-      "parent": false,
-      "name": "Jabref groups import does not work #717.2.10",
-      "items": [
-        56,
-        57,
-        58
-      ],
-      "collections": [
-        "CA87DDNZ"
-      ]
-    },
-    "CA87DDNZ": {
-      "id": 5,
-      "key": "CA87DDNZ",
-      "parent": "SQJ3ALNX",
-      "name": "my-main-group-2",
-      "items": [
-
-      ],
-      "collections": [
-        "8XRBZUBF",
-        "GY9DL87J"
-      ]
-    },
-    "8XRBZUBF": {
-      "id": 7,
-      "key": "8XRBZUBF",
-      "parent": "CA87DDNZ",
-      "name": "my-other-subgroup-2",
-      "items": [
-        57
-      ],
-      "collections": [
-
-      ]
-    },
-    "GY9DL87J": {
-      "id": 6,
-      "key": "GY9DL87J",
-      "parent": "CA87DDNZ",
-      "name": "my-subgroup-2",
-      "items": [
-        56
-      ],
-      "collections": [
-
-      ]
-    },
-    "NTSU7GBL": {
-      "id": 8,
-      "key": "NTSU7GBL",
-      "parent": false,
-      "name": "Jabref groups import does not work #717.3.8",
-      "items": [
-        59,
-        60,
-        61,
-        62
-      ],
-      "collections": [
-        "CUG6FGJ3"
-      ]
-    },
-    "CUG6FGJ3": {
-      "id": 9,
-      "key": "CUG6FGJ3",
-      "parent": "NTSU7GBL",
-      "name": "my-main-group-3",
-      "items": [
-        62
-      ],
-      "collections": [
-        "J7ELSATK",
-        "XQ2MPNZP"
-      ]
-    },
-    "J7ELSATK": {
-      "id": 11,
-      "key": "J7ELSATK",
-      "parent": "CUG6FGJ3",
-      "name": "my-other-subgroup-3",
-      "items": [
-        60,
-        61
-      ],
-      "collections": [
-
-      ]
-    },
-    "XQ2MPNZP": {
-      "id": 10,
-      "key": "XQ2MPNZP",
-      "parent": "CUG6FGJ3",
-      "name": "my-subgroup-3",
-      "items": [
-        59,
-        61
-      ],
-      "collections": [
-        "2IREJN7H"
-      ]
-    },
-    "2IREJN7H": {
-      "id": 12,
-      "key": "2IREJN7H",
-      "parent": "XQ2MPNZP",
-      "name": "sub-sub-group-3",
-      "items": [
-
-      ],
-      "collections": [
-
-      ]
+      "citekeyFormat": "[auth][year]"
     }
   },
   "items": [
     {
-      "itemType": "journalArticle",
-      "date": "2017",
-      "extra": "Citation Key: Doe-2017 \nbibtex[owner=klein]",
-      "title": "The paper in subgroup",
+      "citationKey": "Doe-2017",
       "creators": [
         {
+          "creatorType": "author",
           "firstName": "John",
-          "lastName": "Doe",
-          "creatorType": "author"
+          "lastName": "Doe"
         }
       ],
-      "dateAdded": "2017-09-12 11:36:16",
-      "dateModified": "2017-09-12 11:36:16",
-      "itemID": 56
-    },
-    {
-      "itemType": "journalArticle",
-      "extra": "Citation Key: Other- \nbibtex[owner=klein]",
-      "title": "The article in my other subgroup",
-      "creators": [
-        {
-          "firstName": "I.",
-          "lastName": "Other",
-          "creatorType": "author"
-        }
-      ],
-      "dateAdded": "2017-09-12 11:36:16",
-      "dateModified": "2017-09-12 11:36:16",
-      "itemID": 57
-    },
-    {
-      "itemType": "journalArticle",
-      "extra": "Citation Key: Unkonw- \nbibtex[owner=klein]",
-      "title": "the paper not in a group",
-      "creators": [
-        {
-          "firstName": "I",
-          "lastName": "Unkonw",
-          "creatorType": "author"
-        }
-      ],
-      "dateAdded": "2017-09-12 11:36:16",
-      "dateModified": "2017-09-12 11:36:16",
-      "itemID": 58
-    },
-    {
-      "itemType": "journalArticle",
       "date": "2017",
-      "extra": "Citation Key: Doe-2017 \nbibtex[owner=klein]",
-      "title": "The paper in subgroup",
+      "extra": [
+        "Citation Key: Doe-2017",
+        "tex.owner: klein",
+        "tex.timestamp: 2017.09.11"
+      ],
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "title": "The paper in my-subgroup-2"
+    },
+    {
+      "citationKey": "Doe-2017",
       "creators": [
         {
+          "creatorType": "author",
           "firstName": "John",
-          "lastName": "Doe",
-          "creatorType": "author"
+          "lastName": "Doe"
         }
       ],
-      "dateAdded": "2017-09-12 11:36:17",
-      "dateModified": "2017-09-12 11:36:17",
-      "itemID": 59
+      "date": "2017",
+      "extra": [
+        "Citation Key: Doe-2017",
+        "tex.owner: klein",
+        "tex.timestamp: 2017.09.11"
+      ],
+      "itemID": 2,
+      "itemType": "journalArticle",
+      "title": "The paper in my-subgroup-3"
     },
     {
-      "itemType": "journalArticle",
-      "extra": "Citation Key: Other- \nbibtex[owner=klein]",
-      "title": "The article in my other subgroup",
+      "citationKey": "Other-",
       "creators": [
         {
+          "creatorType": "author",
           "firstName": "I.",
-          "lastName": "Other",
-          "creatorType": "author"
+          "lastName": "Other"
         }
       ],
-      "dateAdded": "2017-09-12 11:36:17",
-      "dateModified": "2017-09-12 11:36:17",
-      "itemID": 60
+      "extra": [
+        "Citation Key: Other-",
+        "tex.owner: klein",
+        "tex.timestamp: 2017.09.11"
+      ],
+      "itemID": 3,
+      "itemType": "journalArticle",
+      "title": "The article in my-other-subgroup-2"
     },
     {
-      "itemType": "journalArticle",
-      "extra": "Citation Key: Unkonw- \nbibtex[owner=klein]",
-      "title": "the paper in two groups",
+      "citationKey": "Other-",
       "creators": [
         {
-          "firstName": "I",
-          "lastName": "Unkonw",
-          "creatorType": "author"
+          "creatorType": "author",
+          "firstName": "I.",
+          "lastName": "Other"
         }
       ],
-      "dateAdded": "2017-09-12 11:36:17",
-      "dateModified": "2017-09-12 11:36:17",
-      "itemID": 61
+      "extra": [
+        "Citation Key: Other-",
+        "tex.owner: klein",
+        "tex.timestamp: 2017.09.11"
+      ],
+      "itemID": 4,
+      "itemType": "journalArticle",
+      "title": "The article in my-other-subgroup-3"
     },
     {
-      "itemType": "journalArticle",
-      "extra": "Citation Key: Unkonw \nbibtex[owner=klein]",
-      "title": "the paper not in a group",
+      "citationKey": "Unkonw-",
       "creators": [
         {
+          "creatorType": "author",
           "firstName": "I",
-          "lastName": "Unkonw",
-          "creatorType": "author"
+          "lastName": "Unkonw"
         }
       ],
-      "dateAdded": "2017-09-12 11:36:17",
-      "dateModified": "2017-09-12 11:36:17",
-      "itemID": 62
+      "extra": [
+        "Citation Key: Unkonw-",
+        "tex.owner: klein",
+        "tex.timestamp: 2017.09.11"
+      ],
+      "itemID": 5,
+      "itemType": "journalArticle",
+      "title": "JR2: paper not in a group"
+    },
+    {
+      "citationKey": "Unkonw-",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "I",
+          "lastName": "Unkonw"
+        }
+      ],
+      "extra": [
+        "Citation Key: Unkonw-",
+        "tex.owner: klein",
+        "tex.timestamp: 2017.09.11"
+      ],
+      "itemID": 6,
+      "itemType": "journalArticle",
+      "title": "the paper in my-subgroup-3 and my-other-subgroup-3"
+    },
+    {
+      "citationKey": "Unkonw",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "I",
+          "lastName": "Unkonw"
+        }
+      ],
+      "extra": [
+        "Citation Key: Unkonw",
+        "tex.owner: klein",
+        "tex.timestamp: 2017.09.11"
+      ],
+      "itemID": 7,
+      "itemType": "journalArticle",
+      "title": "JR3: paper not in a group"
     }
   ]
 }

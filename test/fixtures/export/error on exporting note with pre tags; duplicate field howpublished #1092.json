@@ -1,0 +1,164 @@
+{
+  "collections": {
+    "coll:00000": {
+      "collections": [
+        "coll:00003",
+        "coll:00005",
+        "coll:00007",
+        "coll:00008"
+      ],
+      "items": [],
+      "key": "coll:00000",
+      "name": "other technology"
+    },
+    "coll:00001": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00001",
+      "name": "active redudency"
+    },
+    "coll:00002": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00002",
+      "name": "Bernhard's papers"
+    },
+    "coll:00003": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00003",
+      "name": "DCCP",
+      "parent": "coll:00000"
+    },
+    "coll:00004": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00004",
+      "name": "Modeling"
+    },
+    "coll:00005": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00005",
+      "name": "MP-TCP",
+      "parent": "coll:00000"
+    },
+    "coll:00006": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00006",
+      "name": "Multimedia CMT"
+    },
+    "coll:00007": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00007",
+      "name": "Network Coding",
+      "parent": "coll:00000"
+    },
+    "coll:00008": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00008",
+      "name": "other",
+      "parent": "coll:00000"
+    },
+    "coll:00009": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00009",
+      "name": "SCTP CMT"
+    },
+    "coll:00010": {
+      "collections": [],
+      "items": [],
+      "key": "coll:00010",
+      "name": "Simulation"
+    },
+    "coll:00011": {
+      "collections": [],
+      "items": [
+        2
+      ],
+      "key": "coll:00011",
+      "name": "SCTP general"
+    }
+  },
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "asciiBibLaTeX": true,
+      "autoAbbrevStyle": "http://www.zotero.org/styles/cell",
+      "bibtexURL": "note",
+      "citekeyFormat": "[auth:lower][shorttitle3_3][year]",
+      "itemObserverDelay": 100
+    }
+  },
+  "items": [
+    {
+      "accessDate": "2018-11-24T14:37:15Z",
+      "date": "2018-11-22T07:13:38Z",
+      "extra": [
+        "original-date: 2015-07-19T10:51:48Z"
+      ],
+      "itemID": 1,
+      "itemType": "computerProgram",
+      "libraryCatalog": "GitHub",
+      "programmingLanguage": "C",
+      "publisher": "sctplab",
+      "title": "A portable SCTP userland stack. Contribute to sctplab/usrsctp development by creating an account on GitHub",
+      "url": "https://github.com/sctplab/usrsctp"
+    },
+    {
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "E.",
+          "lastName": "Blanton"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "M.",
+          "lastName": "Allman"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "L.",
+          "lastName": "Wang"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "I.",
+          "lastName": "Jarvinen"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "M.",
+          "lastName": "Kojo"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Y.",
+          "lastName": "Nishida"
+        }
+      ],
+      "date": "August 2012",
+      "itemID": 2,
+      "itemType": "report",
+      "notes": [
+        "<p>fast recovery algorithm</p>",
+        "<pre class=\"newpage\" style=\"font-size: 13.3333px; margin-top: 0px; margin-bottom: 0px; break-before: page; color: #000000; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: normal; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px;\">      \"<strong>Pipe</strong>\" is a sender's estimate of the number of bytes outstanding\n      in the network.  This is used during recovery for limiting the\n      sender's sending rate.  The pipe variable allows TCP to use\n      fundamentally different congestion control than the algorithm\n      specified in [<a title=\"&quot;TCP Congestion Control&quot;\" href=\"https://tools.ietf.org/html/rfc5681\">RFC5681</a>].  The congestion control algorithm using\n      the pipe estimate is often referred to as the \"pipe algorithm\".</pre>"
+      ],
+      "number": "6675",
+      "publisher": "RFC Editor",
+      "title": "A Conservative Loss Recovery Algorithm Based on Selective Acknowledgment (SACK) for TCP",
+      "type": "RFC",
+      "url": "https://tools.ietf.org/html/rfc6675"
+    }
+  ]
+}

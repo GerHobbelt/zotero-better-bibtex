@@ -2,16 +2,15 @@
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
     "label": "BetterBibTeX JSON",
+    "options": {},
     "preferences": {
-    },
-    "options": {
-      "exportFileData": false,
-      "exportNotes": true
+      "citekeyFormat": "[auth][year]"
     }
   },
   "items": [
     {
       "DOI": "10.1023/B:LOGI.0000021744.10237.d0",
+      "citationKey": "Zach2004a",
       "creators": [
         {
           "creatorType": "author",
@@ -20,18 +19,23 @@
         }
       ],
       "date": "2004",
-      "extra": "Citation Key: Zach2004a \nbibtex[eprint=ZACDOQ;eprinttype=philpapers;scholar=15184825758825835157,15198214561219081821]",
-      "itemID": 0,
+      "extra": [
+        "Citation Key: Zach2004a",
+        "tex.eprint: ZACDOQ",
+        "tex.eprinttype: philpapers",
+        "tex.scholar: 15184825758825835157,15198214561219081821"
+      ],
+      "itemID": 1,
       "itemType": "journalArticle",
-      "pages": "155-164",
+      "pages": "155\u2013164",
       "publicationTitle": "Journal of Philosophical Logic",
       "tags": [
-        "article"
+        {
+          "tag": "article"
+        }
       ],
-      "title": "Decidability of Quantified Propositional Intuitionistic Logic and S4 on Trees of Height and Arity ≤ω",
+      "title": "Decidability of quantified propositional intuitionistic logic and S4 on trees of height and arity <span class=\"nocase\">\u2264\u03c9</span>",
       "volume": "33"
     }
-  ],
-  "collections": {
-  }
+  ]
 }

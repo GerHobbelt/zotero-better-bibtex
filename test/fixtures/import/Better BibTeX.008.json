@@ -1,26 +1,35 @@
 {
-  "items": [
-    {
-      "itemType": "journalArticle",
-      "creators": [
-        {
-          "firstName": "American Rights",
-          "lastName": "at Work",
-          "creatorType": "author"
-        }
-      ],
-      "url": "http://www.americanrightsatwork.org/blogcategory-275/",
-      "title": "Public Service Research Foundation",
-      "date": "2012",
-      "extra": "Citation Key: american_rights_at_work_public_2012",
-      "accessDate": "2012-07-27",
-      "itemID": 0
-    }
-  ],
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
-    "label": "BetterBibTeX JSON"
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "[auth][year]",
+      "itemObserverDelay": 100
+    }
   },
-  "collections": {
-  }
+  "items": [
+    {
+      "accessDate": "2012-07-27",
+      "citationKey": "american_rights_at_work_public_2012",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "American Rights",
+          "lastName": "at Work"
+        }
+      ],
+      "date": "2012",
+      "extra": [
+        "Citation Key: american_rights_at_work_public_2012"
+      ],
+      "itemID": 1,
+      "itemType": "document",
+      "title": "Public service research foundation",
+      "url": "http://www.americanrightsatwork.org/blogcategory-275/"
+    }
+  ]
 }

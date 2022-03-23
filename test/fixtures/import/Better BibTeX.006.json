@@ -1,16 +1,25 @@
 {
-  "items": [
-    {
-      "itemType": "journalArticle",
-      "title": "non-braking space: ~; accented characters: ñ and ñ; tilde in URL: http://example.com/~user",
-      "extra": "Citation Key: test-ticket1661",
-      "itemID": 0
-    }
-  ],
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
-    "label": "BetterBibTeX JSON"
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "[auth][year]",
+      "importCaseProtection": "off"
+    }
   },
-  "collections": {
-  }
+  "items": [
+    {
+      "citationKey": "test-ticket1661",
+      "extra": [
+        "Citation Key: test-ticket1661"
+      ],
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "title": "non-braking space:  ; accented characters: \u00f1 and \u00f1; tilde in URL: <span class=\"nocase\">http://example.com/~user</span>"
+    }
+  ]
 }

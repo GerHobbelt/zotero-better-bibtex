@@ -1,0 +1,78 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "[auth][year]",
+      "importCaseProtection": "off"
+    }
+  },
+  "items": [
+    {
+      "citationKey": "AdcroftETAL:1997",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Alistair",
+          "lastName": "Adcroft"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Chris",
+          "lastName": "Hill"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "John",
+          "lastName": "Marshall"
+        }
+      ],
+      "date": "1997",
+      "extra": [
+        "Citation Key: AdcroftETAL:1997"
+      ],
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "pages": "2293-2315",
+      "publicationTitle": "Monthly Weather Review",
+      "title": "Representation of topography by shaved cells in a height coordinate ocean model",
+      "volume": "125"
+    },
+    {
+      "DOI": "10.1007/s13127-011-0069-8",
+      "citationKey": "Frit2",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "U.",
+          "lastName": "Fritz"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "C.",
+          "lastName": "Corti"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "M.",
+          "lastName": "P\u00e4ckert"
+        }
+      ],
+      "date": "2012",
+      "extra": [
+        "Citation Key: Frit2",
+        "tex.timestamp: 2015-02-24 12:14:36 +0100"
+      ],
+      "itemID": 2,
+      "itemType": "journalArticle",
+      "pages": "71-80",
+      "publicationTitle": "Actes du 4<sup>\u00e8me</sup> Congr\u00e8s Fran\u00e7ais d'Acoustique",
+      "title": "Test of markupconversion: Italics, bold, superscript, subscript, and small caps: Mitochondrial DNA\u2082 sequences suggest unexpected phylogenetic position of Corso-Sardinian grass snakes (<span class=\"nocase\"><i>Natrix cetti</i></span>) and <span class=\"nocase\"><b>do not</b></span> support their <span class=\"nocase\"><span style=\"font-variant:small-caps;\">species status</span></span>, with notes on phylogeography and subspecies delineation of grass snakes.",
+      "volume": "12"
+    }
+  ]
+}

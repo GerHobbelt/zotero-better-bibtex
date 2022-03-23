@@ -1,12 +1,13 @@
-declare const Translator: ITranslator
-
 declare const Zotero: any
 
-import { Reference } from './bibtex/reference'
-import { Exporter } from './lib/exporter'
-import { debug } from './lib/debug'
+import { Translator } from './lib/translator'
+export { Translator }
 
-Reference.prototype.fieldEncoding = {
+import { Entry } from './bibtex/entry'
+import { Exporter } from './bibtex/exporter'
+
+Entry.prototype.fieldEncoding = {
+  groups: 'verbatim', // blegh jabref field
   url: 'url',
   doi: 'verbatim',
   eprint: 'verbatim',
@@ -21,11 +22,14 @@ Reference.prototype.fieldEncoding = {
   verbc: 'verbatim',
   institution: 'literal',
   publisher: 'literal',
+  origpublisher: 'literal',
   organization: 'literal',
   location: 'literal',
+  origlocation: 'literal',
 }
-Reference.prototype.caseConversion = {
+Entry.prototype.caseConversion = {
   title: true,
+  series: true,
   shorttitle: true,
   origtitle: true,
   booktitle: true,
@@ -33,13 +37,14 @@ Reference.prototype.caseConversion = {
   eventtitle: true,
 }
 
-Reference.prototype.lint = require('./bibtex/biblatex.qr.bcf')
+Entry.prototype.lint = require('./bibtex/biber-tool.conf')
 
-Reference.prototype.addCreators = function() {
-  debug('addCreators:', this.item.creators)
+type CreatorArray = any[] & { type?: string }
+
+Entry.prototype.addCreators = function() {
   if (!this.item.creators || !this.item.creators.length) return
 
-  const creators = {
+  const creators: Record<string, CreatorArray> = {
     author: [],
     bookauthor: [],
     commentator: [],
@@ -48,84 +53,84 @@ Reference.prototype.addCreators = function() {
     editorb: [],
     holder: [],
     translator: [],
-    scriptwriter: [],
-    director: [],
+    // scriptwriter: [],
+    // director: [],
   }
+  creators.editora.type = 'collaborator'
+  creators.editorb.type = 'redactor'
+
   for (const creator of this.item.creators) {
-    let kind
     switch (creator.creatorType) {
       case 'director':
         // 365.something
-        if (['video', 'movie'].includes(this.referencetype)) {
-          kind = 'director'
-        } else {
-          kind = 'author'
+        if (['video', 'movie'].includes(this.entrytype)) {
+          creators.editor.push(creator)
+          creators.editor.type = 'director'
+        }
+        else {
+          creators.author.push(creator)
         }
         break
 
       case 'author':
+      case 'inventor':
       case 'interviewer':
       case 'programmer':
       case 'artist':
       case 'podcaster':
       case 'presenter':
-        kind = 'author'
+        creators.author.push(creator)
         break
 
       case 'bookAuthor':
-        kind = 'bookauthor'
+        creators.bookauthor.push(creator)
         break
 
       case 'commenter':
-        kind = 'commentator'
+        creators.commentator.push(creator)
         break
 
       case 'editor':
-        kind = 'editor'
+        creators.editor.push(creator)
         break
 
-      case 'inventor':
-        kind = 'holder'
+      case 'assignee':
+        creators.holder.push(creator)
         break
 
       case 'translator':
-        kind = 'translator'
+        creators.translator.push(creator)
         break
 
       case 'seriesEditor':
-        kind = 'editorb'
+        creators.editorb.push(creator)
         break
 
       case 'scriptwriter':
         // 365.something
-        if (['video', 'movie'].includes(this.referencetype)) {
-          kind = 'scriptwriter'
-        } else {
-          kind = 'editora'
+        creators.editora.push(creator)
+        if (['video', 'movie'].includes(this.entrytype)) {
+          creators.editora.type = 'scriptwriter'
         }
         break
 
       default:
-        kind = 'editora'
+        creators.editora.push(creator)
     }
-
-    creators[kind].push(creator)
   }
-
-  debug('addCreators:', creators)
 
   for (const [field, value] of Object.entries(creators)) {
     this.remove(field)
-    this.add({ name: field, value, enc: 'creators' })
-  }
+    this.remove(`${field}type`)
 
-  this.remove('editoratype')
-  if (creators.editora.length > 0) this.add({ name: 'editoratype', value: 'collaborator' })
-  this.remove('editorbtype')
-  if (creators.editorb.length > 0) this.add({ name: 'editorbtype', value: 'redactor' })
+    if (!value.length) continue
+
+    this.add({ name: field, value, enc: 'creators' })
+    if (value.type) this.add({ name: `${field}type`, value: value.type })
+  }
 }
 
-Reference.prototype.typeMap = {
+Entry.prototype.typeMap = {
   csl: {
     article               : 'article',
     'article-journal'     : 'article',
@@ -135,7 +140,8 @@ Reference.prototype.typeMap = {
     book                  : 'book',
     broadcast             : {type: 'misc', subtype: 'broadcast'},
     chapter               : 'incollection',
-    dataset               : 'data',
+    data                  : 'dataset',
+    dataset               : 'dataset',
     entry                 : 'inreference',
     'entry-dictionary'    : 'inreference',
     'entry-encyclopedia'  : 'inreference',
@@ -179,6 +185,7 @@ Reference.prototype.typeMap = {
     encyclopediaArticle: 'inreference',
     film               : 'movie',
     forumPost          : 'online',
+    gazette            : 'jurisdiction',
     hearing            : 'jurisdiction',
     instantMessage     : 'misc',
     interview          : 'misc',
@@ -201,154 +208,216 @@ Reference.prototype.typeMap = {
   },
 }
 
-Translator.initialize = () => {
-  Reference.installPostscript()
-  Translator.unicode = !Translator.preferences.asciiBibLaTeX
-}
-
-function looks_like_number(n) {
+function looks_like_number(n): string | boolean {
   if (n.match(/^(?=[MDCLXVI])M*(C[MD]|D?C*)(X[CL]|L?X*)(I[XV]|V?I*)$/)) return 'roman'
   if (n.match(/^[A-Z]?[0-9]+(\.[0-9]+)?$/i)) return 'arabic'
   if (n.match(/^[A-Z]$/i)) return 'arabic'
   return false
 }
-function looks_like_number_field(n) {
+function looks_like_number_field(n: string): boolean {
   if (!n) return false
 
-  n = n.split(/-+|–|,|\//).map(_n => _n.trim())
-  switch (n.length) {
+  const ns: string[] = n.trim().split(/\s*-+|–|,|\/\s*/)
+  switch (ns.length) {
     case 1:
-      return looks_like_number(n[0])
+      return (looks_like_number(ns[0]) as boolean)
 
     case 2:
-      return looks_like_number(n[0]) && (looks_like_number(n[0]) === looks_like_number(n[1]))
+      return (looks_like_number(ns[0]) as boolean) && (looks_like_number(ns[0]) === looks_like_number(ns[1]))
 
     default:
       return false
   }
 }
 
-Translator.doExport = () => {
-  // Zotero.write(`\n% ${Translator.header.label}\n`)
-  Zotero.write('\n')
+const patent = new class {
+  private countries = ['de', 'eu', 'fr', 'uk', 'us']
+  private prefix = {us: 'us', ep: 'eu', gb: 'uk', de: 'de', fr: 'fr' }
 
-  let item: ISerializedItem
-  while (item = Exporter.nextItem()) {
-    const ref = new Reference(item)
+  public region(item): string {
+    if (item.itemType !== 'patent') return ''
 
-    if (['bookSection', 'chapter'].includes(item.referenceType) && ref.hasCreator('bookAuthor')) ref.referencetype = 'inbook'
-    if (item.referenceType === 'book' && !ref.hasCreator('author') && ref.hasCreator('editor')) ref.referencetype = 'collection'
-    if (ref.referencetype === 'book' && item.numberOfVolumes) ref.referencetype = 'mvbook'
-
-    let m
-    if (item.url && (m = item.url.match(/^http:\/\/www.jstor.org\/stable\/([\S]+)$/i))) {
-      ref.add({ name: 'eprinttype', value: 'jstor'})
-      ref.add({ name: 'eprint', value: m[1] })
-      delete item.url
-      ref.remove('url')
+    if (item.country) {
+      const country: string = item.country.toLowerCase()
+      if (this.countries.includes(country)) return country
     }
 
-    if (item.url && (m = item.url.match(/^http:\/\/books.google.com\/books?id=([\S]+)$/i))) {
-      ref.add({ name: 'eprinttype', value: 'googlebooks'})
-      ref.add({ name: 'eprint', value: m[1] })
-      delete item.url
-      ref.remove('url')
-    }
-
-    if (item.url && (m = item.url.match(/^http:\/\/www.ncbi.nlm.nih.gov\/pubmed\/([\S]+)$/i))) {
-      ref.add({ name: 'eprinttype', value: 'pubmed'})
-      ref.add({ name: 'eprint', value: m[1] })
-      delete item.url
-      ref.remove('url')
-    }
-
-    ref.add({ name: 'langid', value: ref.language })
-
-    ref.add({ name: item.referenceType === 'presentation' ? 'venue' : 'location', value: item.place, enc: 'literal' })
-
-    /*
-    if (ref.referencetype === 'inbook') {
-      ref.add({ name: 'chapter', value: item.title })
-    } else {
-      ref.add({ name: 'title', value: item.title })
-    }
-    */
-    ref.add({ name: 'title', value: item.title })
-
-    ref.add({ name: 'edition', value: item.edition })
-    ref.add({ name: 'volume', value: item.volume })
-    // ref.add({ name: 'rights', value: item.rights })
-    ref.add({ name: 'isbn', value: item.ISBN })
-    ref.add({ name: 'issn', value: item.ISSN })
-    ref.add({ name: 'url', value: item.url })
-    ref.add({ name: 'doi', value: item.DOI })
-    ref.add({ name: 'shorttitle', value: item.shortTitle })
-    ref.add({ name: 'abstract', value: item.abstractNote })
-    ref.add({ name: 'volumes', value: item.numberOfVolumes })
-    ref.add({ name: 'version', value: item.versionNumber })
-    ref.add({ name: 'eventtitle', value: item.conferenceName })
-    ref.add({ name: 'pagetotal', value: item.numPages })
-
-    ref.add({ name: 'number', value: item.number || item.seriesNumber })
-    ref.add({ name: looks_like_number_field(item.issue) ? 'number' : 'issue', value: item.issue })
-
-    switch (item.referenceType) {
-      case 'case': case 'gazette': case 'legal_case':
-        ref.add({ name: 'journaltitle', value: item.reporter, preserveBibTeXVariables: true })
-        break
-      case 'statute': case 'bill': case 'legislation':
-        ref.add({ name: 'journaltitle', value: item.code, preserveBibTeXVariables: true })
-        break
-    }
-
-    if (item.publicationTitle) {
-      switch (item.referenceType) {
-        case 'bookSection':
-        case 'conferencePaper':
-        case 'dictionaryEntry':
-        case 'encyclopediaArticle':
-        case 'chapter':
-        case 'chapter':
-          ref.add({ name: 'booktitle', value: item.publicationTitle, preserveBibTeXVariables: true })
-          break
-
-        case 'magazineArticle': case 'newspaperArticle': case 'article-magazine': case 'article-newspaper':
-          ref.add({ name: 'journaltitle', value: item.publicationTitle, preserveBibTeXVariables: true})
-          if (['newspaperArticle', 'article-newspaper'].includes(item.referenceType)) ref.add({ name: 'journalsubtitle', value: item.section })
-          break
-
-        case 'journalArticle': case 'article': case 'article-journal':
-          if (ref.isBibVar(item.publicationTitle)) {
-            ref.add({ name: 'journaltitle', value: item.publicationTitle, preserveBibTeXVariables: true })
-          } else {
-            if (Translator.options.useJournalAbbreviation && item.journalAbbreviation) {
-              ref.add({ name: 'journaltitle', value: item.journalAbbreviation, preserveBibTeXVariables: true })
-            } else {
-              ref.add({ name: 'journaltitle', value: item.publicationTitle, preserveBibTeXVariables: true })
-              ref.add({ name: 'shortjournal', value: item.journalAbbreviation, preserveBibTeXVariables: true })
-            }
-          }
-          break
-
-        default:
-          if (!ref.has.journaltitle && (item.publicationTitle !== item.title)) ref.add({ name: 'journaltitle', value: item.publicationTitle })
+    for (const patentNumber of [item.number, item.applicationNumber]) {
+      if (patentNumber) {
+        const prefix: string = this.prefix[patentNumber.substr(0, 2).toLowerCase()]
+        if (prefix) return prefix
       }
     }
 
-    switch (item.referenceType) {
-      case 'bookSection':
-      case 'encyclopediaArticle':
-      case 'dictionaryEntry':
-      case 'conferencePaper':
-      case 'film':
-      case 'videoRecording':
-      case 'tvBroadcast':
-        if (!ref.has.booktitle) ref.add({ name: 'booktitle', value: item.publicationTitle })
+    return ''
+  }
+
+  // eslint-disable-next-line id-blacklist
+  public number(item): string {
+    if (item.itemType !== 'patent' || (!item.number && !item.applicationNumber)) return ''
+
+    for (const patentNumber of ([item.number, item.applicationNumber] as string[])) {
+      if (patentNumber) {
+        const country = patentNumber.substr(0, 2).toLowerCase()
+        if (this.prefix[country]) return patentNumber.substr(country.length)
+      }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return item.number || item.applicationNumber
+  }
+
+  public type(item) {
+    if (item.itemType !== 'patent') return ''
+
+    const region = this.region(item)
+
+    if (region && item.number) return `patent${region}`
+    if (region && item.applicationNumber) return `patreq${region}`
+
+    return 'patent'
+  }
+}
+
+export function doExport(): void {
+  Translator.init('export')
+  Entry.installPostscript()
+  Exporter.prepare_strings()
+
+  // Zotero.write(`\n% ${Translator.header.label}\n`)
+  Zotero.write('\n')
+
+  for (const item of Exporter.items) {
+    const entry = new Entry(item)
+
+    if (entry.entrytype === 'incollection' && entry.hasCreator('bookAuthor')) entry.entrytype = 'inbook'
+    // if (entry.entytype_source === 'csl.book' && !entry.hasCreator('author') && entry.hasCreator('editor')) entry.entytype = 'collection'
+    if (entry.entrytype === 'book' && item.numberOfVolumes) entry.entrytype = 'mvbook'
+    if (entry.entrytype === 'report' && item.type?.toLowerCase().includes('manual')) entry.entrytype = 'manual'
+
+    if (Translator.preferences.biblatexExtractEprint) {
+      let m
+      if (item.url && (m = item.url.match(/^https?:\/\/www.jstor.org\/stable\/([\S]+)$/i))) {
+        entry.override({ name: 'eprinttype', value: 'jstor'})
+        entry.override({ name: 'eprint', value: m[1].replace(/\?.*/, '') })
+        entry.remove('archiveprefix')
+        entry.remove('primaryclass')
+        delete item.url
+        entry.remove('url')
+
+      }
+      else if (item.url && (m = item.url.match(/^https?:\/\/books.google.com\/books?id=([\S]+)$/i))) {
+        entry.override({ name: 'eprinttype', value: 'googlebooks'})
+        entry.override({ name: 'eprint', value: m[1] })
+        entry.remove('archiveprefix')
+        entry.remove('primaryclass')
+        delete item.url
+        entry.remove('url')
+
+      }
+      else if (item.url && (m = item.url.match(/^https?:\/\/www.ncbi.nlm.nih.gov\/pubmed\/([\S]+)$/i))) {
+        entry.override({ name: 'eprinttype', value: 'pubmed'})
+        entry.override({ name: 'eprint', value: m[1] })
+        entry.remove('archiveprefix')
+        entry.remove('primaryclass')
+        delete item.url
+        entry.remove('url')
+      }
+    }
+
+    entry.add({ name: 'langid', value: entry.language })
+
+    if (entry.entrytype === 'patent') {
+      if (item.country && !patent.region(item)) entry.add({ name: 'location', value: item.country || item.extraFields.kv['publisher-place'] })
+    }
+    else if (entry.entrytype === 'unpublished' && item.itemType === 'presentation') {
+      entry.add({ name: 'venue', value: item.place, enc: 'literal' })
+    }
+    else {
+      entry.add({ name: 'location', value: item.place || item.extraFields.kv['publisher-place'] , enc: 'literal' })
+    }
+
+    /*
+    if (entry.entytype === 'inbook') {
+      entry.add({ name: 'chapter', value: item.title })
+    } else {
+      entry.add({ name: 'title', value: item.title })
+    }
+    */
+    entry.add({ name: 'title', value: item.title })
+
+    entry.add({ name: 'edition', value: item.edition })
+    // entry.add({ name: 'rights', value: item.rights })
+    entry.add({ name: 'isbn', value: item.ISBN })
+    entry.add({ name: 'issn', value: item.ISSN })
+
+    entry.add({ name: 'url', value: item.url || item.extraFields.kv.url })
+    entry.add({ name: 'doi', value: (item.DOI || item.extraFields.kv.DOI || '').replace(/^https?:\/\/doi.org\//i, '') })
+
+    entry.add({ name: 'shorttitle', value: item.shortTitle })
+    entry.add({ name: 'abstract', value: item.abstractNote?.replace(/\n+/g, ' ') })
+    entry.add({ name: 'volumes', value: item.numberOfVolumes })
+    entry.add({ name: 'version', value: item.versionNumber })
+
+    entry.add({ name: 'eventtitle', value: item.conferenceName })
+    entry.add({ name: 'eventtitle', value: item.meetingName, replace: true })
+
+    entry.add({ name: 'pagetotal', value: item.numPages })
+
+    const number_added = entry.add({ name: 'number', value: patent.number(item) || item.number || item.seriesNumber })
+    entry.add({ name: !number_added && looks_like_number_field(item.issue) ? 'number' : 'issue', value: item.issue })
+
+    switch (entry.entrytype) {
+      case 'jurisdiction':
+        entry.add({ name: 'journaltitle', value: item.reporter || (item.publicationTitle !== item.title && item.publicationTitle), bibtexStrings: true })
         break
+
+      case 'legislation':
+        entry.add({ name: 'journaltitle', value: item.code || (item.publicationTitle !== item.title && item.publicationTitle), bibtexStrings: true })
+        break
+
+      case 'incollection':
+      case 'chapter':
+      case 'inproceedings':
+      case 'inreference':
+      case 'movie':
+      case 'video':
+      case 'inbook':
+        if (!entry.has.booktitle) entry.add({ name: 'booktitle', value: item.publicationTitle, bibtexStrings: true })
+        break
+
+      case 'online':
+        entry.add({ name: 'organization', value: item.publicationTitle, bibtexStrings: true })
+        break
+
+      case 'article':
+        if (entry.getBibString(item.publicationTitle)) {
+          entry.add({ name: 'journaltitle', value: item.publicationTitle, bibtexStrings: true })
+
+        }
+        else if (Translator.options.useJournalAbbreviation && item.publicationTitle && item.journalAbbreviation) {
+          entry.add({ name: 'journaltitle', value: item.journalAbbreviation, bibtexStrings: true })
+
+        }
+        else {
+          entry.add({ name: 'journaltitle', value: item.publicationTitle, bibtexStrings: true })
+
+          if (entry.has.entrysubtype?.value === 'newspaper') {
+            entry.add({ name: 'journalsubtitle', value: item.section })
+          }
+          else {
+            entry.add({ name: 'shortjournal', value: item.journalAbbreviation, bibtexStrings: true })
+          }
+        }
+        break
+
+      default:
+        if (!entry.has.journaltitle && (item.publicationTitle !== item.title)) entry.add({ name: 'journaltitle', value: item.publicationTitle })
     }
 
     let main
-    if (((item.multi || {})._keys || {}).title && (main = (item.multi.main || {}).title || item.language)) {
+    // eslint-disable-next-line no-underscore-dangle
+    if (item.multi?._keys?.title && (main = item.multi.main?.title || item.language)) {
+      // eslint-disable-next-line no-underscore-dangle
       const languages = Object.keys(item.multi._keys.title).filter(lang => lang !== main)
       main += '-'
       languages.sort((a, b) => {
@@ -359,117 +428,122 @@ Translator.doExport = () => {
         return 1
       })
       for (let i = 0; i < languages.length; i++) {
-        ref.add({
+        entry.add({
           name: i === 0 ? 'titleaddon' : `user${String.fromCharCode('d'.charCodeAt(0) + i)}`,
+          // eslint-disable-next-line no-underscore-dangle
           value: item.multi._keys.title[languages[i]],
         })
       }
     }
 
-    ref.add({ name: 'series', value: item.seriesTitle || item.series })
+    entry.add({ name: 'series', value: item.seriesTitle || item.series, bibtexStrings: true })
 
-    switch (item.referenceType) {
+    switch (entry.entrytype) {
       case 'report':
       case 'thesis':
-        ref.add({ name: 'institution', value: item.publisher })
+        entry.add({ name: 'institution', value: item.publisher, bibtexStrings: true })
         break
 
-      case 'case':
-      case 'hearing':
-      case 'legal_case':
-        ref.add({ name: 'institution', value: item.court })
+      case 'jurisdiction':
+        entry.add({ name: 'institution', value: item.court, bibtexStrings: true })
         break
 
-      case 'computerProgram':
-        ref.add({ name: 'organization', value: item.publisher })
+      case 'software':
+        entry.add({ name: 'organization', value: item.publisher, bibtexStrings: true })
         break
 
       default:
-        ref.add({ name: 'publisher', value: item.publisher })
+        entry.add({ name: 'publisher', value: item.publisher, bibtexStrings: true })
     }
 
-    switch (item.referenceType) {
+    switch (entry.entrytype) {
       case 'letter':
-      case 'personal_communication':
-        ref.add({ name: 'type', value: item.type || 'Letter' })
-        break
-
-      case 'email':
-        ref.add({ name: 'type', value: 'E-mail' })
+        entry.add({ name: 'type', value: item.type || (item.itemType === 'email' ? 'E-mail' : 'Letter') })
         break
 
       case 'thesis':
-        const thesistype = item.type ? item.type.toLowerCase() : null
-        if (['phdthesis', 'mastersthesis'].includes(thesistype)) {
-          ref.referencetype = thesistype
-        } else {
-          ref.add({ name: 'type', value: item.type })
-        }
+        entry.add({ name: 'type', value: entry.thesistype(item.type, 'phdthesis', 'mathesis', 'bathesis', 'candthesis')  || item.type })
         break
 
       case 'report':
-        if ((item.type || '').toLowerCase().trim() === 'techreport') {
-          ref.referencetype = 'techreport'
-        } else {
-          ref.add({ name: 'type', value: item.type })
+        if (item.type?.toLowerCase().trim() === 'techreport') {
+          entry.add({ name: 'type', value: 'techreport' })
+        }
+        else {
+          entry.add({ name: 'type', value: item.type })
         }
         break
 
+      case 'patent':
+        entry.add({ name: 'type', value: patent.type(item) })
+        break
+
       default:
-        ref.add({ name: 'type', value: item.type })
+        entry.add({ name: 'type', value: item.type })
     }
 
-    if (item.referenceType === 'manuscript') ref.add({ name: 'howpublished', value: item.type })
+    if (entry.entrytype === 'unpublished' && item.itemType !== 'presentation') entry.add({ name: 'howpublished', value: item.type })
 
-    ref.add({ name: 'eventtitle', value: item.meetingName })
+    if (item.accessDate && item.url) entry.add({ name: 'urldate', value: Zotero.BetterBibTeX.strToISO(item.accessDate), enc: 'date' })
 
-    if (item.accessDate && item.url) ref.add({ name: 'urldate', value: Zotero.Utilities.strToISO(item.accessDate), enc: 'date' })
-
-    ref.add({
+    entry.add({
       name: 'date',
       verbatim: 'year',
       orig: { name: 'origdate', verbatim: 'origdate' },
       value: item.date,
       enc: 'date',
     })
+    entry.add({
+      name: 'origdate',
+      value: item.originalDate,
+      enc: 'date',
+      replace: true, // #293 has both date="year [origyear]" and extra="original-date: origyear"
+    })
+    entry.add({ name: 'eventdate', value: item.conferenceDate, enc: 'date' })
 
-    ref.add({ name: 'pages', value: ref.normalizeDashes(item.pages)})
+    entry.add({ name: 'pages', value: entry.normalizeDashes(item.pages) })
+    entry.add({ name: 'volume', value: entry.normalizeDashes(item.volume) })
 
-    ref.add({ name: 'keywords', value: item.tags, enc: 'tags' })
+    entry.add({ name: 'keywords', value: item.tags, enc: 'tags' })
 
-    ref.addCreators()
+    if (!item.creators) item.creators = []
+    // https://github.com/retorquere/zotero-better-bibtex/issues/1060
+    if (item.itemType === 'patent' && item.assignee && !item.creators.find(cr => cr.name === item.assignee || (cr.lastName === item.assignee && (cr.fieldMode === 1)))) {
+      item.creators.push({
+        name: item.assignee,
+        creatorType: 'assignee',
+      })
+    }
+    entry.addCreators()
 
     // 'juniorcomma' needs more thought, it isn't for *all* suffixes you want this. Or even at all.
-    // ref.add({ name: 'options', value: (option for option in ['useprefix', 'juniorcomma'] when ref[option]).join(',') })
+    // entry.add({ name: 'options', value: (option for option in ['useprefix', 'juniorcomma'] when ref[option]).join(',') })
 
-    if (ref.useprefix) ref.add({ name: 'options', value: 'useprefix=true' })
+    if (entry.useprefix) entry.add({ name: 'options', value: 'useprefix=true' })
 
-    ref.add({ name: 'file', value: item.attachments, enc: 'attachments' })
+    entry.add({ name: 'file', value: item.attachments, enc: 'attachments' })
 
-    if (item.cslVolumeTitle) { // #381
-      debug('cslVolumeTitle: true, type:', item.referenceType, 'has:', Object.keys(ref.has))
-      if (item.referenceType === 'book' && ref.has.title) {
-        debug('cslVolumeTitle: for book, type:', item.referenceType, 'has:', Object.keys(ref.has))
-        ref.add({name: 'maintitle', value: item.cslVolumeTitle }); // ; to prevent chaining
-        [ref.has.title.bibtex, ref.has.maintitle.bibtex] = [ref.has.maintitle.bibtex, ref.has.title.bibtex]; // ; to prevent chaining
-        [ref.has.title.value, ref.has.maintitle.value] = [ref.has.maintitle.value, ref.has.title.value]
+    if (item.volumeTitle) { // #381
+      if (entry.entrytype === 'book' && entry.has.title) {
+        entry.add({name: 'maintitle', value: item.volumeTitle }); // ; to prevent chaining
+        [entry.has.title.bibtex, entry.has.maintitle.bibtex] = [entry.has.maintitle.bibtex, entry.has.title.bibtex]; // ; to prevent chaining
+        [entry.has.title.value, entry.has.maintitle.value] = [entry.has.maintitle.value, entry.has.title.value]
       }
 
-      if (['bookSection', 'chapter'].includes(item.referenceType) && ref.has.booktitle) {
-        debug('cslVolumeTitle: for bookSection, type:', item.referenceType, 'has:', Object.keys(ref.has))
-        ref.add({name: 'maintitle', value: item.cslVolumeTitle }); // ; to prevent chaining
-        [ref.has.booktitle.bibtex, ref.has.maintitle.bibtex] = [ref.has.maintitle.bibtex, ref.has.booktitle.bibtex]; // ; to preven chaining
-        [ref.has.booktitle.value, ref.has.maintitle.value] = [ref.has.maintitle.value, ref.has.booktitle.value]
+      if (['incollection', 'chapter'].includes(entry.entrytype) && entry.has.booktitle) {
+        entry.add({name: 'maintitle', value: item.volumeTitle }); // ; to prevent chaining
+        [entry.has.booktitle.bibtex, entry.has.maintitle.bibtex] = [entry.has.maintitle.bibtex, entry.has.booktitle.bibtex]; // ; to preven chaining
+        [entry.has.booktitle.value, entry.has.maintitle.value] = [entry.has.maintitle.value, entry.has.booktitle.value]
       }
     }
 
     for (const eprinttype of ['pmid', 'arxiv', 'jstor', 'hdl', 'googlebooks']) {
-      if (ref.has[eprinttype]) {
-        if (!ref.has.eprinttype) {
-          ref.add({ name: 'eprinttype', value: eprinttype})
-          ref.add({ name: 'eprint', value: ref.has[eprinttype].value })
+      if (entry.has[eprinttype]) {
+        if (!entry.has.eprinttype) {
+          entry.add({ name: 'eprinttype', value: eprinttype})
+          entry.add({ name: 'eprint', value: entry.has[eprinttype].value })
         }
-        ref.remove(eprinttype)
+        entry.remove(eprinttype)
       }
     }
 
@@ -477,36 +551,37 @@ Translator.doExport = () => {
       let archive = true
       switch (item.archive.toLowerCase()) {
         case 'arxiv':
-          if (!ref.has.eprinttype) ref.add({ name: 'eprinttype', value: 'arxiv' })
-          ref.add({ name: 'eprintclass', value: item.callNumber })
+          if (!entry.has.eprinttype) entry.add({ name: 'eprinttype', value: 'arxiv' })
+          entry.add({ name: 'eprintclass', value: item.callNumber })
           break
 
         case 'jstor':
-          if (!ref.has.eprinttype) ref.add({ name: 'eprinttype', value: 'jstor' })
+          if (!entry.has.eprinttype) entry.add({ name: 'eprinttype', value: 'jstor' })
           break
 
         case 'pubmed':
-          if (!ref.has.eprinttype) ref.add({ name: 'eprinttype', value: 'pubmed' })
+          if (!entry.has.eprinttype) entry.add({ name: 'eprinttype', value: 'pubmed' })
           break
 
         case 'hdl':
-          if (!ref.has.eprinttype) ref.add({ name: 'eprinttype', value: 'hdl' })
+          if (!entry.has.eprinttype) entry.add({ name: 'eprinttype', value: 'hdl' })
           break
 
-        case 'googlebooks': case 'google books':
-          if (!ref.has.eprinttype) ref.add({ name: 'eprinttype', value: 'googlebooks' })
+        case 'googlebooks':
+        case 'google books':
+          if (!entry.has.eprinttype) entry.add({ name: 'eprinttype', value: 'googlebooks' })
           break
 
         default:
           archive = false
       }
 
-      if (archive) {
-        if (!ref.has.eprint) ref.add({ name: 'eprint', value: item.archiveLocation })
-      }
+      if (archive && !entry.has.eprint) entry.add({ name: 'eprint', value: item.archiveLocation })
     }
 
-    ref.complete()
+    if (item.arXiv && !entry.has.journaltitle && entry.entrytype === 'article') entry.entrytype = 'unpublished'
+
+    entry.complete()
   }
 
   Exporter.complete()

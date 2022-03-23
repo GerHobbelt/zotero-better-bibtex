@@ -1,0 +1,50 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "asciiBibLaTeX": true,
+      "citekeyFormat": "[auth:lower][shorttitle3_3][year]",
+      "exportBraceProtection": false,
+      "itemObserverDelay": 100,
+      "skipFields": "file,abstract"
+    }
+  },
+  "items": [
+    {
+      "applicationNumber": "EP456456456",
+      "assignee": "My Employer",
+      "citationKey": "wernerThisPatentApplication",
+      "creators": [
+        {
+          "creatorType": "inventor",
+          "firstName": "Nils",
+          "lastName": "Werner"
+        }
+      ],
+      "itemID": 1,
+      "itemType": "patent",
+      "title": "This is a Patent Application. It has the Application Number EP456456456"
+    },
+    {
+      "applicationNumber": "EP789789789",
+      "assignee": "My Employer",
+      "citationKey": "wernerThisPatentIt",
+      "creators": [
+        {
+          "creatorType": "inventor",
+          "firstName": "Nils",
+          "lastName": "Werner"
+        }
+      ],
+      "itemID": 2,
+      "itemType": "patent",
+      "number": "EP123123123",
+      "title": "This is a Patent. It has the Patent number EP123123123. It had the Application Number EP789789789 when it was first submitted."
+    }
+  ]
+}

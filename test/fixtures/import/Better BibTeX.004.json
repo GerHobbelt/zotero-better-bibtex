@@ -1,28 +1,37 @@
 {
-  "items": [
-    {
-      "itemType": "book",
-      "creators": [
-        {
-          "firstName": "Michael",
-          "lastName": "von Hicks, III",
-          "creatorType": "author"
-        }
-      ],
-      "place": "Palo Alto",
-      "edition": "1st,",
-      "ISBN": "0-69-697269-4",
-      "title": "Design of a Carbon Fiber Composite Grid Structure for the GLAST Spacecraft Using a Novel Manufacturing Technique",
-      "publisher": "Stanford Press",
-      "date": "2001",
-      "extra": "Citation Key: hicks2001",
-      "itemID": 0
-    }
-  ],
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
-    "label": "BetterBibTeX JSON"
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "[auth][year]",
+      "itemObserverDelay": 100
+    }
   },
-  "collections": {
-  }
+  "items": [
+    {
+      "ISBN": "0-69-697269-4",
+      "citationKey": "hicks2001",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Michael",
+          "lastName": "von Hicks, III"
+        }
+      ],
+      "date": "2001",
+      "edition": "1st,",
+      "extra": [
+        "Citation Key: hicks2001"
+      ],
+      "itemID": 1,
+      "itemType": "book",
+      "place": "Palo Alto",
+      "publisher": "Stanford Press",
+      "title": "Design of a carbon fiber composite grid structure for the GLAST spacecraft using a novel manufacturing technique"
+    }
+  ]
 }

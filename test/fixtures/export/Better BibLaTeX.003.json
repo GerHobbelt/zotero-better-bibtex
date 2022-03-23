@@ -1,51 +1,56 @@
 {
-  "items": [
-    {
-      "itemType": "conferencePaper",
-      "creators": [
-        {
-          "firstName": "First",
-          "lastName": "Author",
-          "creatorType": "author"
-        },
-        {
-          "firstName": "Second",
-          "lastName": "Author",
-          "creatorType": "author"
-        }
-      ],
-      "title": "Some publication title",
-      "pages": "330—331",
-      "extra": "bibtex: author:06\nbiblatexdata[crossref=conference:06]"
-    },
-    {
-      "itemType": "book",
-      "creators": [
-        {
-          "firstName": "First",
-          "lastName": "Editor",
-          "creatorType": "editor"
-        },
-        {
-          "firstName": "Second",
-          "lastName": "Editor",
-          "creatorType": "editor"
-        }
-      ],
-      "title": "Proceedings of the Xth conference on XYZ",
-      "date": "October 2006",
-      "extra": "bibtex: conference:06"
-    }
-  ],
   "config": {
-    "label": "BetterBibTeX JSON",
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
     "preferences": {
-      "citekeyFormat": "[auth][year]",
       "bibtexURL": "note",
-      "jabrefFormat": 0
+      "citekeyFormat": "[auth][year]"
     }
   },
-  "collections": {
-  }
+  "items": [
+    {
+      "creators": [
+        {
+          "creatorType": "editor",
+          "firstName": "First",
+          "lastName": "Editor"
+        },
+        {
+          "creatorType": "editor",
+          "firstName": "Second",
+          "lastName": "Editor"
+        }
+      ],
+      "date": "October 2006",
+      "extra": [
+        "Citation Key: conference:06"
+      ],
+      "itemID": 2,
+      "itemType": "book",
+      "title": "Proceedings of the Xth conference on XYZ"
+    },
+    {
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "First",
+          "lastName": "Author"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Second",
+          "lastName": "Author"
+        }
+      ],
+      "extra": [
+        "Citation Key: author:06",
+        "tex.crossref= conference:06"
+      ],
+      "itemID": 1,
+      "itemType": "conferencePaper",
+      "pages": "330\u2014331",
+      "title": "Some publication title"
+    }
+  ]
 }

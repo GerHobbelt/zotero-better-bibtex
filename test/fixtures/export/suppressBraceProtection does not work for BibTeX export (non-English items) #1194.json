@@ -1,0 +1,53 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "asciiBibTeX": false,
+      "autoAbbrevStyle": "http://www.zotero.org/styles/cell",
+      "autoExport": "idle",
+      "citekeyFormat": "[auth.etal].[year]",
+      "exportBraceProtection": false,
+      "exportTitleCase": false,
+      "itemObserverDelay": 100,
+      "postscript": "// Add `pagetotal' field for `book' items in BibTeX bibliography\nif (Translator.BetterBibTeX) {\n\tswitch (item.itemType) {\n\t\tcase 'book':\n\t\t\tthis.add({ name: 'pagetotal', value: item.numPages });\n\t\t\tbreak;\n\t}\n}\n\n// https://github.com/retorquere/zotero-better-bibtex/issues/512#issuecomment-489435978\nif (Translator.BetterTeX) { // covers both Translator.BetterBibTeX and Translator.BetterBibLaTeX\n\tvar order = [\n\t\t'author',\n\t\t'title',\n\t\t'type', // techreport\n\t\t'institution', // techreport\n\t\t'journal',\n\t\t'editor',\n\t\t'booktitle',\n\t\t'edition',\n\t\t'series',\n\t\t'address',\n\t\t'publisher',\n\t\t'year',\n\t\t'volume',\n\t\t'number',\n\t\t'pages',\n\t\t'pagetotal',\n\t\t'note',\n\t\t'doi',\n\t\t'url',\n\t\t'isbn',\n\t\t'language',\n\t\t'abstract',\n\t];\n\n\tconst keys = Object.keys(this.has)\n\tfor (const field of keys.sort((a, b) => ((order.indexOf(a) + 1) || (keys.length + order.length + 1)) - ((order.indexOf(b) + 1) || (keys.length + order.length + 1)))) {\n\t\tconst value = this.has[field]\n\t\tdelete this.has[field]\n\t\tthis.has[field] = value\n\t}\n}\n",
+      "skipFields": "keywords,file,copyright,shorttitle"
+    }
+  },
+  "items": [
+    {
+      "ISBN": "5-9221-0122-6",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "\u041b. \u0414.",
+          "lastName": "\u041b\u0430\u043d\u0434\u0430\u0443"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "\u0415. \u041c.",
+          "lastName": "\u041b\u0438\u0444\u0448\u0438\u0446"
+        }
+      ],
+      "date": "2007",
+      "edition": "5",
+      "extra": [
+        "Citation Key: Landafshits.V7"
+      ],
+      "itemID": 1,
+      "itemType": "book",
+      "language": "russian",
+      "numPages": "259",
+      "numberOfVolumes": "10",
+      "place": "\u041c.",
+      "publisher": "\u0424\u0438\u0437\u043c\u0430\u0442\u043b\u0438\u0442",
+      "series": "\u0422\u0435\u043e\u0440\u0435\u0442\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u0444\u0438\u0437\u0438\u043a\u0430",
+      "title": "\u0422\u0435\u043e\u0440\u0438\u044f \u0443\u043f\u0440\u0443\u0433\u043e\u0441\u0442\u0438",
+      "volume": "7"
+    }
+  ]
+}

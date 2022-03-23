@@ -1,38 +1,139 @@
-declare const Translator: ITranslator
-
 declare const Zotero: any
 
-import { debug } from '../lib/debug'
+import { Translator } from '../lib/translator'
+import type { MarkupNode } from '../../typings/markup'
 
+import { log } from '../../content/logger'
 import HE = require('he')
-import unicodeMapping = require('./unicode_translator_mapping.js')
+import * as unicode2latex from 'unicode2latex'
+const combining_diacritics = /^[^\u0300-\u036F][\u0300-\u036F]+/
+
+const switchMode = {
+  math: 'text',
+  text: 'math',
+}
+
+type ConverterOptions = {
+  caseConversion?: boolean
+  html?: boolean
+  creator?: boolean
+  commandspacers?: boolean
+}
+
+export function replace_command_spacers(latex: string): string {
+  return latex.replace(/\0(\s)/g, '{}$1').replace(/\0([^;.,!?${}_^\\/])/g, ' $1').replace(/\0/g, '')
+}
+
+type ParseResult = { latex: string, raw: boolean, packages: string[] }
+
+type LatexRepresentation = { text?: string, math?: string, textpackages?: string[], mathpackages?: string[], commandspacer?: boolean }
 
 const htmlConverter = new class HTMLConverter {
-  private latex: string
-  private mapping: any
-  private stack: any[]
-  private options: { caseConversion?: boolean, html?: boolean }
+  private latex = ''
+  private mapping: any = {}
+  private stack: any[] = []
+  private options: ConverterOptions = {}
   private embraced: boolean
+  private packages: { [key: string]: boolean } = {}
 
-  public convert(html, options) {
+  public convert(html: string, options: ConverterOptions): ParseResult {
     this.embraced = false
     this.options = options
     this.latex = ''
-    this.mapping = (Translator.unicode ? unicodeMapping.unicode : unicodeMapping.ascii)
+    this.packages = {}
+
+    if (Translator.unicode) {
+      this.mapping = unicode2latex.unicode
+    }
+    else if (options.creator && Translator.BetterBibTeX) {
+      /* https://github.com/retorquere/zotero-better-bibtex/issues/1189
+        Needed so that composite characters are counted as single characters
+        for in-text citation generation. This messes with the {} cleanup
+        so the resulting TeX will be more verbose; doing this only for
+        bibtex because biblatex doesn't appear to need it.
+
+        Only testing ascii.text because that's the only place (so far)
+        that these have turned up.
+      */
+      this.mapping = unicode2latex.ascii_bibtex_creator
+    }
+    else {
+      this.mapping = unicode2latex.ascii
+    }
+
+    if (!this.mapping.initialized) {
+      // translator is re-ran every time it's used, not cached ready-to-run, so safe to modify the mapping
+      // TODO: THIS WILL BE A PROBLEM FOR REUSABLE WORKERS
+      for (const c of Translator.preferences.ascii) {
+        this.mapping[c] = unicode2latex.ascii[c]
+      }
+
+      if (Translator.preferences.mapUnicode === 'conservative') {
+        // TODO: THIS TOO WILL BE A PROBLEM FOR REUSABLE WORKERS
+        for (const keep of Object.keys(switchMode).sort()) {
+          const remove = switchMode[keep]
+          const unicode = Translator.preferences[`map${keep[0].toUpperCase()}${keep.slice(1)}`]
+          for (const c of unicode) {
+            if (this.mapping[c] && this.mapping[c].text && this.mapping[c].math) {
+              delete this.mapping[c][remove]
+            }
+          }
+        }
+
+      }
+      else if (Translator.preferences.mapUnicode === 'minimal-packages') {
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+        for (const tex of (Object.values(this.mapping) as LatexRepresentation[])) {
+          if (tex.text && tex.math) {
+            if (tex.textpackages && !tex.mathpackages) {
+              delete tex.text
+              delete tex.textpackages
+            }
+            else if (!tex.textpackages && tex.mathpackages) {
+              delete tex.math
+              delete tex.mathpackages
+            }
+          }
+        }
+
+      }
+      else {
+        const remove = switchMode[Translator.preferences.mapUnicode]
+        if (remove) {
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+          for (const tex of (Object.values(this.mapping) as LatexRepresentation[])) {
+            if (tex.text && tex.math) delete tex[remove]
+          }
+        }
+      }
+
+      this.mapping.initialized = true
+    }
 
     this.stack = []
 
-    const ast: IZoteroMarkupNode = Zotero.BetterBibTeX.parseHTML(html, this.options)
+    const ast: MarkupNode = Zotero.BetterBibTeX.parseHTML(html, this.options)
     this.walk(ast)
-    return { latex: this.latex, raw: ast.nodeName === 'pre' }
+
+    if (!options.commandspacers) this.latex = replace_command_spacers(this.latex)
+
+    this.latex = this.latex
+      // .replace(/(\\\\)+[^\S\n]*\n\n/g, '\n\n') // I don't recall why I had the middle match, replaced by match below until I figure it out
+      .replace(/(\\\\)+\n\n/g, '\n\n') // paragraph breaks followed by line breaks == line breaks
+      .replace(/\n\n\n+/g, '\n\n') // line breaks > 3 is the same as two line breaks.
+      .replace(/(\\par[\n\s~]+)+/g, '\\par\n')
+      .replace(/\n*\\par\n*$/, '')
+      .replace(/^\n*\\par\n*/, '')
+
+    return { latex: this.latex, raw: ast.nodeName === 'pre', packages: Object.keys(this.packages) }
   }
 
-  private walk(tag: IZoteroMarkupNode) {
+  private walk(tag: MarkupNode, nocased = false) {
     if (!tag) return
 
     switch (tag.nodeName) {
       case '#text':
-        this.chars(tag.value)
+        this.chars(tag.value, nocased)
         return
       case 'pre':
       case 'script':
@@ -47,12 +148,18 @@ const htmlConverter = new class HTMLConverter {
       case 'i':
       case 'em':
       case 'italic':
+      case 'emphasis':
         latex = '\\emph{...}'
         break
 
       case 'b':
       case 'strong':
         latex = '\\textbf{...}'
+        break
+
+      case 'tt':
+      case 'code':
+        latex = '\\texttt{...}'
         break
 
       case 'a':
@@ -79,7 +186,7 @@ const htmlConverter = new class HTMLConverter {
       case 'div':
       case 'table':
       case 'tr':
-        latex = '\n\n...\n\n'
+        latex = '\n\\par\n...\n\\par\n'
         break
 
       case 'h1':
@@ -104,11 +211,16 @@ const htmlConverter = new class HTMLConverter {
       case 'nc':
         break // ignore, handled by the relax/nocase/smallcaps handler below
 
+      case 'header':
+      case 'section':
+        break // not really a good analogue for this
+
       case 'td':
       case 'th':
         latex = ' ... '
         break
 
+      case '#comment':
       case '#document':
       case '#document-fragment':
       case 'tbody':
@@ -117,18 +229,24 @@ const htmlConverter = new class HTMLConverter {
       case 'body':
         break // ignore
 
+      case 'blockquote':
+        latex = '\n\n\\begin{quotation}\n...\n\n\\end{quotation}\n'
+        break
+
       default:
-        debug(`unexpected tag '${tag.nodeName}' (${Object.keys(tag)})`)
+        log.debug(`unexpected tag '${tag.nodeName}' (${Object.keys(tag)})`)
+        break
     }
 
-    if (latex !== '...') latex = this.embrace(latex, latex.match(/^\\[a-z]+{\.\.\.}$/))
+    if (latex !== '...') latex = this.embrace(latex, /^\\[a-z]+{\.\.\.}$/.test(latex))
     if (tag.smallcaps) latex = this.embrace(`\\textsc{${latex}}`, true)
     if (tag.nocase) latex = `{{${latex}}}`
     if (tag.relax) latex = `{\\relax ${latex}}`
     if (tag.enquote) {
       if (Translator.BetterBibTeX) {
         latex = `\\enquote{${latex}}`
-      } else {
+      }
+      else {
         latex = `\\mkbibquote{${latex}}`
       }
     }
@@ -137,7 +255,7 @@ const htmlConverter = new class HTMLConverter {
 
     this.latex += prefix
     for (const child of tag.childNodes) {
-      this.walk(child)
+      this.walk(child, nocased || tag.nocase)
     }
     this.latex += postfix
 
@@ -145,7 +263,7 @@ const htmlConverter = new class HTMLConverter {
 
   }
 
-  private embrace(latex, condition) {
+  private embrace(latex: string, condition: boolean): string {
     /* holy mother of %^$#^%$@ the bib(la)tex case conversion rules are insane */
     /* https://github.com/retorquere/zotero-better-bibtex/issues/541 */
     /* https://github.com/plk/biblatex/issues/459 ... oy! */
@@ -154,32 +272,120 @@ const htmlConverter = new class HTMLConverter {
     return `{${latex}}`
   }
 
-  private chars(text) {
-    let latex = ''
-    let math = false
-    let braced = 0
-
+  private chars(text, nocased) {
     if (this.options.html) text = HE.decode(text, { isAttributeValue: true })
 
-    for (let c of Zotero.Utilities.XRegExp.split(text, '')) {
+    let latex = ''
+    let mode = 'text'
+    let braced = 0
+
+    const switchTo = {
+      math: (nocased ? '$' : '{$'),
+      text: (nocased ? '$' : '$}'),
+    }
+
+    text = text.normalize('NFD') // required for multi-diacritics
+    let mapped: LatexRepresentation
+    let switched: boolean
+    let m: RegExpExecArray | RegExpMatchArray
+    let i: number
+    let diacritic: { command: string, mode: string }
+    const l: number = text.length
+    for (i = 0; i < l; i++) {
+      mapped = null
+
+      // tie "i","︠","a","︡"
+      if (text[i + 1] === '\ufe20' && text[i + 3] === '\ufe21') { // eslint-disable-line  no-magic-numbers
+        mapped = this.mapping[text.substr(i, 4)] || { text: `${text[i]}${text[i + 2]}` } // eslint-disable-line  no-magic-numbers
+        i += 3 // eslint-disable-line  no-magic-numbers
+      }
+
+      if (!mapped && !Translator.unicode) {
+        // combining diacritics. Relies on NFD always being mapped, otherwise NFC won't be tested
+
+        if (m = combining_diacritics.exec(text.substring(i))) {
+          // try compact representation first
+          mapped = this.mapping[m[0].normalize('NFC')]
+
+          // normal char + 1 or two following combining diacritics
+          if (!mapped && (diacritic = unicode2latex.diacritics.tolatex[m[0].substr(1,2)])) {
+            const char = (this.mapping[text[i]] || { text: text[i], math: text[i] })[diacritic.mode]
+            if (char) {
+              const cmd = diacritic.command.match(/[a-z]/)
+
+              if (Translator.BetterBibTeX && diacritic.mode === 'text') {
+                // needs to be braced to count as a single char for name abbreviation
+                mapped = ({ [diacritic.mode]: `{\\${diacritic.command}${cmd ? ' ': ''}${char}}` } as LatexRepresentation)
+
+              }
+              else if (cmd && char.length === 1) {
+                mapped = ({ [diacritic.mode]: `\\${diacritic.command} ${char}` } as LatexRepresentation)
+
+              }
+              else if (cmd) {
+                mapped = ({ [diacritic.mode]: `\\${diacritic.command}{${char}}` } as LatexRepresentation)
+
+              }
+              else {
+                mapped = ({ [diacritic.mode]: `\\${diacritic.command}${char}` } as LatexRepresentation)
+              }
+
+              // support for multiple-diacritics is taken from tipa, which doesn't support more than 2
+              if (m[0].length > 3) log.error('discarding diacritics > 2 from', m[0]) // eslint-disable-line no-magic-numbers
+            }
+          }
+
+          if (mapped) i += m[0].length - 1
+        }
+      }
+
+      // ??
+      if (!mapped && text[i + 1] && (mapped = this.mapping[text.substr(i, 2)])) {
+        i += 1
+      }
+
+      // fallback -- single char mapping
+      if (!mapped) mapped = this.mapping[text[i]] || { text: text[i] }
+
       // in and out of math mode
-      if (!!this.mapping.math[c] !== math) {
-        latex += '$'
-        math = !!this.mapping.math[c]
+      if (!mapped[mode]) {
+        mode = switchMode[mode]
+        latex += switchTo[mode]
+        switched = true
+      }
+      else {
+        switched = false
       }
 
       // balance out braces with invisible braces until http://tex.stackexchange.com/questions/230750/open-brace-in-bibtex-fields/230754#comment545453_230754 is widely deployed
-      switch (c) {
-        case '{': braced += 1; break
-        case '}': braced -= 1; break
+      switch (mapped[mode]) {
+        case '\\{': braced += 1; break
+        case '\\}': braced -= 1; break
       }
       if (braced < 0) {
         latex += '\\vphantom\\{'
         braced = 0
       }
 
-      c = this.mapping.math[c] || this.mapping.text[c] || c
-      latex += this.embrace(c, unicodeMapping.embrace[c])
+      // if we just switched out of math mode, and there's a lone sup/sub at the end, unpack it. The extra option brace is for when we're in nocased mode (see switchTo)
+      if (switched && mode === 'text' && (m = latex.match(/([\^_])\{(.)\}(\$\}?)$/))) {
+        latex = latex.slice(0, latex.length - m[0].length) + m[1] + m[2] + m[3] // eslint-disable-line  no-magic-numbers
+      }
+
+      latex += mapped[mode]
+      if (mapped.commandspacer) latex += '\0' // clean up below
+
+      // only try to merge sup/sub if we were already in math mode, because if we were previously in text mode, testing for _^ is tricky.
+      if (!switched && mode === 'math' && (m = latex.match(/(([\^_])\{[^{}]+)\}\2{(.\})$/))) {
+        latex = latex.slice(0, latex.length - m[0].length) + m[1] + m[3] // eslint-disable-line  no-magic-numbers
+      }
+
+      const pkgs = (mapped[`${mode}packages`] as string[])
+      if (pkgs) {
+        for (const pkg of pkgs) {
+          this.packages[pkg] = true
+        }
+      }
     }
 
     // add any missing closing phantom braces
@@ -195,23 +401,18 @@ const htmlConverter = new class HTMLConverter {
     }
 
     // might still be in math mode at the end
-    if (math) latex += '$'
+    if (mode === 'math') latex += switchTo.text
 
-    this.latex += latex
+    this.latex += latex.normalize('NFC')
   }
 }
 
-export function html2latex(html, options) {
+export function html2latex(html:string, options: ConverterOptions): ParseResult {
   if (typeof options.html === 'undefined') options.html = true
-  const latex = htmlConverter.convert(html, options)
-  latex.latex = latex.latex
-    .replace(/(\\\\)+[^\S\n]*\n\n/g, '\n\n')
-    .replace(/\n\n\n+/g, '\n\n')
-    .replace(/{}([}])/g, '$1')
-  return latex
+  return htmlConverter.convert(html, options)
 }
 
-export function text2latex(text, options: { caseConversion?: boolean, html?: boolean } = {}) {
+export function text2latex(text:string, options: ConverterOptions = {}): ParseResult {
   if (typeof options.html === 'undefined') options.html = false
   return html2latex(text, options)
 }

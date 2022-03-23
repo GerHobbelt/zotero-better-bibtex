@@ -1,18 +1,17 @@
 {
 	"translatorID": "bc03b4fe-436d-4a1f-ba59-de4d2d7a63f7",
+	"translatorType": 3,
 	"label": "CSL JSON",
 	"creator": "Simon Kornblith",
 	"target": "json",
 	"minVersion": "4.0.27",
-	"maxVersion": "",
+	"maxVersion": null,
 	"priority": 100,
+	"inRepository": true,
 	"configOptions": {
 		"async": true
 	},
-	"inRepository": true,
-	"translatorType": 3,
-	"browserSupport": "gcsibv",
-	"lastUpdated": "2017-07-05 19:32:38"
+	"lastUpdated": "2021-02-27 11:50:00"
 }
 
 function parseInput() {
@@ -21,7 +20,7 @@ function parseInput() {
 	// Read in the whole file at once, since we can't easily parse a JSON stream. The 
 	// chunk size here is pretty arbitrary, although larger chunk sizes may be marginally
 	// faster. We set it to 1MB.
-	while((str = Z.read(1048576)) !== false) json += str;
+	while ((str = Z.read(1048576)) !== false) json += str;
 	
 	try {
 		return JSON.parse(json);
@@ -42,14 +41,14 @@ function detectImport() {
 		"song":true, "speech":true, "thesis":true, "treaty":true, "webpage":true};
 		
 	var parsedData = parseInput();
-	if(!parsedData) return false;
+	if (!parsedData) return false;
 	
-	if(typeof parsedData !== "object") return false;
-	if(!(parsedData instanceof Array)) parsedData = [parsedData];
+	if (typeof parsedData !== "object") return false;
+	if (!(parsedData instanceof Array)) parsedData = [parsedData];
 	
-	for(var i=0; i<parsedData.length; i++) {
+	for (var i=0; i<parsedData.length; i++) {
 		var item = parsedData[i];
-		if(typeof item !== "object" || !item.type || !(item.type in CSL_TYPES)) {
+		if (typeof item !== "object" || !item.type || !(item.type in CSL_TYPES)) {
 			return false;
 		}
 	}
@@ -89,6 +88,22 @@ function importNext(data, resolve, reject) {
 		var d;
 		while (d = data.shift()) {
 			var item = new Z.Item();
+			
+			// Default to 'article' (Document) if no type given. 'type' is required in CSL-JSON,
+			// but some DOI registration agencies provide bad data, and this is better than failing.
+			// (itemFromCSLJSON() will already default to 'article' for unknown 'type' values.)
+			//
+			// Technically this should go in the DOI Content Negotation translator, but it's easier
+			// to do this here after the JSON has been parsed, and it might benefit other translators.
+			//
+			// This is just for imports from other translators. File/clipboard imports without
+			// 'type' still won't work, because a valid 'type' is required in detectImport().
+			//
+			// https://forums.zotero.org/discussion/85273/error-importing-dois-via-add-item-by-identifier
+			if (!d.type) {
+				d.type = 'article';
+			}
+			
 			ZU.itemFromCSLJSON(item, d);
 			var maybePromise = item.complete();
 			if (maybePromise) {
@@ -108,7 +123,17 @@ function importNext(data, resolve, reject) {
 
 function doExport() {
 	var item, data = [];
-	while(item = Z.nextItem()) data.push(ZU.itemToCSLJSON(item));
+	while (item = Z.nextItem()) {
+		if (item.extra) {
+			item.extra = item.extra.replace(/(?:^|\n)citation key\s*:\s*([^\s]+)(?:\n|$)/i, (m, citationKey) => {
+				item.citationKey = citationKey;
+				return '\n';
+			}).trim();
+		}
+		var cslItem = ZU.itemToCSLJSON(item);
+		if (item.citationKey) cslItem.id = item.citationKey;
+		data.push(cslItem);
+	}
 	Z.write(JSON.stringify(data, null, "\t"));
 }
 /** BEGIN TEST CASES **/

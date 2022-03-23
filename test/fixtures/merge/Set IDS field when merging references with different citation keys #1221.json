@@ -1,0 +1,50 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {},
+    "preferences": {
+      "citekeyFormat": "[auth][shorttitle][year]",
+      "itemObserverDelay": 100,
+      "kuroshiro": true
+    }
+  },
+  "items": [
+    {
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Saharon",
+          "lastName": "Shelah"
+        }
+      ],
+      "date": "1973",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "notes": [
+        "<p>MR 49:8856</p>"
+      ],
+      "pages": "314\u2013328",
+      "publicationTitle": "Israel Journal of Mathematics",
+      "title": "Differentially closed fields",
+      "volume": "16"
+    },
+    {
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Saharon",
+          "lastName": "Shelah"
+        }
+      ],
+      "date": "1973",
+      "itemID": 2,
+      "itemType": "journalArticle",
+      "pages": "437\u2013441",
+      "publicationTitle": "Israel Journal of Mathematics",
+      "title": "Errata to: First order theory of permutation groups",
+      "volume": "15"
+    }
+  ]
+}

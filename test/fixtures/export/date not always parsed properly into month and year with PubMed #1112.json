@@ -1,0 +1,232 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {},
+    "preferences": {
+      "citekeyFormat": "[auth][shorttitle][year]",
+      "itemObserverDelay": 100,
+      "kuroshiro": true
+    }
+  },
+  "items": [
+    {
+      "DOI": "10.1093/hmg/ddy068",
+      "ISSN": "1460-2083",
+      "abstractNote": "Centronuclear myopathies (CNM) are a subtype of congenital myopathies (CM) characterized by skeletal muscle weakness and an increase in the number of central myonuclei. We have previously identified three CNM probands, two with associated dilated cardiomyopathy, carrying striated preferentially expressed gene (SPEG) mutations. Currently, the role of SPEG in skeletal muscle function is unclear as constitutive SPEG-deficient mice developed severe dilated cardiomyopathy and died in utero. We have generated a conditional Speg-KO mouse model and excised Speg by crosses with striated muscle-specific cre-expressing mice (MCK-Cre). The resulting litters had a delay in Speg excision consistent with cre expression starting in early postnatal life and, therefore, an extended lifespan up to a few months. KO mice were significantly smaller and weaker than their littermate-matched controls. Histopathological skeletal muscle analysis revealed smaller myofibers, marked fiber-size variability, and poor integrity and low number of triads. Further, SPEG-deficient muscle fibers were weaker by physiological and in vitro studies and exhibited abnormal Ca2+ handling and excitation-contraction (E-C) coupling. Overall, SPEG deficiency in skeletal muscle is associated with fewer and abnormal triads, and defective calcium handling and excitation-contraction coupling, suggesting that therapies targeting calcium signaling may be beneficial in such patients.",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Virginia",
+          "lastName": "Huntoon"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Jeffrey J.",
+          "lastName": "Widrick"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Colline",
+          "lastName": "Sanchez"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Samantha M.",
+          "lastName": "Rosen"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Candice",
+          "lastName": "Kutchukian"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Siqi",
+          "lastName": "Cao"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Christopher R.",
+          "lastName": "Pierson"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Xiaoli",
+          "lastName": "Liu"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Mark A.",
+          "lastName": "Perrella"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Alan H.",
+          "lastName": "Beggs"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Vincent",
+          "lastName": "Jacquemond"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Pankaj B.",
+          "lastName": "Agrawal"
+        }
+      ],
+      "date": "05 01, 2018",
+      "extra": [
+        "PMID: 29474540",
+        "PMCID: PMC5905626"
+      ],
+      "issue": "9",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "journalAbbreviation": "Hum. Mol. Genet.",
+      "language": "eng",
+      "libraryCatalog": "PubMed",
+      "pages": "1608-1617",
+      "publicationTitle": "Human Molecular Genetics",
+      "title": "SPEG-deficient skeletal muscles exhibit abnormal triad and defective calcium handling",
+      "volume": "27"
+    },
+    {
+      "DOI": "10.1371/journal.pgen.1007226",
+      "ISSN": "1553-7404",
+      "abstractNote": "Gene expression in a tissue-specific context depends on the combined efforts of epigenetic, transcriptional and post-transcriptional processes that lead to the production of specific proteins that are important determinants of cellular identity. Ribosomes are a central component of the protein biosynthesis machinery in cells; however, their regulatory roles in the translational control of gene expression in skeletal muscle remain to be defined. In a genetic screen to identify critical regulators of myogenesis, we identified a DEAD-Box RNA helicase, DDX27, that is required for skeletal muscle growth and regeneration. We demonstrate that DDX27 regulates ribosomal RNA (rRNA) maturation, and thereby the ribosome biogenesis and the translation of specific transcripts during myogenesis. These findings provide insight into the translational regulation of gene expression in myogenesis and suggest novel functions for ribosomes in regulating gene expression in skeletal muscles.",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Alexis H.",
+          "lastName": "Bennett"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Marie-Francoise",
+          "lastName": "O'Donohue"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Stacey R.",
+          "lastName": "Gundry"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Aye T.",
+          "lastName": "Chan"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Jeffrey",
+          "lastName": "Widrick"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Isabelle",
+          "lastName": "Draper"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Anirban",
+          "lastName": "Chakraborty"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Yi",
+          "lastName": "Zhou"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Leonard I.",
+          "lastName": "Zon"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Pierre-Emmanuel",
+          "lastName": "Gleizes"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Alan H.",
+          "lastName": "Beggs"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Vandana A.",
+          "lastName": "Gupta"
+        }
+      ],
+      "date": "03 2018",
+      "extra": [
+        "PMID: 29518074",
+        "PMCID: PMC5843160"
+      ],
+      "issue": "3",
+      "itemID": 2,
+      "itemType": "journalArticle",
+      "journalAbbreviation": "PLoS Genet.",
+      "language": "eng",
+      "libraryCatalog": "PubMed",
+      "pages": "e1007226",
+      "publicationTitle": "PLoS genetics",
+      "tags": [
+        {
+          "tag": "Animals"
+        },
+        {
+          "tag": "Animals, Genetically Modified"
+        },
+        {
+          "tag": "Cell Line"
+        },
+        {
+          "tag": "Cell Nucleolus"
+        },
+        {
+          "tag": "Cell Proliferation"
+        },
+        {
+          "tag": "DEAD-box RNA Helicases"
+        },
+        {
+          "tag": "Embryo, Nonmammalian"
+        },
+        {
+          "tag": "Mice"
+        },
+        {
+          "tag": "Muscle Development"
+        },
+        {
+          "tag": "Muscle, Skeletal"
+        },
+        {
+          "tag": "Myoblasts"
+        },
+        {
+          "tag": "PAX2 Transcription Factor"
+        },
+        {
+          "tag": "Protein Biosynthesis"
+        },
+        {
+          "tag": "Regeneration"
+        },
+        {
+          "tag": "RNA, Ribosomal"
+        },
+        {
+          "tag": "Zebrafish"
+        },
+        {
+          "tag": "Zebrafish Proteins"
+        }
+      ],
+      "title": "RNA helicase, DDX27 regulates skeletal muscle growth and regeneration by modulation of translational processes",
+      "volume": "14"
+    }
+  ]
+}

@@ -9,7 +9,7 @@
 	"inRepository": true,
 	"translatorType": 4,
 	"browserSupport": "gcsibv",
-	"lastUpdated": "2017-09-16 17:58:22"
+	"lastUpdated": "2019-11-02 15:43:51"
 }
 
 /*
@@ -44,7 +44,7 @@ function detectWeb(doc, url) {
 	
 	var citLinks = ZU.xpath(doc, '//a[contains(@href, "/action/showCitFormats")]');
 	if (citLinks.length > 0) {
-		if (url.indexOf('/doi/book/') != -1) {
+		if (url.includes('/doi/book/')) {
 			return 'book';
 		}
 		else if (url.search(/\.ch\d+$/)!=-1){
@@ -132,7 +132,7 @@ function buildPdfUrl(url, root) {
 		}
 	}
 	
-	Z.debug('PDF link not found.')
+	Z.debug('PDF link not found.');
 	if (root.nodeType != 9 /*DOCUMENT_NODE*/) {
 		Z.debug('Available links:');
 		var links = root.getElementsByTagName('a');
@@ -216,20 +216,13 @@ function scrape(doc, url, extras) {
 					item.creators[i].lastName = fixCase(item.creators[i].lastName, true);
 					if (item.creators[i].firstName) {
 						item.creators[i].firstName = fixCase(item.creators[i].firstName, true);
-					} else if (url.indexOf('www.emeraldinsight.com')>-1) {
-						//for Emerald, improve author's lastname and firstname
-						item.creators[i] = ZU.cleanAuthor(item.creators[i].lastName, item.creators[i].creatorType);
 					}
 				}
 				
 				item.url = url;
-				//for Emerald, get rid of the "null" that they add at the end of every title:
-				if (url.indexOf("www.emeraldinsight.com")!=-1){
-					item.title = item.title.replace(/null$/, "")
-				}
 				item.notes = [];
 				for (var i in tags){
-					item.tags.push(tags[i].textContent)
+					item.tags.push(tags[i].textContent);
 				}
 				
 				if (abstract) {
@@ -260,7 +253,7 @@ function scrape(doc, url, extras) {
 			});
 			translator.translate();
 		});
-	})
+	});
 }
 
 /** BEGIN TEST CASES **/
@@ -428,7 +421,7 @@ var testCases = [
 	},
 	{
 		"type": "web",
-		"url": "http://online.liebertpub.com/doi/abs/10.1089/cmb.2009.0238",
+		"url": "https://www.liebertpub.com/doi/abs/10.1089/cmb.2009.0238",
 		"items": [
 			{
 				"itemType": "journalArticle",
@@ -455,11 +448,11 @@ var testCases = [
 				"abstractNote": "An accurate genome sequence of a desired species is now a pre-requisite for genome research. An important step in obtaining a high-quality genome sequence is to correctly assemble short reads into longer sequences accurately representing contiguous genomic regions. Current sequencing technologies continue to offer increases in throughput, and corresponding reductions in cost and time. Unfortunately, the benefit of obtaining a large number of reads is complicated by sequencing errors, with different biases being observed with each platform. Although software are available to assemble reads for each individual system, no procedure has been proposed for high-quality simultaneous assembly based on reads from a mix of different technologies. In this paper, we describe a parallel short-read assembler, called Ray, which has been developed to assemble reads obtained from a combination of sequencing platforms. We compared its performance to other assemblers on simulated and real datasets. We used a combination of Roche/454 and Illumina reads to assemble three different genomes. We showed that mixing sequencing technologies systematically reduces the number of contigs and the number of errors. Because of its open nature, this new tool will hopefully serve as a basis to develop an assembler that can be of universal utilization (availability: http://deNovoAssembler.sf.Net/). For online Supplementary Material, see www.liebertonline.com.",
 				"issue": "11",
 				"journalAbbreviation": "Journal of Computational Biology",
-				"libraryCatalog": "online.liebertpub.com (Atypon)",
+				"libraryCatalog": "liebertpub.com (Atypon)",
 				"pages": "1519-1533",
 				"publicationTitle": "Journal of Computational Biology",
 				"shortTitle": "Ray",
-				"url": "http://online.liebertpub.com/doi/abs/10.1089/cmb.2009.0238",
+				"url": "https://www.liebertpub.com/doi/abs/10.1089/cmb.2009.0238",
 				"volume": "17",
 				"attachments": [
 					{
@@ -554,52 +547,6 @@ var testCases = [
 				"shortTitle": "Block Copolymer Thin Films",
 				"url": "http://www.annualreviews.org/doi/abs/10.1146/annurev.matsci.31.1.323",
 				"volume": "31",
-				"attachments": [
-					{
-						"title": "Full Text PDF",
-						"mimeType": "application/pdf"
-					},
-					{
-						"title": "Snapshot",
-						"mimeType": "text/html"
-					}
-				],
-				"tags": [],
-				"notes": [],
-				"seeAlso": []
-			}
-		]
-	},
-	{
-		"type": "web",
-		"url": "http://www.emeraldinsight.com/toc/sajgbr/2/2",
-		"items": "multiple"
-	},
-	{
-		"type": "web",
-		"url": "http://www.emeraldinsight.com/doi/full/10.1108/SAJGBR-10-2012-0120",
-		"items": [
-			{
-				"itemType": "journalArticle",
-				"title": "Irish coffee? Well, something better …",
-				"creators": [
-					{
-						"firstName": "Pramila",
-						"lastName": "Rao",
-						"creatorType": "author"
-					}
-				],
-				"date": "August 16, 2013",
-				"DOI": "10.1108/SAJGBR-10-2012-0120",
-				"ISSN": "2045-4457",
-				"issue": "2",
-				"journalAbbreviation": "S Asian Jnl of Global Bus Res",
-				"libraryCatalog": "emeraldinsight.com (Atypon)",
-				"pages": "165-171",
-				"publicationTitle": "South Asian Journal of Global Business Research",
-				"shortTitle": "Irish coffee?",
-				"url": "http://www.emeraldinsight.com/doi/full/10.1108/SAJGBR-10-2012-0120",
-				"volume": "2",
 				"attachments": [
 					{
 						"title": "Full Text PDF",

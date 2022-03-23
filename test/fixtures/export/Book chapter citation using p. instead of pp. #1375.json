@@ -1,0 +1,51 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "DOIandURL": "doi",
+      "automaticTags": false,
+      "bibtexURL": "url",
+      "citeCommand": "citep",
+      "citekeyFormat": "[zotero:clean]",
+      "keyScope": "global",
+      "skipFields": "month"
+    }
+  },
+  "items": [
+    {
+      "citationKey": "rosengren_uses_1974",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Karl Erik",
+          "lastName": "Rosengren"
+        },
+        {
+          "creatorType": "editor",
+          "firstName": "Jay G.",
+          "lastName": "Blumler"
+        },
+        {
+          "creatorType": "editor",
+          "firstName": "Elihu",
+          "lastName": "Katz"
+        }
+      ],
+      "date": "1974",
+      "itemID": 1,
+      "itemType": "bookSection",
+      "notes": [
+        "<p>In Valkenburg (2016):</p>\n<p>Uses-and-grati\ufb01cations theory: Attempts to understand why and how people actively seek out speci\ufb01c media to satisfy speci\ufb01c needs</p>"
+      ],
+      "pages": "269-286",
+      "publicationTitle": "The uses of mass communications: Current perspectives on grati\ufb01cations research",
+      "publisher": "SAGE Publications",
+      "title": "Uses and gratifications: A paradigm outlined"
+    }
+  ]
+}

@@ -1,5 +1,8 @@
+
 @article{Brons:pretest,
+  title = {$pretest$},
   author = {Brøns, Morten},
-  note = {Hello  hej},
-  title = {$pretest$}
+  annotation = {Hello  hej}
 }
+
+

@@ -1,0 +1,80 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "localeDateOrder": "ymd",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "DOIandURL": "doi",
+      "bibtexURL": "url",
+      "citekeyFormat": "[authors3][year]",
+      "exportTitleCase": false,
+      "itemObserverDelay": 100,
+      "skipFields": "note,issn"
+    }
+  },
+  "items": [
+    {
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Jane",
+          "lastName": "Doe"
+        }
+      ],
+      "date": "2018",
+      "extra": [
+        "00000"
+      ],
+      "issue": "4",
+      "itemID": 1,
+      "itemType": "journalArticle",
+      "pages": "1-31",
+      "publicationTitle": "Journal of Testing",
+      "title": "This article is sentence case in Zotero",
+      "volume": "2"
+    },
+    {
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Jill",
+          "lastName": "Jackson"
+        }
+      ],
+      "date": "2019",
+      "extra": [
+        "00000"
+      ],
+      "issue": "4",
+      "itemID": 2,
+      "itemType": "journalArticle",
+      "pages": "399-412",
+      "publicationTitle": "Internet Quarterly",
+      "title": "I like ISDN heaps better than dialup",
+      "volume": "12"
+    },
+    {
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "John",
+          "lastName": "Smith"
+        }
+      ],
+      "date": "2019",
+      "extra": [
+        "00000"
+      ],
+      "issue": "1",
+      "itemID": 3,
+      "itemType": "journalArticle",
+      "pages": "27-49",
+      "publicationTitle": "Journal of Testing",
+      "title": "This Article is Title Case in Zotero",
+      "volume": "3"
+    }
+  ]
+}

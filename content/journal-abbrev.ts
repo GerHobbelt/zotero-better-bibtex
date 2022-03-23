@@ -1,12 +1,11 @@
-declare const Zotero: any
-
-import { Preferences as Prefs } from './prefs'
-import * as log from './debug'
+import { Preference } from '../gen/preferences'
 import { Events } from './events'
-import { ZoteroConfig } from './zotero-config'
+import { client } from './client'
+
+import { log } from './logger'
 
 // export singleton: https://k94n.com/es6-modules-single-instance-pattern
-export let JournalAbbrev = new class { // tslint:disable-line:variable-name
+export const JournalAbbrev = new class { // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
   private initialized: boolean
   private style: any
   private abbrevs: any
@@ -15,26 +14,24 @@ export let JournalAbbrev = new class { // tslint:disable-line:variable-name
     this.initialized = false
   }
 
-  public init() {
-    if (this.initialized) return
+  public async init() {
+    if (this.initialized) return null
+    await Zotero.Styles.init() // otherwise Juris-M throws 'Styles not yet loaded'
     this.initialized = true
 
     Events.on('preference-changed', pref => {
-      if (pref !== 'autoAbbrevStyle') return
+      if (pref !== 'autoAbbrevStyle') return null
 
-      log.debug('JournalAbbrev.preference-changed:', {pref})
       this.reset()
     })
 
     this.reset()
-    log.debug('JournalAbbrev.init: done')
   }
 
   public reset() {
-    log.debug('JournalAbbrev.reset')
-
-    this.style = Prefs.get('autoAbbrevStyle')
-    if (ZoteroConfig.Zotero.isJurisM && !this.style) {
+    this.style = Preference.autoAbbrevStyle
+    if (client === 'jurism' && !this.style) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       this.style = Zotero.Styles.getVisible().filter(style => style.usesAbbreviation)[0].styleID
     }
 
@@ -45,6 +42,7 @@ export let JournalAbbrev = new class { // tslint:disable-line:variable-name
         'institution-entire': { },
         'institution-part': { },
         nickname: { },
+        // eslint-disable-next-line id-blacklist
         number: { },
         title: { },
         place: { },
@@ -54,38 +52,37 @@ export let JournalAbbrev = new class { // tslint:disable-line:variable-name
         'title-phrase': { },
       },
     }
-
-    log.debug('JournalAbbrev.reset:', {style: this.style})
   }
 
-  public get(item, force = false) {
-    let abbrev, journal
+  public get(item, force = false): string {
+    let abbrev:string
+    let journal: string
+    const zotero_item = !!(item.setType)
 
-    if (item.getField) {
+    if (zotero_item) {
       try {
         abbrev = item.getField('journalAbbreviation', false, true)
-      } catch (error) {}
-    } else {
+      }
+      catch (error) {}
+    }
+    else {
       abbrev = item.journalAbbreviation
     }
 
-    if (abbrev || (!Prefs.get('autoAbbrev') && !force)) return abbrev
+    if (abbrev || (!Preference.autoAbbrev && !force)) return abbrev
 
-    if (!['conferencePaper', 'journalArticle', 'bill', 'case', 'statute'].includes(item.getField ? Zotero.ItemTypes.getName(item.itemTypeID) : item.itemType)) return null
-
-    log.debug('JournalAbbrev.get: getting from', item.getField ? 'native' : 'serialised')
+    if (!['conferencePaper', 'journalArticle', 'bill', 'case', 'statute'].includes(zotero_item ? Zotero.ItemTypes.getName(item.itemTypeID) : item.itemType)) return null
 
     for (const field of ['publicationTitle', 'reporter', 'code']) {
       try {
-        log.debug('JournalAbbrev.get: trying', field)
-        journal = item.getField ? item.getField(field, false, true) : item[field]
+        journal = zotero_item ? item.getField(field, false, true) : item[field]
         if (!journal) continue
         journal = journal.replace(/<\/?(sup|sub|i|b)>/g, '')
         if (!journal) continue
 
-        log.debug('JournalAbbrev.get: found', field, journal)
         break
-      } catch (err) {
+      }
+      catch (err) {
         log.error('JournalAbbrev.get: err', err)
       }
     }
@@ -96,10 +93,10 @@ export let JournalAbbrev = new class { // tslint:disable-line:variable-name
     if (!this.abbrevs.default['container-title'][journal] && typeof Zotero.Cite.getAbbreviation === 'function') {
       Zotero.Cite.getAbbreviation(this.style, this.abbrevs, 'default', 'container-title', journal)
     }
-    const abbr = this.abbrevs.default['container-title'][journal]
+    const abbr: string = this.abbrevs.default['container-title'][journal]
 
-    log.debug('JournalAbbrev.get: generated', abbr)
-    if (abbr === journal) return null
+    if (!abbr || abbr.toLowerCase() === journal.toLowerCase().replace(/[.]/g, '')) return null
+
     return abbr || journal
   }
 }
