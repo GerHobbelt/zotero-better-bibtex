@@ -1,6 +1,6 @@
 import { log } from './logger'
 import { TeXstudio } from './tex-studio'
-import { patch as $patch$ } from './monkey-patch'
+import { repatch as $patch$ } from './monkey-patch'
 import { clean_pane_persist } from './clean_pane_persist'
 import { Preference } from '../gen/preferences'
 import { AutoExport } from './auto-export'
@@ -17,20 +17,26 @@ export class ZoteroPane {
   public load(): void {
     const pane = Zotero.getActiveZoteroPane()
 
+    const globals = this.globals
     $patch$(pane, 'buildCollectionContextMenu', original => async function() {
       // eslint-disable-next-line prefer-rest-params
       await original.apply(this, arguments)
+
+      if (!globals) {
+        log.debug('buildCollectionContextMenu: globals not set')
+        return
+      }
 
       try {
         const treeRow = this.collectionsView.selectedTreeRow
         const isLibrary = treeRow && treeRow.isLibrary(true)
         const isCollection = treeRow && treeRow.isCollection()
 
-        this.globals.document.getElementById('bbt-collectionmenu-separator').hidden = !(isLibrary || isCollection)
-        this.globals.document.getElementById('bbt-collectionmenu-pull-url').hidden = !(isLibrary || isCollection)
-        this.globals.document.getElementById('bbt-collectionmenu-report-errors').hidden = !(isLibrary || isCollection)
+        globals.document.getElementById('bbt-collectionmenu-separator').hidden = !(isLibrary || isCollection)
+        globals.document.getElementById('bbt-collectionmenu-pull-url').hidden = !(isLibrary || isCollection)
+        globals.document.getElementById('bbt-collectionmenu-report-errors').hidden = !(isLibrary || isCollection)
 
-        const tagDuplicates = this.globals.document.getElementById('bbt-collectionmenu-tag-duplicates')
+        const tagDuplicates = globals.document.getElementById('bbt-collectionmenu-tag-duplicates')
         if (isLibrary) {
           tagDuplicates.hidden = false
           tagDuplicates.setAttribute('libraryID', treeRow.ref.libraryID.toString())
@@ -39,31 +45,31 @@ export class ZoteroPane {
           tagDuplicates.hidden = true
         }
 
-        let query = null
-        if (Preference.autoExport === 'immediate') {
-          query = null
+        let auto_exports = []
+        if (Preference.autoExport !== 'immediate') {
+          if (isCollection) {
+            log.debug($and({ type: 'collection', id: treeRow.ref.id }))
+            auto_exports = AutoExport.db.find($and({ type: 'collection', id: treeRow.ref.id }))
+          }
+          else if (isLibrary) {
+            log.debug($and({ type: 'library', id: treeRow.ref.libraryID }))
+            auto_exports = AutoExport.db.find($and({ type: 'library', id: treeRow.ref.libraryID }))
+          }
         }
-        else if (isCollection) {
-          query = $and({ type: 'collection', id: treeRow.ref.id })
-        }
-        else if (isLibrary) {
-          query = $and({ type: 'library', id: treeRow.ref.libraryID })
-        }
-        const auto_exports = query ? AutoExport.db.find(query) : []
+        log.debug('buildCollectionContextMenu: auto-exports', { isCollection, isLibrary, auto_exports, data: AutoExport.db.data })
 
-        for (const node of [...this.globals.document.getElementsByClassName('bbt-autoexport')]) {
+        for (const node of [...globals.document.getElementsByClassName('zotero-collectionmenu-bbt-autoexport')]) {
           node.hidden = auto_exports.length === 0
         }
 
         if (auto_exports.length !== 0) {
-          const menupopup = this.globals.document.getElementById('zotero-itemmenu-BetterBibTeX-autoexport-menu')
+          const menupopup = globals.document.getElementById('zotero-collectionmenu-bbt-autoexport-menupopup')
           while (menupopup.children.length > 1) menupopup.removeChild(menupopup.firstChild)
           for (const [index, ae] of auto_exports.entries()) {
             const menuitem = (index === 0 ? menupopup.firstChild : menupopup.appendChild(menupopup.firstChild.cloneNode(true)))
             menuitem.label = ae.path
           }
         }
-
       }
       catch (err) {
         log.error('ZoteroPane.buildCollectionContextMenu:', err)
@@ -178,7 +184,7 @@ export class ZoteroPane {
   public async addCitationLinks(): Promise<void> {
     const items = Zotero.getActiveZoteroPane().getSelectedItems()
     if (items.length !== 1) {
-      flash('Citation links only works for a single reference')
+      flash('Citation links only works for a single item')
       return
     }
 
@@ -196,11 +202,11 @@ export class ZoteroPane {
     await TeXstudio.push()
   }
 
-  public errorReport(includeReferences: string): void {
+  public errorReport(includeItems: string): void {
     const pane = Zotero.getActiveZoteroPane()
     let scope = null
 
-    switch (pane && includeReferences) {
+    switch (pane && includeItems) {
       case 'collection':
       case 'library':
         scope = { type: 'collection', collection: pane.getSelectedCollection() }

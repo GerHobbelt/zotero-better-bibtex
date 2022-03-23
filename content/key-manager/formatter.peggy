@@ -1,8 +1,12 @@
 {
+  function method_name(method, prefix) {
+    return (prefix || '') + method.replace(/[.]/g, '__').replace(/-/g, '_')
+  }
+
   function match(fn, args, text, error) {
     if (!fn.match(/^[$_]/)) error(`unknown operator ${fn}`)
 
-    const method = fn.replace(/[.]/g, '__').replace(/-/g, '_')
+    const method = method_name(fn)
 
     const meta = options.methods[method]
     if (!meta) {
@@ -12,10 +16,13 @@
       }
     }
 
-    if (args.length > meta.arguments.length) error(`too many arguments for ${text}`)
+    if (args.length > meta.parameters.length) error(`too many arguments for ${text}`)
 
     const params = args.reduce((acc, v, i) => {
-      acc[meta.arguments[i]] = v
+      const param = meta.parameters[i]
+      // horrid kludge for arrays
+      if (meta.schema.properties[param].type === 'array') v = v.split('/')
+      acc[param] = v
       return acc
     }, {})
 
@@ -24,7 +31,7 @@
       error(`${text}: ${argerror}`)
     }
     else {
-      args = JSON.stringify(meta.arguments.slice(0, args.length).map(k => params[k])).slice(1, -1)
+      args = JSON.stringify(meta.parameters.slice(0, args.length).map(k => params[k])).slice(1, -1)
       return `${method}(${args})`
     }
   }
@@ -94,16 +101,17 @@ method
         if (prefix.startsWith('edtr')) rest = rest.replace(/^\.edtr\./i, '.auth.')
         prefix = { edtr: 'auth', editors: 'authors' }[prefix]
       }
-      const fn = '$' + prefix + rest
+      const fn = method_name(prefix + rest, '$')
 
       const args = {
         onlyEditors: onlyEditors,
-        n: params[0],
-        m: params[1],
       }
-      const argnames = options.methods[fn.replace(/[.]/g, '__').replace(/-/g, '_')].arguments
-      if (argnames.includes('withInitials')) args.withInitials = false
-      if (argnames.includes('joiner')) args.joiner = ''
+      if (params[0]) args.n = params[0]
+      if (params[1]) args.m = params[1]
+
+      const paramnames = options.methods[fn].parameters
+      if (paramnames.includes('withInitials')) args.withInitials = false
+      if (paramnames.includes('joiner')) args.joiner = ''
 
       for (const flag of flags) {
         if (flag == 'initials') {
@@ -117,12 +125,23 @@ method
         }
       }
 
-      let method = match(fn, argnames.slice(0, Object.keys(args).length).map(n => args[n]), input, error);
-      if (scrub) method += '.scrub()';
+      let method = match(fn, paramnames.slice(0, Object.keys(args).length).map(n => args[n]), input, error);
+      if (scrub) method += '._clean(true)';
 
       return method;
     }
-  / name:$([a-z][.a-zA-Z]+) &{ return options.methods['$' + name] } p:fparams? {
+  / operator:$([<>=] / [<>!] '=') n:$[0-9]+ {
+    const method = {
+      '=': 'eq',
+      '<': 'lt',
+      '>': 'gt',
+      '<=': 'le',
+      '>=': 'ge',
+      '!=': 'ne',
+    } || operator
+    return match('$' + method, [n], operator, error)
+  }
+  / name:$([a-z][-.a-zA-Z]+) &{ return options.methods[method_name(name, '$')] } p:fparams? {
       if (name === 'zotero') postfix.set(postfix.numeric)
       return match('$' + name, p || [], name, error)
     }

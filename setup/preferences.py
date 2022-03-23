@@ -69,7 +69,7 @@ class Preferences:
     tooltips = {}
     links = {
       'which is not all of them': 'support/faq#why-the-double-braces',
-      'title casing for English references': 'support/faq#bbt-is-changing-the-capitalization-of-my-titles-why',
+      'title casing for English items': 'support/faq#bbt-is-changing-the-capitalization-of-my-titles-why',
       'automatic brace-protection for words with uppercase letters': 'support/faq#why-the-double-braces'
     }
     for tooltip in self.pane.findall(f'.//{xul}popupset/{xul}tooltip/{xul}description'):
@@ -340,6 +340,11 @@ class Preferences:
     os.makedirs(os.path.dirname(meta), exist_ok=True)
     with open(meta, 'w') as f:
       print(template('preferences/meta.ts.mako').render(prefix=self.prefix, names=names, translators=translators, preferences=preferences).strip(), file=f)
+
+    defaults = os.path.join(root, 'build', 'defaults', 'preferences', 'defaults.js')
+    os.makedirs(os.path.dirname(defaults), exist_ok=True)
+    with open(defaults, 'w') as f:
+      print(template('preferences/defaults.js.mako').render(prefix=self.prefix, names=names, translators=translators, preferences=preferences).strip(), file=f)
 
 content = os.path.join(root, 'content')
 for xul in os.listdir(content):

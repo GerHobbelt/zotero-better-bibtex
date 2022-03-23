@@ -2,7 +2,6 @@ declare const Zotero_File_Interface: any
 declare const Zotero_Duplicates_Pane: any
 
 import { AutoExport } from './auto-export'
-import { sleep } from './sleep'
 import * as ZoteroDB from './db/zotero'
 import { log } from './logger'
 import { Translators } from './translators'
@@ -15,6 +14,7 @@ import { $and } from './db/loki'
 import  { defaults } from '../gen/preferences/meta'
 import { Preference } from '../gen/preferences'
 import * as memory from './memory'
+import { Deferred } from './deferred'
 
 const setatstart: string[] = ['workers', 'testing', 'caching'].filter(p => Preference[p] !== defaults[p])
 
@@ -62,7 +62,7 @@ export class TestSupport {
       await collections[0].eraseTx()
     }
 
-    // Zotero DB access is *really* slow and times out even with chunked transactions. 3.5k references take ~ 50 seconds
+    // Zotero DB access is *really* slow and times out even with chunked transactions. 3.5k items take ~ 50 seconds
     // to delete.
     let items = await Zotero.Items.getAll(Zotero.Libraries.userLibraryID, false, true, true)
     while (items.length) {
@@ -90,15 +90,10 @@ export class TestSupport {
 
     preferences = preferences || {}
 
-    if (Object.keys(preferences).length) {
-      for (let [pref, value] of Object.entries(preferences)) {
-        if (typeof defaults[pref] === 'undefined') throw new Error(`Unsupported preference ${pref} in test case`)
-        if (Array.isArray(value)) value = value.join(',')
-        Zotero.Prefs.set(`translators.better-bibtex.${pref}`, value)
-      }
-    }
-    else {
-      log.debug(`importing references from ${path}`)
+    for (let [pref, value] of Object.entries(preferences)) {
+      if (typeof defaults[pref] === 'undefined') throw new Error(`Unsupported preference ${pref} in test case`)
+      if (Array.isArray(value)) value = value.join(',')
+      Zotero.Prefs.set(`translators.better-bibtex.${pref}`, value)
     }
 
     if (!path) return 0
@@ -111,7 +106,7 @@ export class TestSupport {
     if (path.endsWith('.aux')) {
       await AUXScanner.scan(path)
       // for some reason, the imported collection shows up as empty right after the import >:
-      await sleep(1500) // eslint-disable-line no-magic-numbers
+      await Zotero.Promise.delay(1500) // eslint-disable-line no-magic-numbers
     }
     else {
       await Zotero_File_Interface.importFile({ file: Zotero.File.pathToFile(path), createNewCollection: !!createNewCollection })
@@ -271,12 +266,12 @@ export class TestSupport {
     selected.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
 
     Zotero_Duplicates_Pane.setItems(selected)
-    await sleep(1500) // eslint-disable-line no-magic-numbers
+    await Zotero.Promise.delay(1500) // eslint-disable-line no-magic-numbers
 
     const before = await Zotero.Items.getAll(Zotero.Libraries.userLibraryID, true, false, true)
     await Zotero_Duplicates_Pane.merge()
 
-    await sleep(1500) // eslint-disable-line no-magic-numbers
+    await Zotero.Promise.delay(1500) // eslint-disable-line no-magic-numbers
     const after = await Zotero.Items.getAll(Zotero.Libraries.userLibraryID, true, false, true)
     if (before.length - after.length !== (ids.length - 1)) throw new Error(`merging ${ids.length}: before = ${before.length}, after = ${after.length}`)
   }
@@ -303,5 +298,26 @@ export class TestSupport {
       await collection.removeItems(itemIDs)
     })
     if (collection.getChildItems(true).length) throw new Error(`${path} not empty`)
+  }
+
+  public async quickCopy(itemIDs: number[], translator: string): Promise<string> {
+    const format = {
+      mode: 'export',
+      contentType: '',
+      id: Translators.byName[translator]?.translatorID || translator,
+      locale: '',
+    }
+    const deferred = new Deferred<string>()
+
+    Zotero.QuickCopy.getContentFromItems(Zotero.Items.get(itemIDs), format, (obj, worked) => {
+      if (worked) {
+        deferred.resolve(obj.string.replace(/\r\n/g, '\n'))
+      }
+      else {
+        deferred.reject(new Error(Zotero.getString('fileInterface.exportError')))
+      }
+    })
+
+    return deferred.promise
   }
 }

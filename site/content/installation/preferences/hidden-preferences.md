@@ -48,12 +48,6 @@ default: `5`
 
 How often the Better BibTeX database should be saved to disk. Defaults to once every 5 seconds. Note that your database is always saved when your computer goes idle, or when you exit Zotero.
 
-## citeprocNoteCitekey
-
-default: `no`
-
-Replaces the "note" field with the bibtex key during citation rendering in Word/Libreoffice. Main use-case is to help migrating word documents to pandoc. This setting only takes effect during startup, so if you change it, you will have to restart Zotero to have this take effect (or to disable it. Please disable it when done). You will need to use a custom CSL style (such as [this](https://raw.githubusercontent.com/retorquere/zotero-better-bibtex/master/better-bibtex-citekeys.csl)) to make this work. Have Zotero generate the bibliography, which will put the citation keys in the Word/LibreOffice document, which can then be passed through pandoc.
-
 ## csquotes
 
 default: `<not set>`
@@ -96,7 +90,7 @@ What to do when encountering a TeX command the parser does not know about. Pleas
 
 default: `5`
 
-I've had reports where Zotero notifies extensions that references have changed, but if BBT then actually retrieves those same references, Zotero complains they "haven't been saved yet". Super. This preference sets the number of microseconds BBT should wait after being notified before acting on the changed references.
+I've had reports where Zotero notifies extensions that items have changed, but if BBT then actually retrieves those same items, Zotero complains they "haven't been saved yet". Super. This preference sets the number of microseconds BBT should wait after being notified before acting on the changed items.
 
 ## mapMath
 
@@ -109,12 +103,6 @@ Any characters entered here will prefer a math-mode LaTeX-command counterpart ov
 default: `<not set>`
 
 Any characters entered here will prefer a text-mode LaTeX-command counterpart over a math-mode, if a text-mode command is available. Only useful when `mapUnicode` is `conservative`. Characters specified in `mapMath` take presedence over characters specified in `mapText`.
-
-## newTranslatorsAskRestart
-
-default: `yes`
-
-New translators installed in Zotero are not immediately usuable for drag-and-drop. If you want to use BBT for drag-and-drop (e.g. to drag and drop citation keys or citations), you will be asked whether you want to restart after installation, or whether you want to reinstall when it is more convenient to you. You will be asked this whenever the BBT translators update, but you can disable this by checking "Do not ask again" in that dialog.
 
 ## parseParticles
 
@@ -191,6 +179,16 @@ default: `popup`
 Zotero takes a few seconds to start up, which is sometimes mistakenly attributed to BBT. BBT will tell you what phase the startup process is in (of Zotero and BBT) to prevent support requests for something that I cannot change. Please only use values:
 
 * `popup`: show a popup during startup * `progressbar`: show a progressbar in the top of the frame
+
+## stringsOverride
+
+default: `<not set>`
+
+You can use a custom @string list per export directory:
+
+1. Edit the hidden preference `stringstOverride`, and set it to a filename like `strings.bib` 2. In the directory where you intend to export to, create a file called `strings.bib` (or whatever you set the preference to) and add the @string declarations you want there 3. Export to that directory.
+
+A strings override will disable caching for that export.
 
 ## verbatimFields
 

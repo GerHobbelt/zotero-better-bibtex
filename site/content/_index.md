@@ -9,7 +9,6 @@ aliases:
 # Better BibTeX for Zotero
 
 
-
 Better BibTeX (BBT) is an extension for [Zotero](https://www.zotero.org) and [Juris-M](https://juris-m.github.io) that makes it easier to manage bibliographic data, especially for people authoring documents using text-based toolchains (e.g. based on [LaTeX](https://www.latex-project.org) / [Markdown](https://www.markdownguide.org)).
 
 ## Features
@@ -24,7 +23,7 @@ Better BibTeX (BBT) is an extension for [Zotero](https://www.zotero.org) and [Ju
 ### Conversion between formats and encodings
 * Zotero does all its work in UTF-8 Unicode, which is absolutely the right thing to do. Unfortunately, for those shackled
 to BibTeX and who cannot (yet) move to BibLaTeX, unicode is a major PITA. Also, Zotero supports some simple HTML markup
-in your references that Bib(La)TeX won't understand.
+in your items that Bib(La)TeX won't understand.
 
 * BBT will convert from/to HTML/LaTeX:
 

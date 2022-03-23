@@ -5,10 +5,9 @@ import { jieba } from './key-manager/chinese'
 
 import { Scheduler } from './scheduler'
 import { log } from './logger'
-import { sleep } from './sleep'
 import { flash } from './flash'
 import { Events, itemsChanged as notifyItemsChanged } from './events'
-import { arXiv } from './arXiv'
+import { fetchAsync as fetchInspireHEP } from './inspire-hep'
 import * as Extra from './extra'
 import { $and, Query } from './db/loki'
 
@@ -45,37 +44,6 @@ export class KeyManager {
   private scanning: any[]
   private started = false
 
-  private async inspireHEP(doi: string, arxiv: string) {
-    for (const [type, id] of [['DOI', doi], ['arXiv ID', arxiv]]) {
-      if (!id) continue
-      const url = type === 'DOI' ? `https://inspirehep.net/api/doi/${id}` : `https://inspirehep.net/api/arxiv/${id}`
-
-      try {
-        const results = await (await fetch(url, { method: 'GET', cache: 'no-cache', redirect: 'follow' })).json()
-
-        if (results.status && (results.status < 200 || results.status > 299)) { // eslint-disable-line no-magic-numbers
-          flash(`Could not fetch inspireHEP key from ${type}`, `Could not fetch inspireHEP key for ${type} ${JSON.stringify(id)},\n\nInspireHEP says: ${results.message}`)
-
-        }
-        else if (results.metadata.texkeys.length === 0) {
-          flash(`No inspireHEP key found for ${type}`)
-
-        }
-        else {
-          if (results.metadata.texkeys.length > 1) {
-            flash(`Multiple inspireHEP keys found for ${type}`, `Multiple inspireHEP keys found for ${type} (${results.metadata.texkeys.join(' / ')}), selected ${results.metadata.texkeys[0]}`)
-          }
-          return (results.metadata.texkeys[0] as string)
-        }
-      }
-      catch (err) {
-        flash(`Error fetching inspireHEP key from ${type}`, `Could not fetch inspireHEP key for ${type} ${JSON.stringify(id)}\n\n${err.message}`)
-        log.error('inspireHEP', url, err)
-      }
-    }
-    return null
-  }
-
   private getField(item: { getField: ((str: string) => string)}, field: string): string {
     try {
       return item.getField(field) || ''
@@ -110,15 +78,8 @@ export class KeyManager {
       let citationKey: string = null
 
       if (inspireHEP) {
-        const doi = (this.getField(item, 'DOI') || parsed.extraFields.kv.DOI || '').replace(/^https?:\/\/doi.org\//i, '')
-        const arxiv = ((['arxiv.org', 'arxiv'].includes((this.getField(item, 'libraryCatalog') || '').toLowerCase())) && arXiv.parse(this.getField(item, 'publicationTitle')).id) || arXiv.parse(parsed.extraFields.tex.arxiv).id
-
-        if (!doi && !arxiv) continue
-        citationKey = await this.inspireHEP(doi, arxiv)
-        if (!citationKey) continue
-
-        if (parsed.extraFields.citationKey === citationKey) continue
-
+        citationKey = await fetchInspireHEP(item)
+        if (!citationKey || parsed.extraFields.citationKey === citationKey) continue
       }
       else {
         if (parsed.extraFields.citationKey) continue
@@ -344,7 +305,7 @@ export class KeyManager {
       // async is just a heap of fun. Who doesn't enjoy a good race condition?
       // https://github.com/retorquere/zotero-better-bibtex/issues/774
       // https://groups.google.com/forum/#!topic/zotero-dev/yGP4uJQCrMc
-      await sleep(Preference.itemObserverDelay)
+      await Zotero.Promise.delay(Preference.itemObserverDelay)
 
       let item
       try {
@@ -447,13 +408,13 @@ export class KeyManager {
 
     this.keys.findAndRemove({ itemID: { $nin: ids } })
 
-    // find all references without citekey
+    // find all items without citekey
     this.scanning = this.keys.find($and({ citekey: marker }))
 
     if (this.scanning.length !== 0) {
       const progressWin = new Zotero.ProgressWindow({ closeOnClick: false })
       progressWin.changeHeadline('Better BibTeX: Assigning citation keys')
-      progressWin.addDescription(`Found ${this.scanning.length} references without a citation key`)
+      progressWin.addDescription(`Found ${this.scanning.length} items without a citation key`)
       const icon = `chrome://zotero/skin/treesource-unfiled${Zotero.hiDPI ? '@2x' : ''}.png`
       const progress = new progressWin.ItemProgress(icon, 'Assigning citation keys')
       progressWin.show()
@@ -535,7 +496,7 @@ export class KeyManager {
     return { citekey: '', pinned: false, retry: true }
   }
 
-  public propose(item: ZoteroItem): { citekey: string, pinned: boolean } {
+  public propose(item: ZoteroItem, transient: string[] = []): { citekey: string, pinned: boolean } {
     let citekey: string = Extra.get(item.getField('extra') as string, 'zotero', { citationKey: true }).extraFields.citationKey
 
     if (citekey) return { citekey, pinned: true }
@@ -562,7 +523,7 @@ export class KeyManager {
       seen[postfix] = true
 
       const postfixed = citekey + postfix
-      const conflict = this.keys.findOne({ $and: [...conflictQuery.$and, { citekey: { $eq: postfixed } }] })
+      const conflict = transient.includes(postfixed) || this.keys.findOne({ $and: [...conflictQuery.$and, { citekey: { $eq: postfixed } }] })
       if (conflict) continue
 
       return { citekey: postfixed, pinned: false }

@@ -17,7 +17,7 @@ export namespace Translators {
       | { kind: 'done', output: boolean | string }
       | { kind: 'debug', message: string }
       | { kind: 'error', message: string }
-      | { kind: 'cache', itemID: number, reference: string, metadata: any }
+      | { kind: 'cache', itemID: number, entry: string, metadata: any }
       | { kind: 'item', item: number }
       | { kind: 'stop' }
       | { kind: 'progress', percent: number, translator: string, autoExport: number }
@@ -50,6 +50,7 @@ export namespace Translators {
     target: string
     configOptions?: {
       getCollections?: boolean
+      hash?: string
     }
   }
 }

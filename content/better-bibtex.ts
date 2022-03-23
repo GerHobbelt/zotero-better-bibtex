@@ -96,24 +96,25 @@ AddonManager.addAddonListener({
   MONKEY PATCHES
 */
 
-if (Preference.citeprocNoteCitekey) {
-  $patch$(Zotero.Utilities, 'itemToCSLJSON', original => function itemToCSLJSON(zoteroItem: { itemID: any }) {
-    const cslItem = original.apply(this, arguments)
+// zotero beta moves itemToCSLJSON to Zotero.Utilities.Item
+$patch$(Zotero.Utilities.Item?.itemToCSLJSON ? Zotero.Utilities.Item : Zotero.Utilities, 'itemToCSLJSON', original => function itemToCSLJSON(zoteroItem: { itemID: any }) {
+  const cslItem = original.apply(this, arguments)
 
+  try {
     if (typeof Zotero.Item !== 'undefined' && !(zoteroItem instanceof Zotero.Item)) {
       const citekey = Zotero.BetterBibTeX.KeyManager.get(zoteroItem.itemID)
       if (citekey) {
-        cslItem.note = citekey.citekey
-      }
-      else {
-        delete cslItem.note
+        cslItem['citation-key'] = citekey.citekey
       }
     }
+  }
+  catch (err) {
+    log.debug('failed patching CSL-JSON:', err)
+  }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return cslItem
-  })
-}
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return cslItem
+})
 
 // https://github.com/retorquere/zotero-better-bibtex/issues/1221
 $patch$(Zotero.Items, 'merge', original => async function Zotero_Items_merge(item: ZoteroItem, otherItems: ZoteroItem[]) {
@@ -232,13 +233,12 @@ $patch$(Zotero.Item.prototype, 'setField', original => function Zotero_Item_prot
   return original.apply(this, arguments)
 })
 
-// To show the citekey in the reference list
+// To show the citekey in the item list
 $patch$(Zotero.Item.prototype, 'getField', original => function Zotero_Item_prototype_getField(field: any, unformatted: any, includeBaseMapped: any) {
   try {
     switch (field) {
       case 'citekey':
       case 'citationKey':
-        log.debug('getField is', Zotero.BetterBibTeX.ready.isPending() ? 'pending' : 'live')
         if (Zotero.BetterBibTeX.ready.isPending()) return '' // eslint-disable-line @typescript-eslint/no-use-before-define
         return Zotero.BetterBibTeX.KeyManager.get(this.id).citekey as string
 
@@ -394,7 +394,7 @@ Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
     return cloneDeep(cached)
   },
 
-  cacheStore(sandbox: { translator: { label: string }[] }, itemID: number, options: { exportNotes: boolean, useJournalAbbreviation: boolean }, prefs: any, reference: any, metadata: any) {
+  cacheStore(sandbox: { translator: { label: string }[] }, itemID: number, options: { exportNotes: boolean, useJournalAbbreviation: boolean }, prefs: any, entry: any, metadata: any) {
     if (!Preference.caching) return false
 
     if (!metadata) metadata = {}
@@ -409,13 +409,13 @@ Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
     let cached = collection.findOne($and(selector))
 
     if (cached) {
-      cached.reference = reference
+      cached.entry = entry
       cached.metadata = metadata
       cached = collection.update(cached)
 
     }
     else {
-      cached = collection.insert({...selector, reference, metadata})
+      cached = collection.insert({...selector, entry, metadata})
 
     }
 
@@ -455,7 +455,7 @@ $patch$(Zotero.Utilities.Internal, 'extractExtraFields', original => function Zo
 })
 
 function findOverride(exportPath: string, extension: string, filename: string, load: (path: string) => any): any {
-  if (!filename) return null
+  if (!exportPath || !filename) return null
 
   const candidates = [
     OS.Path.basename(exportPath).replace(/\.[^.]+$/, '') + extension,
@@ -484,37 +484,45 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
     if (translatorID.translatorID) translatorID = translatorID.translatorID
     const translator = Translators.byId[translatorID]
 
+    const displayOptions = this._displayOptions || {}
+
     if (translator) {
       if (this.location) {
-        if (this._displayOptions.exportFileData) { // when exporting file data, the user was asked to pick a directory rather than a file
-          this._displayOptions.exportDir = this.location.path
-          this._displayOptions.exportPath = OS.Path.join(this.location.path, `${this.location.leafName}.${translator.target}`)
-          this._displayOptions.caching = false
+        if (displayOptions.exportFileData) { // when exporting file data, the user was asked to pick a directory rather than a file
+          displayOptions.exportDir = this.location.path
+          displayOptions.exportPath = OS.Path.join(this.location.path, `${this.location.leafName}.${translator.target}`)
+          displayOptions.caching = false
         }
         else {
-          this._displayOptions.exportDir = this.location.parent.path
-          this._displayOptions.exportPath = this.location.path
-          this._displayOptions.caching = true
+          displayOptions.exportDir = this.location.parent.path
+          displayOptions.exportPath = this.location.path
+          displayOptions.caching = true
         }
       }
       const override = {
         postscript: findOverride(
-          this._displayOptions.exportPath, '.js',
+          displayOptions.exportPath, '.js',
           Preference.postscriptOverride,
           (path: string) => Zotero.File.getContents(path) // eslint-disable-line @typescript-eslint/no-unsafe-return
         ),
         preferences: findOverride(
-          this._displayOptions.exportPath, '.json',
+          displayOptions.exportPath, '.json',
           Preference.preferencesOverride,
           (path: any) => { const content = JSON.parse(Zotero.File.getContents(path)); return content.override?.preferences } // eslint-disable-line @typescript-eslint/no-unsafe-return
         ),
+        strings: findOverride(
+          displayOptions.exportPath, '.bib',
+          Preference.stringsOverride,
+          (path: string) => Zotero.File.getContents(path) // eslint-disable-line @typescript-eslint/no-unsafe-return
+        ),
       }
       log.debug('export overrides:', override)
-      this._displayOptions.caching = this._displayOptions.caching && !override.postscript && !override.preferences
+      displayOptions.caching = displayOptions.caching && !override.postscript && !override.preferences && !override.strings
 
-      if (override.postscript) this._displayOptions.preference_postscript = override.postscript
+      if (override.postscript) displayOptions.preference_postscript = override.postscript
+      if (typeof override.strings === 'string') displayOptions.preference_strings = override.strings
       if (override.preferences) {
-        this._displayOptions.caching = false
+        displayOptions.caching = false
         log.debug('prefs override:', override.preferences)
         for (const [pref, value] of Object.entries(override.preferences)) {
           if (typeof value !== typeof preferences.defaults[pref]) {
@@ -524,12 +532,12 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
             log.debug(`preference override for ${pref}: expected ${Object.keys(preferences.options[pref]).join(' / ')}, got ${value}`)
           }
           else {
-            this._displayOptions[`preference_${pref}`] = value
+            displayOptions[`preference_${pref}`] = value
           }
         }
       }
 
-      let capture = this._displayOptions?.keepUpdated
+      let capture = displayOptions.keepUpdated
 
       if (capture) {
         // this should never occur -- keepUpdated should only be settable if you do a file export
@@ -539,7 +547,7 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
         }
 
         // this should never occur -- the JS in exportOptions.ts should prevent it
-        if (this._displayOptions.exportFileData) {
+        if (displayOptions.exportFileData) {
           flash('Auto-export not registered', 'Auto-export does not support file data export -- please report this, you should not have seen this message')
           capture = false
         }
@@ -557,8 +565,8 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
           path: this.location.path,
           status: 'done',
           translatorID,
-          exportNotes: this._displayOptions.exportNotes,
-          useJournalAbbreviation: this._displayOptions.useJournalAbbreviation,
+          exportNotes: displayOptions.exportNotes,
+          useJournalAbbreviation: displayOptions.useJournalAbbreviation,
         })
       }
 
@@ -573,7 +581,7 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
         // there wasn't an error starting a worker earlier
         disabled = 'failed to start a chromeworker, disabled until restart'
       }
-      else if (this.location && this.location.path.startsWith('\\\\')) {
+      else if (this.location?.path.startsWith('\\\\')) {
         // check for SMB path for #1396
         disabled = 'chrome workers fail on smb paths'
       }
@@ -590,7 +598,7 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
         this.saveQueue = []
         this._savingAttachments = []
 
-        return Translators.exportItemsByQueuedWorker(translatorID, this._displayOptions, { translate: this, scope: { ...this._export, getter: this._itemGetter }, path })
+        return Translators.exportItemsByQueuedWorker(translatorID, displayOptions, { translate: this, scope: { ...this._export, getter: this._itemGetter }, path })
           .then(result => {
             log.debug('worker translation done, result:', !!result)
             // eslint-disable-next-line id-blacklist
@@ -744,7 +752,7 @@ class Progress {
     if (this.mode === 'popup') {
       this.progressWin = new Zotero.ProgressWindow({ closeOnClick: false })
       this.progressWin.changeHeadline('Better BibTeX: Initializing')
-      // this.progressWin.addDescription(`Found ${this.scanning.length} references without a citation key`)
+      // this.progressWin.addDescription(`Found ${this.scanning.length} items without a citation key`)
       const icon = `chrome://zotero/skin/treesource-unfiled${Zotero.hiDPI ? '@2x' : ''}.png`
       this.progress = new this.progressWin.ItemProgress(icon, `${this.msg}...`)
       this.progressWin.show()

@@ -1,7 +1,7 @@
 declare const Zotero: any
 
 import { Translator } from '../lib/translator'
-import { Reference } from '../../gen/typings/serialized-item'
+import { RegularItem } from '../../gen/typings/serialized-item'
 import { Cache } from '../../typings/cache'
 
 import { JabRef } from '../bibtex/jabref' // not so nice... BibTeX-specific code
@@ -41,17 +41,21 @@ export const Exporter = new class {
     return uniq
   }
 
-  public get items(): Generator<Reference, void, unknown> {
+  public get items(): Generator<RegularItem, void, unknown> {
     return this.itemsGenerator()
   }
 
-  private *itemsGenerator(): Generator<Reference, void, unknown> {
+  private *itemsGenerator(): Generator<RegularItem, void, unknown> {
     if (!this.postfix && Translator.BetterTeX) this.postfix = new Postfix(Translator.preferences.qualityReport)
 
-    for (const item of Translator.references) {
-      if (!item.citationKey) {
-        throw new Error(`No citation key in ${JSON.stringify(item)}`)
+    for (const item of Translator.regularitems) {
+      Object.assign(item, Extra.get(item.extra, 'zotero'))
+      if (typeof item.itemID !== 'number') { // https://github.com/diegodlh/zotero-cita/issues/145
+        item.citationKey = item.extraFields.citationKey
+        item.$cacheable = false
       }
+      if (!item.citationKey) throw new Error(`No citation key in ${JSON.stringify(item)}`)
+
       this.citekeys[item.citationKey] = (this.citekeys[item.citationKey] || 0) + 1
 
       this.jabref.citekeys.set(item.itemID, item.citationKey)
@@ -61,13 +65,12 @@ export const Exporter = new class {
       Translator.cache[cached ? 'hits' : 'misses'] += 1
 
       if (cached) {
-        Zotero.write(cached.reference)
+        Zotero.write(cached.entry)
         this.postfix?.add(cached.metadata)
         continue
       }
 
       itemfields.simplifyForExport(item)
-      Object.assign(item, Extra.get(item.extra, 'zotero'))
 
       // strip extra.tex fields that are not for me
       const prefix = Translator.BetterBibLaTeX ? 'biblatex.' : 'bibtex.'

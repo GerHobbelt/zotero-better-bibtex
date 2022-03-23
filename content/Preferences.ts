@@ -162,7 +162,7 @@ class AutoExportPane {
     if (!Services.prompt.confirm(null, l10n.localize('AutoExport.delete'), l10n.localize('AutoExport.delete.confirm'))) return
 
     const ae = AutoExport.db.get(parseInt(node.getAttributeNS(namespace, 'ae-id')))
-    Cache.getCollection(Translators.byId[ae.translatorID].label).removeDataOnly()
+    Cache.getCollection(Translators.byId[ae.translatorID].label)?.removeDataOnly()
     AutoExport.db.remove(ae)
     this.refresh()
   }
@@ -406,7 +406,7 @@ export class PrefPane {
     if (this.globals.document.location.hash === '#better-bibtex') {
       // runs into the 'TypeError: aId is undefined' problem for some reason unless I delay the activation of the pane
       // eslint-disable-next-line no-magic-numbers, @typescript-eslint/no-unsafe-return
-      Zotero.setTimeout(() => this.globals.document.getElementById('zotero-prefs').showPane(this.globals.document.getElementById('zotero-prefpane-better-bibtex')), 500)
+      setTimeout(() => this.globals.document.getElementById('zotero-prefs').showPane(this.globals.document.getElementById('zotero-prefpane-better-bibtex')), 500)
     }
 
     // no other way that I know of to know that I've just been selected
@@ -510,7 +510,7 @@ export class PrefPane {
         if (selectedIndex === -1) selectedIndex = 0
         this.styleChanged(selectedIndex)
 
-        Zotero.setTimeout(() => { stylebox.ensureIndexIsVisible(selectedIndex); stylebox.selectedIndex = selectedIndex }, 0)
+        setTimeout(() => { stylebox.ensureIndexIsVisible(selectedIndex); stylebox.selectedIndex = selectedIndex }, 0)
       })
     }
 

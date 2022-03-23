@@ -1,15 +1,30 @@
-/* eslint-disable id-blacklist, @typescript-eslint/no-unsafe-return, @typescript-eslint/explicit-module-boundary-types */
+/* eslint-disable prefer-template, id-blacklist, @typescript-eslint/no-unsafe-return, @typescript-eslint/explicit-module-boundary-types */
 
 import { client } from '../../content/client'
 import { Item } from '../typings/serialized-item'
+import { ErrorObject } from 'ajv'
 
 const jurism = client === 'jurism'
 const zotero = !jurism
 
+const zoterovalidator = require('./zotero.schema')
+const jurismvalidator = require('./jurism.schema')
+const validator = {
+  me: zotero ? zoterovalidator : jurismvalidator,
+  other: jurism ? zoterovalidator : jurismvalidator,
+}
+
 type Valid = {
   type: Record<string, boolean>
   field: Record<string, Record<string, boolean>>
+  test: (obj: any, strict?: boolean) => string
 }
+
+function err2string(err: ErrorObject, obj: { itemType: string }): string {
+  if (!err.instancePath && err.keyword === 'additionalProperties') return 'Unexpected property ' + (err.params.additionalProperty as string) + ' on ' + obj.itemType
+  return (err.instancePath || '??') + ' ' + err.message
+}
+
 export const valid: Valid = {
   type: {
     %for itemType, client in sorted(valid.type.items()):
@@ -24,6 +39,16 @@ export const valid: Valid = {
       %endfor
     },
     %endfor
+  },
+  test: (obj: any, strict?: boolean) => {
+    if (validator.me(obj)) return ''
+    const err = (validator.me.errors as ErrorObject[]).map(e => err2string(e, obj).trim()).join(';\n')
+    if (!strict && validator.other(obj)) {
+      Zotero.debug('Better BibTeX soft error: ' + err)
+      return ''
+    }
+    // https://ajv.js.org/api.html#validation-errors
+    return err
   },
 }
 

@@ -1,4 +1,4 @@
-import type { Tag, Reference as SerializedReference, Item as SerializedItem } from '../../gen/typings/serialized-item'
+import type { Tag, RegularItem as SerializedRegularItem, Item as SerializedItem } from '../../gen/typings/serialized-item'
 
 import { client } from '../client'
 
@@ -13,12 +13,13 @@ import { Preference } from '../../gen/preferences'
 import { JournalAbbrev } from '../journal-abbrev'
 import * as Extra from '../extra'
 import { buildCiteKey as zotero_buildCiteKey } from './formatter-zotero'
-import { babelLanguage, babelTag } from '../text'
+import { babelLanguage } from '../text'
+import { fetchSync as fetchInspireHEP } from '../inspire-hep'
 
 const parser = require('./formatter.peggy')
 import * as DateParser from '../dateparser'
 
-import methods from '../../gen/key-formatter-methods.json'
+import methods from '../../gen/api/key-formatter.json'
 import itemCreators from '../../gen/items/creators.json'
 import * as items from '../../gen/items/items'
 
@@ -31,13 +32,16 @@ import { jieba, pinyin } from './chinese'
 import { kuroshiro } from './japanese'
 
 import AJV from 'ajv'
-import betterAjvErrors from '@readme/better-ajv-errors'
-const methodValidator = new AJV({ coerceTypes: true })
-for (const [method, meta] of Object.entries(methods)) {
-  log.debug('compiling', method, meta)
-  const validate = methodValidator.compile(meta.schema);
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  (meta as unknown as any).validate = (data => validate(data) ? '' : betterAjvErrors(meta.schema, data, validate.errors)[0].message)
+import { validator } from '../ajv'
+const ajv = new AJV({ coerceTypes: true })
+
+import BabelTag from '../../gen/babel/tag.json'
+type ValueOf<T> = T[keyof T]
+type BabelLanguageTag = ValueOf<typeof BabelTag>
+type BabelLanguage = keyof typeof BabelTag
+
+for (const meta of Object.values(methods)) {
+  (meta as unknown as any).validate = validator(ajv, meta.schema)
 }
 
 function innerText(node): string {
@@ -161,7 +165,7 @@ class Item {
   public extra: string
   public extraFields: Extra.Fields
 
-  constructor(item: ZoteroItem | SerializedItem) { // Reference must have simplifyForExport pre-applied, without scrubbing
+  constructor(item: ZoteroItem | SerializedItem) { // Item must have simplifyForExport pre-applied, without scrubbing
     this.item = item
 
     if ((item as ZoteroItem).getField) {
@@ -174,13 +178,13 @@ class Item {
       this.title = (item as ZoteroItem).getField('title', false, true) as string
     }
     else {
-      this.itemType = (item as SerializedReference).itemType
-      this.itemID = (item as SerializedReference).itemID
+      this.itemType = (item as SerializedRegularItem).itemType
+      this.itemID = (item as SerializedRegularItem).itemID
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       this.getField = (name: string) => this.item[name] || this.extraFields?.kv[name]
-      this.creators = (item as SerializedReference).creators
+      this.creators = (item as SerializedRegularItem).creators
       this.libraryID = null
-      this.title = (item as SerializedReference).title
+      this.title = (item as SerializedRegularItem).title
     }
 
     this.language = babelLanguage((this.getField('language') as string) || '')
@@ -234,12 +238,12 @@ class Item {
     if (this.title.includes('<')) this.title = innerText(htmlParser.parseFragment(this.title))
   }
 
-  public babelTag(): string {
-    return babelTag(this.language)
+  public babelTag(): BabelLanguageTag {
+    return BabelTag[this.language as BabelLanguage] || ''
   }
 
   public getTags(): Tag[] | string[] {
-    return (this.item as ZoteroItem).getTags ? (this.item as ZoteroItem).getTags() : (this.item as SerializedReference).tags
+    return (this.item as ZoteroItem).getTags ? (this.item as ZoteroItem).getTags() : (this.item as SerializedRegularItem).tags
   }
 }
 
@@ -369,18 +373,13 @@ class PatternFormatter {
   /**
    * Tests whether the entry has the given language set, and skips to the next pattern if not
    */
-  public $language(name: 'zh' | 'chinese' | 'ja' | 'japanese' | 'de' | 'german') {
-    const map = {
-      zh: 'zh',
-      chinese: 'zh',
-      ja: 'ja',
-      japanese: 'ja',
-      de: 'de',
-      german: 'de',
+  public $language(name: (BabelLanguage | BabelLanguageTag)[]) {
+    if (name.concat(name.map(n => BabelTag[n] as string).filter(n => n)).includes(this.item.babelTag())) {
+      return this.set('')
     }
-    if (!map[name]) throw new Error(`unexpected language ${JSON.stringify(name)}, choose one of ${Object.keys(map).join(', ')}`)
-    if (this.item.babelTag() !== map[name]) throw { next: true } // eslint-disable-line no-throw-literal
-    return this.set('')
+    else {
+      throw { next: true } // eslint-disable-line no-throw-literal
+    }
   }
 
   /**
@@ -399,6 +398,13 @@ class PatternFormatter {
     }, null, {}))
   }
 
+  /**
+   * Fetches the key from inspire-hep based on DOI or arXiv ID
+   */
+  public $inspire_hep() {
+    return this.set(fetchInspireHEP(this.item) || '')
+  }
+
   public getField(name: string) {
     const value = this.item.getField(name)
     switch (typeof value) {
@@ -413,7 +419,7 @@ class PatternFormatter {
     }
   }
 
-  /** returns the name of the shared group library, or nothing if the reference is in your personal library */
+  /** returns the name of the shared group library, or nothing if the item is in your personal library */
   public $library() {
     if (this.item.libraryID === Zotero.Libraries.userLibraryID) return this.set('')
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -669,11 +675,58 @@ class PatternFormatter {
   }
 
   /**
-    * If the length of the output is not longer than the given number, skip to the next pattern
+    * If the length of the output is not equal to the given number, skip to the next pattern. Alias: `=[number]`.
+    */
+  public _eq(n: number) {
+    if (this.value.length === n) return this
+    throw { next: true } // eslint-disable-line no-throw-literal
+  }
+
+  /**
+    * If the length of the output is not less than the given number, skip to the next pattern. Alias: `<[number]`.
+    */
+  public _lt(n: number) {
+    if (this.value.length < n) return this
+    throw { next: true } // eslint-disable-line no-throw-literal
+  }
+
+  /**
+    * If the length of the output is not greater than the given number, skip to the next pattern. Alias: `>[number]`.
+    */
+  public _gt(n: number) {
+    if (this.value.length > n) return this
+    throw { next: true } // eslint-disable-line no-throw-literal
+  }
+
+  /**
+    * If the length of the output is not lower than or equal to the given number, skip to the next pattern. Alias: `<=[number]`.
+    */
+  public _le(n: number) {
+    if (this.value.length <= n) return this
+    throw { next: true } // eslint-disable-line no-throw-literal
+  }
+
+  /**
+    * If the length of the output is not greater than or equal to the given number, skip to the next pattern. Alias: `>=[number]`.
+    */
+  public _ge(n: number) {
+    if (this.value.length >= n) return this
+    throw { next: true } // eslint-disable-line no-throw-literal
+  }
+
+  /**
+    * If the length of the output is equal to the given number, skip to the next pattern. Alias: `!=[number]`.
+    */
+  public _ne(n: number) {
+    if (this.value.length !== n) return this
+    throw { next: true } // eslint-disable-line no-throw-literal
+  }
+
+  /**
+    * If the length of the output is not longer than the given number, skip to the next pattern. Alias: `>[number]`.
     */
   public _longer(n: number) {
-    if (this.value.length < n) throw { next: true } // eslint-disable-line no-throw-literal
-    return this
+    return this._gt(n)
   }
 
   /** discards the input */
@@ -808,8 +861,20 @@ class PatternFormatter {
     const values = this.value.split(/\s+/)
     let end = values.length
 
-    start -= 1
-    if (typeof n !== 'undefined') end = start + n
+    if (start === 0) start = 1
+
+    if (start < 0) {
+      start = end + start
+    }
+    else {
+      start -= 1
+    }
+
+    if (typeof n !== 'undefined') {
+      if (n < 1) n = 1
+      end = start + n
+    }
+
     return this.set(values.slice(start, end).join(' '))
   }
 
@@ -860,28 +925,22 @@ class PatternFormatter {
     return this.set(this.value.replace(script.han, ' $1 ').trim())
   }
 
-  /** word segmentation for Chinese references. Uses substantial memory; must be enabled under Preferences -> Better BibTeX -> Advanced -> Citekeys */
+  /** word segmentation for Chinese items. Uses substantial memory; must be enabled under Preferences -> Better BibTeX -> Advanced -> Citekeys */
   public _jieba() {
     if (!Preference.jieba) return this
     return this.set(jieba.cut(this.value).join(' ').trim())
   }
 
-  /** word segmentation for Japanese references. Uses substantial memory; must be enabled under Preferences -> Better BibTeX -> Advanced -> Citekeys */
+  /** word segmentation for Japanese items. Uses substantial memory; must be enabled under Preferences -> Better BibTeX -> Advanced -> Citekeys */
   public _kuromoji() {
     if (!Preference.kuroshiro || !kuroshiro.enabled) return this
     return this.set(kuroshiro.tokenize(this.value || '').join(' ').trim())
   }
 
   /** transliterates the citation key and removes unsafe characters */
-  public _clean() {
+  public _clean(allow_spaces = false) {
     if (!this.value) return this
-    return this.set(this.clean(this.value))
-  }
-
-  // used by the `auth*` functions
-  public scrub() {
-    if (!this.value) return this
-    return this.set(this.clean(this.value, true))
+    return this.set(this.clean(this.value, allow_spaces))
   }
 
   /** transliterates the citation key. If you don't specify a mode, the mode is derived from the item language field */
@@ -892,8 +951,6 @@ class PatternFormatter {
 
   private transliterate(str: string, mode?: 'minimal' | 'de' | 'german' | 'ja' | 'japanese' | 'zh' | 'chinese'): string {
     mode = mode || this.item.transliterateMode || 'japanese'
-
-    log.debug('transliterate:', { input: str, mode, jieba: Preference.jieba, kuroshiro: Preference.kuroshiro && kuroshiro.enabled })
 
     let replace: Record<string, string> = {}
     switch (mode) {
@@ -931,11 +988,7 @@ class PatternFormatter {
       replace,
     })
 
-    log.debug('transliterate replace:', str)
-
     str = fold2ascii.foldMaintaining(str)
-
-    log.debug('transliterate fold:', str)
 
     return str
   }

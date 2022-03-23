@@ -1,4 +1,6 @@
 /* eslint-disable no-magic-numbers, @typescript-eslint/quotes, max-len */
+declare const Services: any
+
 import { Events } from '../content/events'
 <%
   import json
@@ -14,11 +16,20 @@ export const Preference = new class PreferenceManager {
   public default = defaults
 
   constructor() {
+    let old, key
+
     this.baseAttachmentPath = Zotero.Prefs.get('baseAttachmentPath')
     Zotero.Prefs.registerObserver('baseAttachmentPath', val => { this.baseAttachmentPath = val })
 
+    // clear out old keys
+    const oops = 'extensions.translators.better-bibtex.'
+    for (key of Services.prefs.getBranch(oops).getChildList('', {}) as string[]) {
+      Zotero.Prefs.clear(oops + key, true) // eslint-disable-line @typescript-eslint/restrict-plus-operands
+    }
+    if (typeof Zotero.Prefs.get(key = '${prefix}citeprocNoteCitekey') !== 'undefined') Zotero.Prefs.clear(key)
+    if (typeof Zotero.Prefs.get(key = '${prefix}newTranslatorsAskRestart') !== 'undefined') Zotero.Prefs.clear(key)
+
     // migrate ancient keys
-    let old, key
     if ((old = Zotero.Prefs.get(key = '${prefix}quickCopyMode')) === 'orgmode_citekey') {
       Zotero.Prefs.set(key, 'orgmode')
       Zotero.Prefs.set('${prefix}quickCopyOrgMode', 'citationkey')
@@ -68,12 +79,11 @@ export const Preference = new class PreferenceManager {
       Zotero.Prefs.set(key, defaults.autoExportDelay)
     }
 
-    function changed() { Events.emit('preference-changed', this) }
     // set defaults and install event emitter
     for (const pref of names) {
       if (pref !== 'platform') {
         if (typeof this[pref] === 'undefined') (this[pref] as any) = (typeof defaults[pref] === 'string' ? (defaults[pref] as string).replace(/^\u200B/, '') : defaults[pref])
-        Zotero.Prefs.registerObserver(<%text>`${prefix}${pref}`</%text>, changed.bind(pref))
+        Zotero.Prefs.registerObserver(<%text>`${prefix}${pref}`</%text>, this.changed.bind(this, pref))
       }
     }
     // put this in a preference so that translators can access this.
@@ -103,6 +113,9 @@ export const Preference = new class PreferenceManager {
     }
   }
 
+  changed(pref: string) {
+    Events.emit('preference-changed', pref)
+  }
 % for pref in preferences:
 %   if pref.name != 'platform':
   set ${pref.var}(v: ${pref.valid | n} | undefined) {
@@ -119,7 +132,8 @@ export const Preference = new class PreferenceManager {
     Zotero.Prefs.set('translators.better-bibtex.${pref.name}', v)
   }
   get ${pref.var}(): ${pref.valid} {
-    return (Zotero.Prefs.get('translators.better-bibtex.${pref.name}') as ${pref.valid})
+    const v: ${pref.valid} = Zotero.Prefs.get('translators.better-bibtex.${pref.name}') as ${pref.valid}
+    return typeof v === 'undefined' ? ${json.dumps(pref.default) | n} : v
   }
 
 % endfor

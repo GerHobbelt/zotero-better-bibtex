@@ -1,4 +1,4 @@
-import { patch as $patch$ } from './monkey-patch'
+import { patch as $patch$, unpatch as $unpatch$ } from './monkey-patch'
 import * as l10n from './l10n'
 
 export class ExportOptions {
@@ -6,13 +6,17 @@ export class ExportOptions {
   private DOM_OBSERVER: MutationObserver = null
   private reset = true
 
-  public load(): void {
+  public load(globals: Record<string, any>): void {
+    this.globals = globals
     this.DOM_OBSERVER = new MutationObserver(this.addEventHandlers.bind(this))
     this.DOM_OBSERVER.observe(this.globals.document.getElementById('translator-options'), { attributes: true, subtree: true, childList: true })
     this.addEventHandlers()
 
+    this.warning()
+
+    const self = this // eslint-disable-line @typescript-eslint/no-this-alias
     $patch$(this.globals.Zotero_File_Interface_Export, 'init', original => function(_options) {
-      for (const translator of this.globals.window.arguments[0].translators) {
+      for (const translator of self.globals.window.arguments[0].translators) {
         if (translator.label === 'BetterBibTeX JSON') translator.label = 'BetterBibTeX debug JSON'
       }
       // eslint-disable-next-line prefer-rest-params
@@ -22,36 +26,41 @@ export class ExportOptions {
     $patch$(this.globals.Zotero_File_Interface_Export, 'updateOptions', original => function(_options) {
       // eslint-disable-next-line prefer-rest-params
       original.apply(this, arguments)
-
-      const index = this.globals.document.getElementById('format-menu').selectedIndex
-      const translator = (index >= 0) ? this.globals.window.arguments[0].translators[index].translatorID : null
-
-      let hidden = false
-      let textContent = ''
-      switch (translator) {
-        case 'b6e39b57-8942-4d11-8259-342c46ce395f':
-          textContent = l10n.localize('exportOptions.reminder', { translator: 'Better BibLaTeX' })
-          break
-
-        case '9cb70025-a888-4a29-a210-93ec52da40d4':
-          textContent = l10n.localize('exportOptions.reminder', { translator: 'Better BibTeX' })
-          break
-
-        default:
-          hidden = true
-          break
-      }
-
-      const reminder = this.globals.document.getElementById('better-bibtex-reminder')
-      reminder.setAttribute('hidden', hidden)
-      reminder.textContent = textContent
-
-      this.globals.window.sizeToContent()
+      self.warning()
     })
+  }
+
+  public warning(): void {
+    const index = this.globals.document.getElementById('format-menu').selectedIndex
+    const translator = (index >= 0) ? this.globals.window.arguments[0].translators[index].translatorID : null
+
+    let hidden = false
+    let textContent = ''
+    switch (translator) {
+      case 'b6e39b57-8942-4d11-8259-342c46ce395f':
+        textContent = l10n.localize('exportOptions.reminder', { translator: 'Better BibLaTeX' })
+        break
+
+      case '9cb70025-a888-4a29-a210-93ec52da40d4':
+        textContent = l10n.localize('exportOptions.reminder', { translator: 'Better BibTeX' })
+        break
+
+      default:
+        hidden = true
+        break
+    }
+
+    const reminder = this.globals.document.getElementById('better-bibtex-reminder')
+    reminder.setAttribute('hidden', hidden)
+    reminder.textContent = textContent
+
+    this.globals.window.sizeToContent()
   }
 
   public unload(): void {
     this.DOM_OBSERVER.disconnect()
+    $unpatch$(this.globals.Zotero_File_Interface_Export, 'init', true)
+    $unpatch$(this.globals.Zotero_File_Interface_Export, 'updateOptions', true)
   }
 
   mutex(e: Event): void {

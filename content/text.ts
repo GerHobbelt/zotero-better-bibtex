@@ -5,7 +5,7 @@ import parse5 = require('parse5/lib/parser')
 const htmlParser = new parse5({ sourceCodeLocationInfo: true })
 
 import Language from '../gen/babel/langmap.json'
-import Tag from '../gen/babel/tag.json'
+// import Tag from '../gen/babel/tag.json'
 const LanguagePrefixes = Object.keys(Language).sort().reverse().filter(prefix => prefix.length > 3) // eslint-disable-line no-magic-numbers
 
 import charCategories = require('xregexp/tools/output/categories')
@@ -46,7 +46,7 @@ re.lcChar = re.Ll + re.Lt + re.Lm + re.Lo + re.Mn + re.Mc + re.Nd + re.Nl
 // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
 re.char = re.Lu + re.lcChar
 re.L = `${re.Lu}${re.Ll}${re.Lt}${re.Lm}${re.Lo}`
-re.protectedWord = `[${re.lcChar}]*[${re.Lu}][${re.char}]*`
+re.protectedWord = `[${re.lcChar}]*[${re.Lu}][-${re.char}]*`
 
 /* actual regexps */
 
@@ -102,14 +102,13 @@ export function titleCase(text: string): string {
     return match
   })
 
-  Zotero.debug(`titleCase: ${JSON.stringify(text)} => ${JSON.stringify(titlecased)}`)
   return titlecased
 }
 
 export function sentenceCase(text: string): string {
   let haslowercase = false
   const restore: [number, number, string][] = []
-  let sentencecased = text.replace(/((?:^|[?!]|[-.:;[\]<>'*\\(),{}_“”‘’])?\s*)([^-\s;?:.![\]<>'*\\(),{}_“”‘’]+)/g, (match: string, leader:string, word:string, offset: number) => {
+  let sentencecased = text.replace(/((?:^|[?!]|[-.:;[\]<>'*\\(),{}—_“”‘’])?\s*)([^-\s;?:.![\]<>'*\\(),{}—_“”‘’]+)/g, (match: string, leader:string, word:string, offset: number) => {
     if (word.match(/^[A-Z]$/)) {
       const leaderlen = leader?.length
       restore.push([offset + leaderlen, offset + leaderlen + word.length, word])
@@ -408,7 +407,7 @@ export const HTMLParser = new class { // eslint-disable-line @typescript-eslint/
             // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
             this.plaintext(normalized_node.childNodes, m[0], child.sourceCodeLocation.startOffset + (length - text.length))
             text = text.substring(m[0].length)
-            this.sentenceStart = true
+            // this.sentenceStart = true
             continue
           }
 
@@ -465,6 +464,8 @@ export function babelLanguage(language: string): string {
     || language
 }
 
+/*
 export function babelTag(langid: string): string {
   return (Tag[langid] as string) || ''
 }
+*/

@@ -56,11 +56,11 @@ Use the extended biber 2.7 format for names with particles - only works in BibLa
 
 ## Fields
 
-### When a reference has both a DOI and a URL, export
+### When an item has both a DOI and a URL, export
 
 default: `both`
 
-Does what it says on the tin, really. If a reference has both a DOI and an URL, you can choose to have them both exported, or either one of them. Note that for BibTeX, you must load the `url` package when you have `doi` or `url` fields. `doi` and `url` fields are so-called `verbatim` fields with different escaping rules, and BibTeX compilation will likely error out without the package loaded.
+Does what it says on the tin, really. If an item has both a DOI and an URL, you can choose to have them both exported, or either one of them. Note that for BibTeX, you must load the `url` package when you have `doi` or `url` fields. `doi` and `url` fields are so-called `verbatim` fields with different escaping rules, and BibTeX compilation will likely error out without the package loaded.
 
 Options:
 
@@ -104,6 +104,7 @@ Options:
 * Pandoc citation
 * Org-mode select link
 * org-ref citation
+* org-ref v3 citation
 * RTF Scan marker
 * Roam Cite Key
 * Atom (https://atom.io/packages/zotero-citations)
@@ -157,7 +158,7 @@ Used for drag-and-drop/quick copy citations in `Build your own` format. This is 
 
 default: `<not set>`
 
-Snippet of javascript to run [after each reference generation]({{ ref . "exporting/scripting.md" }}).
+Snippet of javascript to run [after each entry generation]({{ ref . "exporting/scripting.md" }}).
 
 ## Miscellaneous
 
@@ -167,11 +168,11 @@ default: `no`
 
 If set, generates journal abbreviations on export using the Zotero journal abbreviator, according to the abbreviation style selected in the list below the checkbox.
 
-### Include comments about potential problems with the exported references
+### Include comments about potential problems with the exported entries
 
 default: `no`
 
-Generate quality reports for exported references. These show up only in BibTeX and BibLaTeX report formats and indicate things like missing required fields and duplicate citation keys.
+Generate quality reports for exported entries. These show up only in BibTeX and BibLaTeX report formats and indicate things like missing required fields and duplicate citation keys.
 
 ### Include automatic tags in export
 
@@ -198,7 +199,7 @@ Options:
 
 default: `yes`
 
-If you're dead-set on ignoring both BibTeX/BibLaTeX best practice (see the BBT FAQ) and the Zotero recommendations on title/sentence casing, you can turn this off to suppress [title casing for English references]({{ ref . "support/faq#bbt-is-changing-the-capitalization-of-my-titles-why" }})
+If you're dead-set on ignoring both BibTeX/BibLaTeX best practice (see the BBT FAQ) and the Zotero recommendations on title/sentence casing, you can turn this off to suppress [title casing for English items]({{ ref . "support/faq#bbt-is-changing-the-capitalization-of-my-titles-why" }})
 
 ### Apply case-protection to capitalized words by enclosing them in braces
 

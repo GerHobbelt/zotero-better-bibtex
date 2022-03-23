@@ -4,9 +4,9 @@ declare const __estrace: any // eslint-disable-line no-underscore-dangle
 
 import { affects, names as preferences, defaults, PreferenceName, Preferences, schema } from '../../gen/preferences/meta'
 import { client } from '../../content/client'
-import { Reference, Item, Collection } from '../../gen/typings/serialized-item'
+import { RegularItem, Item, Collection } from '../../gen/typings/serialized-item'
 import { log } from '../../content/logger'
-import { worker } from '../../content/environment'
+import { environment } from '../../content/environment'
 import { Pinger } from '../../content/ping'
 
 type TranslatorMode = 'export' | 'import'
@@ -17,7 +17,7 @@ const cacheDisabler = new class {
   get(target, property) {
     // if (typeof target.$unused === 'undefined') target.$unused = new Set(Object.keys(target).filter(field => !ignore_unused_fields.includes(field)))
 
-    // collections: jabref 4 stores collection info inside the reference, and collection info depends on which part of your library you're exporting
+    // collections: jabref 4 stores collection info inside the entry, and collection info depends on which part of your library you're exporting
     if (property === 'collections') {
       // log.debug('cache-rate: not for item with collections', target, (new Error).stack)
       target.$cacheable = false
@@ -91,7 +91,7 @@ class Items {
     let item: CacheableItem
     while (item = Zotero.nextItem()) {
       item.$cacheable = cacheable;
-      (item as Reference).journalAbbreviation = (item as Reference).journalAbbreviation || (item as Reference).autoJournalAbbreviation
+      (item as RegularItem).journalAbbreviation = (item as RegularItem).journalAbbreviation || (item as RegularItem).autoJournalAbbreviation
       this.list.push(this.map[item.itemID] = this.map[item.itemKey] = new Proxy(item, cacheDisabler))
     }
     // fallback to itemType.itemID for notes and attachments. And some items may have duplicate keys
@@ -103,7 +103,7 @@ class Items {
 
     this.ping = new Pinger({
       total: this.list.length,
-      callback: pct => worker ? Zotero.BetterBibTeX.setProgress(pct) : null, // eslint-disable-line @typescript-eslint/no-unsafe-return
+      callback: pct => environment.worker ? Zotero.BetterBibTeX.setProgress(pct) : null, // eslint-disable-line @typescript-eslint/no-unsafe-return
     })
   }
 
@@ -115,7 +115,7 @@ class Items {
     this.ping.done()
   }
 
-  *references(): Generator<Reference, void, unknown> {
+  *regularitems(): Generator<RegularItem, void, unknown> {
     for (const item of this.list) {
       switch (item.itemType) {
         case 'annotation':
@@ -124,7 +124,7 @@ class Items {
           break
 
         default:
-          yield (this.current = item) as unknown as Reference
+          yield (this.current = item) as unknown as RegularItem
       }
       this.ping.update()
     }
@@ -207,7 +207,6 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
     this[this.header.label.replace(/[^a-z]/ig, '')] = true
     this.BetterTeX = this.BetterBibTeX || this.BetterBibLaTeX
     this.BetterCSL = this.BetterCSLJSON || this.BetterCSLYAML
-    this.preferences = defaults
     this.options = this.header.displayOptions || {}
 
     const collator = new Intl.Collator('en')
@@ -265,25 +264,13 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
       if (this.export.dir?.endsWith(this.paths.sep)) this.export.dir = this.export.dir.slice(0, -1)
     }
 
-    for (const pref of Object.keys(this.preferences)) {
-      let value
-
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        value = Zotero.getOption(`preference_${pref}`)
-      }
-      catch (err) {
-        value = undefined
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      if (typeof value === 'undefined') value = Zotero.getHiddenPref(`better-bibtex.${pref}`)
-
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      this.preferences[pref] = value
-    }
+    this.preferences = Object.entries(defaults).reduce((acc, [pref, dflt]) => {
+      acc[pref] = this.getPreferenceOverride(pref) ?? Zotero.getHiddenPref(`better-bibtex.${pref}`) ?? dflt
+      return acc
+    }, {} as unknown as Preferences)
 
     // special handling
+    log.debug('prefs: @load', this.preferences)
     this.skipFields = this.preferences.skipFields.toLowerCase().split(',').map(field => this.typefield(field)).filter((s: string) => s)
     this.skipField = this.skipFields.reduce((acc, field) => { acc[field] = true; return acc }, {})
 
@@ -357,6 +344,15 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
     this.initialized = true
   }
 
+  getPreferenceOverride(pref) { // eslint-disable-line @typescript-eslint/explicit-module-boundary-types
+    try {
+      return Zotero.getOption(`preference_${pref}`) // eslint-disable-line @typescript-eslint/no-unsafe-return
+    }
+    catch (err) {
+      return undefined
+    }
+  }
+
   private registerCollection(collection, parent: string) {
     const key = (collection.primary ? collection.primary : collection).key
     const children = collection.children || collection.descendents || []
@@ -396,9 +392,9 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
     this._items = this._items || new Items(this.cacheable)
     return this._items.items()
   }
-  get references(): Generator<Reference, void, unknown> {
+  get regularitems(): Generator<RegularItem, void, unknown> {
     this._items = this._items || new Items(this.cacheable)
-    return this._items.references()
+    return this._items.regularitems()
   }
 }
 export const Translator = new ITranslator // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match

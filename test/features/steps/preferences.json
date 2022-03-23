@@ -8,7 +8,7 @@
       "Better BibTeX"
     ],
     "var": "DOIandURL",
-    "label": "When a reference has both a DOI and a URL, export",
+    "label": "When an item has both a DOI and a URL, export",
     "options": {
       "both": "both",
       "doi": "DOI",
@@ -148,7 +148,7 @@
     "default": false,
     "affects": [],
     "var": "auxImport",
-    "label": "When scanning an AUX file, attempt to import references from the attached bib file when their citation keys are not in Zotero"
+    "label": "When scanning an AUX file, attempt to import entries from the attached bib file when their citation keys are not in Zotero"
   },
   {
     "name": "baseAttachmentPath",
@@ -273,18 +273,6 @@
     "affects": [],
     "var": "citekeySearch",
     "label": "Enable citation key search"
-  },
-  {
-    "name": "citeprocNoteCitekey",
-    "type": "boolean",
-    "default": false,
-    "affects": [
-      "Better BibLaTeX",
-      "Better BibTeX",
-      "Better CSL JSON",
-      "Better CSL YAML"
-    ],
-    "var": "citeprocNoteCitekey"
   },
   {
     "name": "csquotes",
@@ -544,13 +532,6 @@
     }
   },
   {
-    "name": "newTranslatorsAskRestart",
-    "type": "boolean",
-    "default": true,
-    "affects": [],
-    "var": "newTranslatorsAskRestart"
-  },
-  {
     "name": "parseParticles",
     "type": "boolean",
     "default": true,
@@ -612,7 +593,7 @@
       "Better BibTeX"
     ],
     "var": "qualityReport",
-    "label": "Include comments about potential problems with the exported references"
+    "label": "Include comments about potential problems with the exported entries"
   },
   {
     "name": "quickCopyEta",
@@ -635,6 +616,7 @@
       "pandoc": "Pandoc citation",
       "orgmode": "Org-mode select link",
       "orgRef": "org-ref citation",
+      "orgRef3": "org-ref v3 citation",
       "rtfScan": "RTF Scan marker",
       "roamCiteKey": "Roam Cite Key",
       "atom": "Atom (https://atom.io/packages/zotero-citations)",
@@ -777,6 +759,13 @@
     ],
     "var": "strings",
     "label": "@string definitions"
+  },
+  {
+    "name": "stringsOverride",
+    "type": "string",
+    "default": "",
+    "affects": [],
+    "var": "stringsOverride"
   },
   {
     "name": "testing",

@@ -15,7 +15,6 @@ import { Serializer } from './serializer'
 import { log } from './logger'
 import { DB as Cache, selector as cacheSelector } from './db/cache'
 import { DB } from './db/main'
-import { sleep } from './sleep'
 import { flash } from './flash'
 import { $and, Query } from './db/loki'
 import { Events } from './events'
@@ -87,65 +86,45 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   }
 
   public async init() {
-    const start = Date.now()
-
     this.itemType = {
       note: Zotero.ItemTypes.getID('note'),
       attachment: Zotero.ItemTypes.getID('attachment'),
       annotation: Zotero.ItemTypes.getID('annotation') || 'NULL',
     }
 
-    let reinit = false
-
     // cleanup old translators
     this.uninstall('Better BibTeX Quick Copy')
     this.uninstall('\u672B BetterBibTeX JSON (for debugging)')
     this.uninstall('BetterBibTeX JSON (for debugging)')
 
-    for (const header of Object.values(this.byId)) {
-      if (await this.install(header)) reinit = true
+    await Zotero.Translators.init()
+
+    const reinit: { header: Translator.Header, code: string }[] = []
+    let header: Translator.Header
+    let code: string
+    for (header of Object.keys(this.byName).map(name => JSON.parse(Zotero.File.getContentsFromURL(`resource://zotero-better-bibtex/${name}.json`)) as Translator.Header)) {
+      if (code = await this.install(header)) reinit.push({ header, code })
     }
 
-    if (reinit) {
-      let restart = false
-      if (Preference.newTranslatorsAskRestart && !Preference.testing) {
-        const dontAskAgain = { value: false }
-        const ps = Services.prompt
-        const index = ps.confirmEx(
-          null, // parent
-          l10n.localize('BetterBibTeX.startup.installingTranslators.new'), // dialogTitle
-          l10n.localize('BetterBibTeX.startup.installingTranslators.new.DnD'), // text
+    if (reinit.length) {
+      await Zotero.Translators.reinit()
 
-          // button flags
-          // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
-          ps.BUTTON_POS_0 * ps.BUTTON_TITLE_IS_STRING + ps.BUTTON_POS_0_DEFAULT
-            + ps.BUTTON_POS_1 * ps.BUTTON_TITLE_IS_STRING,
+      for ({ header, code } of reinit) {
+        log.debug('caching', header)
 
-          // button messages
-          Zotero.getString('general.restartNow'),
-          Zotero.getString('general.restartLater'),
-          null,
-          l10n.localize('BetterBibTeX.startup.installingTranslators.new.dontAskAgain'), // check message
-          dontAskAgain // check state
-        )
-
-        Preference.newTranslatorsAskRestart = !dontAskAgain.value
-
-        restart = (index === 0)
-      }
-
-      if (restart) Zotero.Utilities.Internal.quit(true)
-
-      try {
-        await Zotero.Translators.reinit()
-      }
-      catch (err) {
-        log.error('Translator.inits: reinit failed @', (new Date()).valueOf() - start, err)
+        if (Zotero.Translators.getCodeForTranslator) {
+          const translator = Zotero.Translators.get(header.translatorID)
+          translator.cacheCode = true
+          await Zotero.Translators.getCodeForTranslator(translator)
+        }
+        else {
+          new Zotero.Translator({...header, cacheCode: true, code })
+        }
       }
     }
   }
 
-  public getTranslatorId(name) {
+  public getTranslatorId(name: string): string {
     const name_lc = name.toLowerCase()
 
     // shortcuts
@@ -235,7 +214,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       // when exporting file data you get relative paths, when not, you get absolute paths, only one version can go into the cache
       displayOptions.exportFileData
 
-      // jabref 4 stores collection info inside the reference, and collection info depends on which part of your library you're exporting
+      // jabref 4 stores collection info inside the entry, and collection info depends on which part of your library you're exporting
       || (translator.label.includes('TeX') && job.preferences.jabrefFormat >= 4) // eslint-disable-line no-magic-numbers
 
       // relative file paths are going to be different based on the file being exported to
@@ -260,13 +239,13 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     log.debug('worker context:', workerContext)
 
     const deferred = new Deferred<string>()
-    let worker: ChromeWorker = null
+    let worker: Worker = null
     // WHAT IS GOING ON HERE FIREFOX?!?! A *NetworkError* for a xpi-internal resource:// URL?!
     try {
       worker = new ChromeWorker(`resource://zotero-better-bibtex/worker/zotero.js?${workerContext}`)
     }
     catch (err) {
-      deferred.reject('could not get a ChromeWorker')
+      deferred.reject('could not get a Worker')
       flash(
         'Failed to start background export',
         'Could not start a background export after 5 attempts. Background exports have been disabled -- PLEASE report this as a bug at the Better BibTeX github project',
@@ -319,7 +298,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
           break
 
         case 'cache':
-          let { itemID, reference, metadata } = e.data
+          let { itemID, entry, metadata } = e.data
           if (!metadata) metadata = {}
 
           if (!cache) {
@@ -337,13 +316,13 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
           if (cached) {
             // this should not happen?
             log.debug('unexpected cache store:', query)
-            cached.reference = reference
+            cached.entry = entry
             cached.metadata = metadata
             cached = cache.update(cached)
 
           }
           else {
-            cache.insert({...query, reference, metadata})
+            cache.insert({...query, entry, metadata})
           }
           break
 
@@ -415,7 +394,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
 
       // sleep occasionally so the UI gets a breather
       if ((Date.now() - worked) > 100) { // eslint-disable-line no-magic-numbers
-        await sleep(0) // eslint-disable-line no-magic-numbers
+        await Zotero.Promise.delay(0) // eslint-disable-line no-magic-numbers
         worked = Date.now()
       }
 
@@ -576,20 +555,9 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     return false
   }
 
-  public async install(header) {
-    if (!header.label || !header.translatorID) throw new Error('not a translator')
-
-    let installed = null
-    try {
-      installed = Zotero.Translators.get(header.translatorID)
-    }
-    catch (err) {
-      log.error('Translators.install', header, err)
-      installed = null
-    }
-
-    header = JSON.parse(Zotero.File.getContentsFromURL(`resource://zotero-better-bibtex/${header.label}.json`))
-    if (installed?.configOptions?.hash === header.configOptions.hash) return false
+  public async install(header: Translator.Header): Promise<string> {
+    const installed = Zotero.Translators.get(header.translatorID) || null
+    if (installed?.configOptions?.hash === header.configOptions.hash) return ''
 
     const code = [
       `ZOTERO_CONFIG = ${JSON.stringify(ZOTERO_CONFIG)}`,
@@ -606,14 +574,14 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
 
     try {
       await Zotero.Translators.save(header, code)
-
     }
     catch (err) {
       log.error('Translator.install', header, 'failed:', err)
       this.uninstall(header.label)
+      return ''
     }
 
-    return true
+    return code
   }
 
   public async uncached(translatorID: string, displayOptions: any, scope: any): Promise<any[]> {

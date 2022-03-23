@@ -1,6 +1,5 @@
 Components.utils.import('resource://gre/modules/osfile.jsm')
 
-import { sleep } from './sleep'
 import { Translators } from './translators'
 import { Preference } from '../gen/preferences'
 import { pick } from './file-picker'
@@ -129,7 +128,7 @@ export const AUXScanner = new class { // eslint-disable-line @typescript-eslint/
       let timestamp = ''
 
       while (siblings.has(target.basename + timestamp)) {
-        await sleep(1500) // eslint-disable-line no-magic-numbers
+        await Zotero.Promise.delay(1500) // eslint-disable-line no-magic-numbers
         timestamp = (new Date).toLocaleDateString('nl', { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false })
       }
 
@@ -151,7 +150,7 @@ export const AUXScanner = new class { // eslint-disable-line @typescript-eslint/
     if (missing_keys.length) {
       const collator = new Intl.Collator('en')
       missing_keys.sort(collator.compare.bind(collator))
-      let report = '<html><div><p><b>BibTeX AUX scan</b></p><p>Missing references:</p><ul>'
+      let report = '<html><div><p><b>BibTeX AUX scan</b></p><p>Missing entries:</p><ul>'
       for (const citekey of missing_keys) {
         report += `<li>${citekey.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&quot;').replace(/'/g, '&#039;')}</li>`
       }

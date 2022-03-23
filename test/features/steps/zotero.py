@@ -2,7 +2,7 @@ import bs4
 import sqlite3
 import uuid
 import json, jsonpatch
-import os
+import os, sys
 import redo
 import platform
 import configparser
@@ -12,7 +12,7 @@ import toml
 import urllib
 import tempfile
 from munch import *
-from steps.utils import running, nested_dict_iter, benchmark, ROOT, assert_equal_diff, serialize, html2md, post_log, clean_html, extra_lower
+from steps.utils import running, nested_dict_iter, benchmark, ROOT, assert_equal_diff, serialize, html2md, clean_html, extra_lower
 from steps.library import load as Library
 from steps.bbtjsonschema import validate as validate_bbt_json
 import steps.utils as utils
@@ -24,7 +24,10 @@ import subprocess
 import atexit
 import time
 import datetime
-from collections import OrderedDict, MutableMapping
+
+from collections import OrderedDict
+from collections.abc import MutableMapping
+
 import sys
 import threading
 import socket
@@ -297,8 +300,6 @@ class Zotero:
         except (urllib.error.HTTPError, urllib.error.URLError,socket.timeout):
           pass
 
-        if bm.elapsed > 2000 and not posted: posted = post_log()
-
     assert ready, f'{self.client} did not start'
     self.config.pop()
 
@@ -374,6 +375,17 @@ class Zotero:
         f.write(data)
 
     return path
+
+  def quick_copy(self, itemIDs, translator, expected):
+    found = self.execute('return await Zotero.BetterBibTeX.TestSupport.quickCopy(itemIDs, translator)',
+      translator=translator,
+      itemIDs=itemIDs
+    )
+    expected_file = expected
+    expected, loaded_file = self.load(expected_file, True)
+    exported = self.exported(loaded_file, found)
+    assert_equal_diff(expected.strip(), found.strip())
+    self.exported(exported)
 
   def export_library(self, translator, displayOptions = {}, collection = None, output = None, expected = None, resetCache = False):
     assert not displayOptions.get('keepUpdated', False) or output # Auto-export needs a destination

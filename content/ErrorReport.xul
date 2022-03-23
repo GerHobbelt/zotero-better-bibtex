@@ -19,16 +19,6 @@
   id="better-bibtex-error-report" title="&better-bibtex.ErrorReport.title;"
   width="550" height="550">
 
-  <script src="chrome://zotero/content/include.js"/>
-  <script>
-    Zotero.BetterBibTeX.ErrorReport.globals = Function('return this')();
-    window.addEventListener('load', async function() {
-      Zotero.debug('loading ErrorReport')
-      await Zotero.BetterBibTeX.ErrorReport.load();
-      Zotero.debug('loaded ErrorReport')
-    })
-  </script>
-
   <wizardpage onpageshow="Zotero.BetterBibTeX.ErrorReport.show()" label=" ">
     <description style="white-space: pre-wrap;" class="header">&better-bibtex.ErrorReport.enableDebug;</description>
     <button label="&better-bibtex.ErrorReport.restartWithLoggingEnabled;" oncommand="Zotero.BetterBibTeX.ErrorReport.restartWithDebugEnabled()"/>
@@ -45,7 +35,7 @@
         <tab label="&better-bibtex.ErrorReport.context;"/>
         <tab label="&better-bibtex.ErrorReport.errors;"/>
         <tab label="&better-bibtex.ErrorReport.debug;"/>
-        <tab label="&better-bibtex.ErrorReport.references;" id="better-bibtex-error-tab-references"/>
+        <tab label="&better-bibtex.ErrorReport.items;" id="better-bibtex-error-tab-items"/>
       </tabs>
 
       <tabpanels>
@@ -59,7 +49,7 @@
           <textbox id="better-bibtex-error-debug" class="plain" readonly="true" multiline="true" flex="1" style="min-height: 8em;"/>
         </tabpanel>
         <tabpanel orient="vertical">
-          <textbox id="better-bibtex-error-references" class="plain" readonly="true" multiline="true" flex="1" style="min-height: 8em;"/>
+          <textbox id="better-bibtex-error-items" class="plain" readonly="true" multiline="true" flex="1" style="min-height: 8em;"/>
         </tabpanel>
       </tabpanels>
     </tabbox>
@@ -87,4 +77,19 @@
     <description>&better-bibtex.ErrorReport.postToGitHub;</description>
     <description>&better-bibtex.ErrorReport.notReviewed;</description>
   </wizardpage>
+
+  <script src="chrome://zotero/content/include.js"/>
+  <script>
+    Zotero.BetterBibTeX.ErrorReport.globals = Function('return this')();
+    window.addEventListener('load', async function() {
+      try {
+        Zotero.debug('loading ErrorReport')
+        await Zotero.BetterBibTeX.ErrorReport.load()
+        Zotero.debug('loaded ErrorReport')
+      }
+      catch (err) {
+        Zotero.debug('failed to load ErrorReport' + err.message)
+      }
+    })
+  </script>
 </wizard>
