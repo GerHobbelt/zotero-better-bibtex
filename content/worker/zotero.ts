@@ -1,38 +1,131 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-assignment */
 
 importScripts('resource://gre/modules/osfile.jsm')
+importScripts('resource://zotero/config.js') // import ZOTERO_CONFIG'
 
-import type { ITranslator } from '../../translators/lib/translator'
+import type { TranslatorHeader } from '../../translators/lib/translator'
 import type { Translators } from '../../typings/translators'
 import { valid } from '../../gen/items/items'
 
 import { DOMParser as XMLDOMParser } from '@xmldom/xmldom'
 
-function hasAttribute(attr: string): boolean {
-  return !!(this.getAttribute?.(attr))
+declare var ZOTERO_TRANSLATOR_INFO: TranslatorHeader // eslint-disable-line no-var
+
+const NodeType = {
+  ELEMENT_NODE                : 1,
+  ATTRIBUTE_NODE              : 2,
+  TEXT_NODE                   : 3,
+  CDATA_SECTION_NODE          : 4,
+  ENTITY_REFERENCE_NODE       : 5,
+  ENTITY_NODE                 : 6,
+  PROCESSING_INSTRUCTION_NODE : 7,
+  COMMENT_NODE                : 8,
+  DOCUMENT_NODE               : 9,
+  DOCUMENT_TYPE_NODE          : 10,
+  DOCUMENT_FRAGMENT_NODE      : 11,
+  NOTATION_NODE               : 12,
 }
-function upgrade(node) {
-  if (!node.children) {
-    node.children = Array.from(node.childNodes || [])
-    for (const child of node.children) {
-      upgrade(child)
+
+const childrenProxy = {
+  get(target, prop) { // eslint-disable-line prefer-arrow/prefer-arrow-functions
+    if (prop === Symbol.iterator) {
+      return function*() {
+        let child = target.firstChild
+        while (child) {
+          if (child.childNodes) yield child
+          child = child.nextSibling
+        }
+      }
+    }
+    const children = Array.from(target.childNodes).filter((child: any) => child.childNodes)
+    Zotero.debug(`proxy:children[${typeof prop === 'symbol' ? prop.toString() : prop}]`)
+    return children[prop]
+  },
+
+  set(target, prop, _value) { // eslint-disable-line prefer-arrow/prefer-arrow-functions
+    throw new Error(`cannot set unsupported children.${prop}`)
+  },
+}
+
+const domParser = new XMLDOMParser
+function upgrade(root) {
+  if (!root.children) {
+    Object.defineProperty(root, 'children', {
+      get() {
+        return new Proxy(this, childrenProxy)
+      },
+    })
+  }
+
+  if (!root.innerHTML) {
+    Object.defineProperty(root, 'innerHTML', {
+      get() {
+        return this.childNodes?.toString()
+      },
+    })
+  }
+
+  if (!root.insertAdjacentHTML) {
+    root.insertAdjacentHTML = function(position: 'beforebegin' | 'afterbegin' | 'beforeend' | 'afterend', text: string) {
+      (position as string) = position.toLowerCase()
+
+      let context
+      switch (position) {
+        case 'beforebegin':
+        case 'afterend':
+          context = this.parentNode
+          if (context === null || context.nodeType === NodeType.DOCUMENT_NODE) {
+            throw new Error('Cannot insert HTML adjacent to parent-less nodes or children of document nodes.')
+          }
+          break
+
+        case 'afterbegin':
+        case 'beforeend':
+          context = this // eslint-disable-line @typescript-eslint/no-this-alias
+          break
+
+        default:
+          throw new Error('Must provide one of "beforebegin", "afterbegin", "beforeend", or "afterend".')
+      }
+
+      const fragment = domParser.parseFromString(`<span>${text}</span>`, 'text/html').documentElement
+
+      switch (position) {
+        case 'beforebegin':
+          this.parentNode.insertBefore(fragment, this)
+          break
+
+        case 'afterbegin':
+          this.insertBefore(fragment, this.firstChild)
+          break
+
+        case 'beforeend':
+          this.appendChild(fragment)
+          break
+
+        case 'afterend':
+          this.parentNode.insertBefore(fragment, this.nextSibling)
+          break
+      }
     }
   }
-  if (!node.hasAttribute) node.hasAttribute = hasAttribute
+
+  return root
 }
+import { Node as XMLDOMNode } from '@xmldom/xmldom/lib/dom'
+upgrade(XMLDOMNode.prototype)
+
 export class DOMParser extends XMLDOMParser {
   parseFromString(text: string, contentType: string) { // eslint-disable-line @typescript-eslint/explicit-module-boundary-types
-    const doc = super.parseFromString(text, contentType)
-    upgrade(doc)
-    return doc
+    return upgrade(super.parseFromString(text, contentType))
   }
 }
+
 const ZU = require('../../submodules/zotero-utilities/utilities.js')
 const ZUI = require('../../submodules/zotero-utilities/utilities_item.js')
 const ZD = require('../../submodules/zotero-utilities/date.js')
 
 declare const doExport: () => void
-declare const Translator: ITranslator
 declare const dump: (message: string) => void
 
 // import XRegExp = require('xregexp')
@@ -53,36 +146,25 @@ import dateFormats from '../../schema/dateFormats.json'
 
 const ctx: DedicatedWorkerGlobalScope = self as any
 
-export const workerContext = {
+export const environment = {
   version: '',
   platform: '',
-  translator: '',
-  output: '',
   locale: '',
-  localeDateOrder: '',
-  debugEnabled: false,
-  worker: '',
 }
-for(const [key, value] of (new URLSearchParams(ctx.location.search)).entries()) {
-  if (key === 'debugEnabled') {
-    workerContext[key] = value === 'true'
-  }
-  else {
-    workerContext[key] = value
-  }
-}
+
+export const workerJob: Partial<Translators.Worker.Job> = {}
 
 class WorkerZoteroBetterBibTeX {
   public cacheFetch(itemID: number) {
-    return Zotero.config.cache[itemID]
+    return workerJob.data.cache[itemID]
   }
 
   public setProgress(percent: number) {
-    Zotero.send({ kind: 'progress', percent, translator: workerContext.translator, autoExport: Zotero.config.autoExport })
+    Zotero.send({ kind: 'progress', percent, translator: workerJob.translator, autoExport: workerJob.autoExport })
   }
 
   public cacheStore(itemID: number, options: any, prefs: any, entry: string, metadata: any) {
-    if (Zotero.config.preferences.cache) Zotero.send({ kind: 'cache', itemID, entry, metadata })
+    if (workerJob.preferences.cache) Zotero.send({ kind: 'cache', itemID, entry, metadata })
     return true
   }
 
@@ -91,14 +173,7 @@ class WorkerZoteroBetterBibTeX {
   }
 
   public parseDate(date) {
-    return DateParser.parse(date, workerContext.localeDateOrder)
-  }
-
-  public getLocaleDateOrder() {
-    return workerContext.localeDateOrder
-  }
-  public get localeDateOrder() {
-    return workerContext.localeDateOrder
+    return DateParser.parse(date)
   }
 
   public isEDTF(date, minuteLevelPrecision = false) {
@@ -120,7 +195,7 @@ class WorkerZoteroBetterBibTeX {
   }
 
   public strToISO(str) {
-    return DateParser.strToISO(str, workerContext.localeDateOrder)
+    return DateParser.strToISO(str)
   }
 }
 
@@ -128,7 +203,7 @@ const WorkerZoteroUtilities = {
   ...ZU,
   Item: ZUI,
 
-  getVersion: () => workerContext.version,
+  getVersion: () => environment.version,
 
   /*
   public getCreatorsForType(itemType) {
@@ -136,13 +211,13 @@ const WorkerZoteroUtilities = {
   }
 
   public itemToCSLJSON(item) {
-    return Zotero.config.cslItems[item.itemID]
+    return workerJob.cslItems[item.itemID]
   }
   */
 }
 
 function isWinRoot(path) {
-  return workerContext.platform === 'win' && path.match(/^[a-z]:\\?$/i)
+  return environment.platform === 'win' && path.match(/^[a-z]:\\?$/i)
 }
 function makeDirs(path) {
   if (isWinRoot(path)) return
@@ -174,6 +249,7 @@ function saveFile(path, overwrite) {
 
   if (this.linkMode === 'imported_file' || (this.linkMode === 'imported_url' && this.contentType !== 'text/html')) {
     makeDirs(OS.Path.dirname(this.path))
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     OS.File.copy(this.localPath, this.path, { noOverwrite: !overwrite })
   }
   else if (this.linkMode === 'imported_url') {
@@ -189,6 +265,7 @@ function saveFile(path, overwrite) {
     iterator.forEach(entry => { // eslint-disable-line @typescript-eslint/no-floating-promises
       if (entry.isDir) throw new Error(`Unexpected directory ${entry.path} in snapshot`)
       if (entry.name !== '.zotero-ft-cache') {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         OS.File.copy(OS.Path.join(snapshot, entry.name), OS.Path.join(target, entry.name), { noOverwrite: !overwrite })
       }
     })
@@ -253,7 +330,8 @@ class WorkerZoteroItemFields {
 }
 
 class WorkerZotero {
-  public config: Translators.Worker.Config
+  public worker = true
+
   public output: string
   public exportDirectory: string
   public exportFile: string
@@ -269,29 +347,28 @@ class WorkerZotero {
     ...CSL_MAPPINGS,
   }
 
-  public init(config: Translators.Worker.Config) {
+  public init() {
     this.Date.init(dateFormats)
 
-    this.config = config
-    this.config.preferences.platform = workerContext.platform
-    this.config.preferences.client = client
+    workerJob.preferences.platform = environment.platform
+    workerJob.preferences.client = client
     this.output = ''
-    this.items = this.config.items.length
+    this.items = workerJob.data.items.length
 
-    if (this.config.options.exportFileData) {
-      for (const item of this.config.items) {
+    if (workerJob.options.exportFileData) {
+      for (const item of workerJob.data.items) {
         this.patchAttachments(item)
       }
     }
 
-    if (workerContext.output) {
-      if (this.config.options.exportFileData) { // output path is a directory
-        this.exportDirectory = OS.Path.normalize(workerContext.output)
-        this.exportFile = OS.Path.join(this.exportDirectory, `${OS.Path.basename(this.exportDirectory)}.${Translator.header.target}`)
+    if (workerJob.output) {
+      if (workerJob.options.exportFileData) { // output path is a directory
+        this.exportDirectory = OS.Path.normalize(workerJob.output)
+        this.exportFile = OS.Path.join(this.exportDirectory, `${OS.Path.basename(this.exportDirectory)}.${ZOTERO_TRANSLATOR_INFO.target}`)
       }
       else {
-        this.exportFile = OS.Path.normalize(workerContext.output)
-        const ext = `.${Translator.header.target}`
+        this.exportFile = OS.Path.normalize(workerJob.output)
+        const ext = `.${ZOTERO_TRANSLATOR_INFO.target}`
         if (!this.exportFile.endsWith(ext)) this.exportFile += ext
         this.exportDirectory = OS.Path.dirname(this.exportFile)
       }
@@ -310,7 +387,6 @@ class WorkerZotero {
       OS.File.writeAtomic(this.exportFile, array) as void
     }
     this.send({ kind: 'done', output: this.exportFile ? true : this.output })
-    close()
   }
 
   public send(message: Translators.Worker.Message) {
@@ -318,19 +394,19 @@ class WorkerZotero {
   }
 
   public get locale() {
-    return workerContext.locale
+    return environment.locale
   }
 
   public getHiddenPref(pref) {
-    return this.config.preferences[pref.replace(/^better-bibtex\./, '')]
+    return workerJob.preferences[pref.replace(/^better-bibtex\./, '')]
   }
 
   public getOption(option) {
-    return this.config.options[option]
+    return workerJob.options[option]
   }
 
   public debug(message) {
-    if (workerContext.debugEnabled) {
+    if (workerJob.debugEnabled) {
       // dump(`worker: ${message}\n`)
       this.send({ kind: 'debug', message })
     }
@@ -338,7 +414,6 @@ class WorkerZotero {
   public logError(err) {
     dump(`worker: error=${err}\n`)
     this.send({ kind: 'error', message: `${err}\n${err.stack}` })
-    close()
   }
 
   public write(str) {
@@ -346,12 +421,12 @@ class WorkerZotero {
   }
 
   public nextItem() {
-    this.send({ kind: 'item', item: this.items - this.config.items.length })
-    return this.config.items.shift()
+    this.send({ kind: 'item', item: this.items - workerJob.data.items.length })
+    return workerJob.data.items.shift()
   }
 
   public nextCollection(): Collection {
-    return this.config.collections.shift()
+    return workerJob.data.collections.shift()
   }
 
   private patchAttachments(item): void {
@@ -379,19 +454,23 @@ ctx.onmessage = function(e: { isTrusted?: boolean, data?: Translators.Worker.Mes
 
   try {
     switch (e.data.kind) {
+      case 'configure':
+        Object.assign(environment, e.data.environment)
+        break
+
       case 'start':
-        Zotero.init(JSON.parse(dec.decode(new Uint8Array(e.data.config))))
+        Object.assign(workerJob, JSON.parse(dec.decode(new Uint8Array(e.data.config))))
+        importScripts(`resource://zotero-better-bibtex/${workerJob.translator}.js`)
+        Zotero.init()
         doExport()
         Zotero.done()
         break
 
       case 'stop':
-        close()
         break
 
       default:
-        log.error('unexpected message, stopping worker:', e)
-        close()
+        log.error('unexpected message:', e)
         break
     }
   }
