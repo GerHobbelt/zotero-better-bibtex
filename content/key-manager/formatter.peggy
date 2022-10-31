@@ -205,11 +205,11 @@ method
             error(`unexpected flag '${flag}' on function '${input}'`)
           }
         } else if (flag.length === 1) {
-          if (method.parameters.includes('joiner')) {
-            args.joiner = flag
+          if (method.parameters.includes('sep')) {
+            args.sep = flag
           }
           else {
-            error(`unexpected joiner on function '${input}'`)
+            error(`unexpected sep on function '${input}'`)
           }
         } else if (flag.length) {
           error(`unexpected flag '${flag}' on function '${input}'`)
@@ -254,7 +254,7 @@ flag
 
 filter
   = ':(' dflt:$[^)]+ ')'                  { return `${options.migrate ? '' : '_'}default(${literal(dflt)})` }
-  / ':>' min:$[0-9]+                      {
+  / ':' ('>'/'longer=') min:$[0-9]+       {
       if (options.migrate && parseInt(min) === 0) return 'len'
       return `${options.migrate ? '' : '_'}len('>', ${min})`
     }
