@@ -19,7 +19,7 @@ import { flash } from './flash'
 import { $and, Query } from './db/loki'
 import { Events } from './events'
 import { Pinger } from './ping'
-import PQueue from 'p-queue'
+import Puqeue from 'puqeue'
 
 import * as translatorMetadata from '../gen/translators.json'
 
@@ -41,7 +41,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   public byName: Record<string, Translator.Header>
   public byLabel: Record<string, Translator.Header>
   public itemType: { note: number, attachment: number, annotation: number }
-  private queue: PQueue
+  private queue = new Puqeue
   public worker: ChromeWorker
 
   public workers: { total: number, running: Set<number>, startup: number } = {
@@ -52,11 +52,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
 
   constructor() {
     Object.assign(this, translatorMetadata)
-    this.queue = new PQueue({
-      concurrency: 1,
-      timeout: 1000 * 60 * 60, // eslint-disable-line no-magic-numbers
-      throwOnTimeout: true,
-    })
   }
 
   public async init() {
@@ -150,12 +145,14 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     if (this.worker || !Preference.worker) return
 
     try {
-      this.worker = new ChromeWorker('chrome://zotero-better-bibtex/content/worker/zotero.js')
-      this.worker.postMessage({ kind: 'configure', environment: {
+      const environment = Object.entries({
         version: Zotero.version,
         platform: Preference.platform,
         locale: Zotero.locale,
-      }})
+        clientName: Zotero.clientName,
+      }).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
+
+      this.worker = new ChromeWorker(`chrome://zotero-better-bibtex/content/worker/zotero.js?${environment}`)
       log.debug('translate: worker acquired')
     }
     catch (err) {

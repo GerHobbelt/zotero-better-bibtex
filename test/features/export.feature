@@ -13,6 +13,7 @@ Feature: Export
 
     Examples:
       | file                                                                                                                     | references |
+      | Apply Title Casing to tex.subtitle entry on export #2213                                                                 | 1          |
       | Citation key format backward compatibility issue. #2204                                                                  | 1          |
       | inspireHep fetching broken #2201                                                                                         | 1          |
       | noclean                                                                                                                  | 1          |
@@ -250,7 +251,7 @@ Feature: Export
       | BibTeX export is incompatible with Zotero 6 Preprint item type. #2080 | 1 |
 
   @csl
-  Scenario Outline: Export <references> references for CSL JSON to <file>
+  Scenario Outline: Export <references> references for CSL-JSON to <file>
     When I import <references> references from "export/<file>.json"
     Then an export using "Better CSL JSON" should match "export/*.csl.json"
 
@@ -262,6 +263,10 @@ Feature: Export
       | CSL exporters; ignore [Fields to omit from export] setting #1179 | 26         |
       | Quotes around last names should be removed from citekeys #856    | 1          |
       | BBT CSL JSON; Do not use shortTitle and journalAbbreviation #372 | 1          |
+
+    @use.with_client=jurism
+    Examples:
+      | Export library to Better CSL JSONYAML failed when standard items included. #2212 | 1 |
 
   Scenario: Omit URL export when DOI present. #131
     When I import 3 references with 2 attachments from "export/*.json" into a new collection
@@ -585,7 +590,7 @@ Feature: Export
     Then an export using "Better BibTeX" should match "export/*.bibtex"
 
   # tests the cache for CSL
-  @use.with_client=zotero @use.with_slow=true @timeout=3000 @whopper
+  @use.with_client=zotero @use.with_slow=true @timeout=3000 @whopper @whopper-csl
   Scenario: Really Big whopping library
     When I restart Zotero with "1287" + "export/*.json"
     And I reset the cache

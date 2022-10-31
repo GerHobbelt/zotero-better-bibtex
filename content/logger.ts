@@ -2,10 +2,15 @@ import type { Translators as Translator } from '../typings/translators'
 // workerJob and Translator must be var-hoisted by esbuild to make this work
 declare var ZOTERO_TRANSLATOR_INFO: TranslatorHeader // eslint-disable-line no-var
 declare const workerJob: Translator.Worker.Job
+declare const dump: (msg: string) => void
 
 import { asciify } from './stringify'
-import { environment } from './environment'
+import { worker as inWorker } from './client'
 import { inspect } from 'loupe'
+
+export function print(msg: string): void {
+  dump(msg + '\n')
+}
 
 import type { TranslatorHeader } from '../translators/lib/translator'
 
@@ -43,15 +48,15 @@ class Logger {
       msg = output
     }
 
-    if (Zotero.worker) {
-      if (!worker && workerJob.job) {
+    if (inWorker) {
+      if (!worker && typeof workerJob !== 'undefined') {
         worker = workerJob.job
         workername = `${workerJob.job}`
       }
       translator = translator || workerJob.translator
     }
     else {
-      if (worker) workername = `${worker} (but environment is ${environment.name})`
+      if (worker) workername = `${worker} (ceci n'est pas une ouvrier)`
       // Translator must be var-hoisted by esbuild for this to work
       if (!translator && typeof ZOTERO_TRANSLATOR_INFO !== 'undefined') translator = ZOTERO_TRANSLATOR_INFO.label
     }
@@ -79,6 +84,10 @@ class Logger {
 
   public debug(...msg) {
     if (this.enabled) Zotero.debug(this.format({}, msg))
+  }
+
+  public dump(...msg) {
+    if (this.enabled) print(this.format({}, msg))
   }
 
   public for(issue: number, ...msg) {
