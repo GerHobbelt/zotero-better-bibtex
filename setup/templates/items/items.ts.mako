@@ -1,24 +1,12 @@
 /* eslint-disable prefer-template, id-blacklist, @typescript-eslint/no-unsafe-return, @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/quotes */
 
-declare const Zotero: any
-
 import { client } from '../../content/client'
-import { validator, noncoercing } from '../../content/ajv'
-
 const jurism = client === 'jurism'
 const zotero = !jurism
-
-const zoterovalidator = validator(require('./zotero.json'), noncoercing)
-const jurismvalidator = validator(require('./jurism.json'), noncoercing)
-const broken = {
-  me: zotero ? zoterovalidator : jurismvalidator,
-  other: jurism ? zoterovalidator : jurismvalidator,
-}
 
 type Valid = {
   type: Record<string, boolean>
   field: Record<string, Record<string, boolean>>
-  test: (obj: any, strict?: boolean) => string
 }
 
 export const valid: Valid = {
@@ -35,16 +23,6 @@ export const valid: Valid = {
       %endfor
     },
     %endfor
-  },
-  test: (obj: any, strict?: boolean) => {
-    const errors = broken.me(obj)
-    if (!errors) return ''
-    if (!strict && !broken.other(obj)) {
-      if (typeof Zotero !== 'undefined') Zotero.debug('Better BibTeX soft error: ' + errors)
-      return ''
-    }
-    // https://ajv.js.org/api.html#validation-errors
-    return errors
   },
 }
 

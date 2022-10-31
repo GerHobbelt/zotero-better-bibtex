@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-assignment */
 
+declare const dump: (message: string) => void
+
 importScripts('resource://gre/modules/osfile.jsm')
 importScripts('resource://zotero/config.js') // import ZOTERO_CONFIG'
 
@@ -13,7 +15,6 @@ import { generateCSLYAML, parseCSLYAML } from '../../translators/csl/yaml'
 import { Translation } from '../../translators/lib/translator'
 
 import { DOMParser as XMLDOMParser } from '@xmldom/xmldom'
-import * as CSL from 'citeproc'
 
 declare var ZOTERO_TRANSLATOR_INFO: TranslatorMetadata // eslint-disable-line no-var
 
@@ -132,12 +133,9 @@ const ZUI = require('../../submodules/zotero-utilities/utilities_item.js')
 const ZD = require('../../submodules/zotero-utilities/date.js')
 
 declare const doExport: () => void
-declare const dump: (message: string) => void
 
 import * as DateParser from '../../content/dateparser'
 // import * as Extra from '../../content/extra'
-import { qualityReport } from '../../content/qr-check'
-import { titleCase, HTMLParser } from '../../content/text'
 import itemCreators from '../../gen/items/creators.json'
 import { client } from '../../content/client'
 import { log } from '../../content/logger'
@@ -168,7 +166,6 @@ function cacheFetch(_translator: string, itemID: number, _options: any, _prefs: 
   return workerJob.data.cache[itemID]
 }
 function cacheStore(_translator: string, itemID: number, _options: any, _prefs: any, entry: string, metadata: any) {
-  dump(JSON.stringify({ kind: 'cache', itemID, entry, metadata }))
   if (workerJob.preferences.cache) Zotero.send({ kind: 'cache', itemID, entry, metadata })
   return true
 }
@@ -178,8 +175,6 @@ class WorkerZoteroBetterBibTeX {
     store: cacheStore,
     fetch: cacheFetch,
   }
-
-  public CSL() { return CSL }
 
   public setProgress(percent: number) {
     Zotero.send({ kind: 'progress', percent, translator: workerJob.translator, autoExport: workerJob.autoExport })
@@ -193,10 +188,6 @@ class WorkerZoteroBetterBibTeX {
     return cacheStore('', itemID, null, null, entry, metadata)
   }
 
-  public qrCheck(value, test, options = null) {
-    return qualityReport(value, test, options)
-  }
-
   public parseDate(date) {
     return DateParser.parse(date)
   }
@@ -205,6 +196,7 @@ class WorkerZoteroBetterBibTeX {
     return DateParser.isEDTF(date, minuteLevelPrecision)
   }
 
+  /*
   public titleCase(text) {
     return titleCase(text)
   }
@@ -218,6 +210,7 @@ class WorkerZoteroBetterBibTeX {
     }
     return HTMLParser.parse(text.toString(), options)
   }
+  */
 
   public strToISO(str) {
     return DateParser.strToISO(str)
@@ -438,7 +431,6 @@ class WorkerZotero {
 
   public debug(message) {
     if (workerJob.debugEnabled) {
-      // dump(`worker: ${message}\n`)
       this.send({ kind: 'debug', message })
     }
   }
@@ -484,14 +476,16 @@ const dec = new TextDecoder('utf-8')
 ctx.onmessage = function(e: { isTrusted?: boolean, data?: Translators.Worker.Message } ): void { // eslint-disable-line prefer-arrow/prefer-arrow-functions
   if (!e.data) return // some kind of startup message
 
+  let started: number
   try {
-    dump(`\nworker: got ${e.data.kind}\n`)
     switch (e.data.kind) {
       case 'start':
+        started = Date.now()
         Object.assign(workerJob, JSON.parse(dec.decode(new Uint8Array(e.data.config))))
         importScripts(`resource://zotero-better-bibtex/${workerJob.translator}.js`)
         Zotero.init()
         doExport()
+        log.debug('export duration:', Date.now() - started)
         Zotero.done()
         break
 
@@ -508,7 +502,6 @@ ctx.onmessage = function(e: { isTrusted?: boolean, data?: Translators.Worker.Mes
     }
   }
   catch (err) {
-    dump(`\nworker error: ${err.message}\n`)
     Zotero.logError(err)
   }
 }

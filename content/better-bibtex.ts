@@ -30,7 +30,7 @@ require('./pull-export') // just require, initializes the pull-export end points
 require('./json-rpc') // just require, initializes the json-rpc end point
 import { AUXScanner } from './aux-scanner'
 import * as Extra from './extra'
-import { sentenceCase, titleCase, HTMLParser, HTMLParserOptions } from './text'
+import { sentenceCase, HTMLParser, HTMLParserOptions } from './text'
 
 Components.utils.import('resource://gre/modules/AddonManager.jsm')
 declare const AddonManager: any
@@ -391,15 +391,12 @@ $patch$(Zotero.Integration, 'getApplication', original => function Zotero_Integr
 
 /* bugger this, I don't want megabytes of shared code in the translators */
 import * as DateParser from './dateparser'
-import { qualityReport } from './qr-check'
 import type { ParsedDate } from './dateparser'
 
 Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
   clientName: Zotero.clientName,
 
-  CSL() { return CSL }, // eslint-disable-line @typescript-eslint/no-unsafe-return
-  qrCheck(_sandbox: any, value: string, test: string, params = null) { return qualityReport(value, test, params) },
-
+  /*
   titleCase(_sandbox: any, text: string): string { return titleCase(text) },
   parseHTML(_sandbox: any, text: { toString: () => any }, options: HTMLParserOptions) {
     options = {
@@ -410,6 +407,7 @@ Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
     }
     return HTMLParser.parse(text.toString(), options)
   },
+  */
   // extractFields(_sandbox, item) { return Extra.get(item.extra) },
 
   strToISO(_sandbox: any, str: string) { return DateParser.strToISO(str) },
@@ -1019,5 +1017,8 @@ export class BetterBibTeX {
       setProgress(percent, message) // eslint-disable-line no-magic-numbers
     })
   }
+
+  public parseDate(date: string): ParsedDate { return DateParser.parse(date) }
 }
+
 Zotero.BetterBibTeX = Zotero.BetterBibTeX || new BetterBibTeX
