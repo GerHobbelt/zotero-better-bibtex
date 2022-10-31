@@ -1,6 +1,6 @@
 Components.utils.import('resource://gre/modules/Services.jsm')
 
-import { Preference } from '../gen/preferences'
+import { Preference } from './prefs'
 import { defaults } from '../gen/preferences/meta'
 import { Translators } from './translators'
 import { log } from './logger'
@@ -103,7 +103,7 @@ export class ErrorReport {
       return JSON.parse((await Zotero.HTTP.request('GET', latest, { noCache: true })).response).tag_name.replace('v', '')
     }
     catch (err) {
-      log.debug('errorreport.latest:', err)
+      log.error('errorreport.latest:', err)
       return null
     }
   }
@@ -161,7 +161,7 @@ export class ErrorReport {
       debug: Zotero.Debug.getConsoleViewerOutput().slice(-500000).join('\n'), // eslint-disable-line no-magic-numbers
     }
 
-    if (Zotero.BetterBibTeX.ready && this.params.scope) {
+    if (this.params.scope) {
       await Zotero.BetterBibTeX.ready
       this.errorlog.items = await Translators.exportItems(Translators.byLabel.BetterBibTeXJSON.translatorID, {exportNotes: true, dropAttachments: true, Normalize: true}, this.params.scope)
     }

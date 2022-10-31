@@ -1,7 +1,7 @@
 Components.utils.import('resource://gre/modules/osfile.jsm')
 
 import { Translators } from './translators'
-import { Preference } from '../gen/preferences'
+import { Preference } from './prefs'
 import { pick } from './file-picker'
 import { pathSearch } from './path-search'
 import { log } from './logger'
@@ -123,11 +123,9 @@ export const AUXScanner = new class { // eslint-disable-line @typescript-eslint/
     const filter = OS.Path.join(Zotero.BetterBibTeX.dir, lua)
     if (!(await OS.File.exists(filter))) {
       const url = 'resource://zotero-better-bibtex/list-citekeys.lua'
-      log.debug('installing', url, 'to', filter)
       const file = Zotero.File.pathToFile(filter)
       const contents = Zotero.File.getContentsFromURL(url)
       Zotero.File.putContents(file, contents)
-      log.debug('installed', url, 'to', filter, ':\n', contents)
     }
     return filter
   }
