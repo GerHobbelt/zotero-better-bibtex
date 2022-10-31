@@ -337,16 +337,20 @@ class PatternFormatter {
   public parsePattern(pattern): string {
     log.debug('parsePattern.pattern:', pattern)
     let formatter = ''
-    if (pattern.startsWith("''")) {
-      formatter = pattern
+
+    if (pattern.startsWith('[]')) {
+      return legacyparser.parse(pattern, { sprintf, items, methods, migrate: false }) as string
+    }
+    else if (pattern.startsWith('[')) {
+      formatter = legacyparser.parse(pattern, { sprintf, items, methods, migrate: true }) as string
+      if (Preference.testing) log.debug('parsePattern.migrated:', formatter)
     }
     else {
-      if (!pattern.includes('[')) throw new Error('pattern does not contain functions')
-      formatter = legacyparser.parse(pattern, { sprintf, items, methods, migrate: true }) as string
-      if (Preference.testing) log.debug('parsePattern.old:', formatter)
+      formatter = pattern
     }
+
     formatter = formatparser.parse(formatter)
-    if (Preference.testing) log.debug('parsePattern.new:', formatter)
+    if (Preference.testing) log.debug('parsePattern.compiled:', formatter)
 
     return formatter
   }

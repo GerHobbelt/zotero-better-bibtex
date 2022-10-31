@@ -161,24 +161,23 @@ const git = new Git()
 
 
 if (Preference.autoExportDelay < 1) Preference.autoExportDelay = 1
+if (Preference.autoExportIdleWait < 1) Preference.autoExportIdleWait = 1
 const queue = new class TaskQueue {
-  private scheduler = new Scheduler('autoExportDelay', 1000) // eslint-disable-line no-magic-numbers
+  private scheduler = new Scheduler('autoExportDelay', 1000)
   private autoexports: any
   private started = false
-  public idle = false
-  public syncing = false
+  private idleService = Components.classes['@mozilla.org/widget/idleservice;1'].getService(Components.interfaces.nsIIdleService)
 
   constructor() {
-    this.pause()
+    this.pause('startup')
   }
 
   public start() {
     if (this.started) return
     this.started = true
-    if (Preference.autoExport === 'immediate') this.resume()
+    if (Preference.autoExport === 'immediate') this.resume('startup')
 
-    const idleService = Components.classes['@mozilla.org/widget/idleservice;1'].getService(Components.interfaces.nsIIdleService)
-    idleService.addIdleObserver(this, Preference.autoExportIdleWait)
+    this.idleService.addIdleObserver(this, Preference.autoExportIdleWait * 1000)
 
     Zotero.Notifier.registerObserver(this, ['sync'], 'BetterBibTeX', 1)
   }
@@ -187,11 +186,40 @@ const queue = new class TaskQueue {
     this.autoexports = autoexports
   }
 
-  public pause() {
+  public pause(reason: 'startup' | 'end-of-idle' | 'start-of-sync' | 'trigger-change') {
+    log.debug('idle?: queue paused:', reason)
     this.scheduler.paused = true
   }
 
-  public resume() {
+  public resume(reason: 'startup' | 'end-of-sync' | 'start-of-idle' | 'trigger-change') {
+    log.debug('idle?: queue resume request:', reason)
+    if (Zotero.Sync.Runner.syncInProgress) {
+      log.debug('idle?: queue not resumed: sync in progress, end-of-sync will trigger resume')
+      this.scheduler.paused = true
+      return
+    }
+
+    const is_idle = this.idleService.idleTime >= Preference.autoExportIdleWait * 1000
+    switch (Preference.autoExport) {
+      case 'off':
+        log.debug('idle?: queue not resumed: auto-export is off')
+        this.scheduler.paused = true
+        return
+
+      case 'idle':
+        // don't re-schedule idle for end-of-sync / should never happen?
+        if (!is_idle) {
+          log.debug('idle?: queue not resumed:', reason, "but we're not actually idle")
+          this.scheduler.paused = true
+          return
+        }
+        break
+
+      case 'immediate':
+        break
+    }
+
+    log.debug('idle?: queue resumed:', reason)
     this.scheduler.paused = false
   }
 
@@ -301,46 +329,19 @@ const queue = new class TaskQueue {
     return path
   }
 
-  private ping() {
-    if (this.syncing) {
-      this.pause()
-      return
-    }
-
-    switch (Preference.autoExport) {
-      case 'off':
-        this.pause()
-        return
-
-      case 'idle':
-        if (!this.idle) {
-          this.pause()
-          return
-        }
-        break
-
-      case 'immediate':
-        break
-    }
-
-    this.resume()
-  }
-
   // idle observer
   protected observe(subject, topic, data) {
-    log.debug('auto-export idle observer:', { subject, topic, data })
+    log.debug('idle?: observer:', { subject, topic, data })
     if (!this.started || Preference.autoExport === 'off') return
 
     switch (topic) {
       case 'back':
       case 'active':
-        this.idle = false
-        this.ping()
+        this.pause('end-of-idle')
         break
 
       case 'idle':
-        this.idle = true
-        this.ping()
+        this.resume('start-of-idle')
         break
 
       default:
@@ -357,13 +358,13 @@ const queue = new class TaskQueue {
 
     switch(`${type}.${action}`) {
       case 'sync.start':
-        this.syncing = true
-        this.ping()
+        log.debug('idle?: sync started => pausing queue')
+        this.pause('start-of-sync')
         break
 
       case 'sync.finish':
-        this.syncing = false
-        this.ping()
+        log.debug('idle?: sync finished => resuming queue')
+        this.resume('end-of-sync')
         break
 
       default:
@@ -404,7 +405,7 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
       this.progress.delete(ae.$loki)
     })
 
-    if (Preference.autoExport === 'immediate') { queue.resume() }
+    if (Preference.autoExport === 'immediate') queue.resume('startup')
   }
 
   public start() {
@@ -448,7 +449,7 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
   }
 
   public async cached($loki) {
-    if (!Preference.caching) return 0
+    if (!Preference.cache) return 0
 
     const ae = this.db.get($loki)
 
@@ -507,9 +508,9 @@ Events.on('preference-changed', pref => {
 
   switch (Preference.autoExport) {
     case 'immediate':
-      queue.resume()
+      queue.resume('trigger-change')
       break
     default: // off / idle
-      queue.pause()
+      queue.pause('trigger-change')
   }
 })
