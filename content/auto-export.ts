@@ -7,7 +7,7 @@ import { Events } from './events'
 import { DB, scrubAutoExport } from './db/main'
 import { DB as Cache, selector as cacheSelector } from './db/cache'
 import { $and } from './db/loki'
-import { Translators } from './translators'
+import { Translators, ExportJob } from './translators'
 import { Preference } from './prefs'
 import { Preferences, schema } from '../gen/preferences/meta'
 import * as ini from 'ini'
@@ -180,26 +180,19 @@ const queue = new class TaskQueue {
 
     // really dumb but the idle service deals with msecs wverywhere -- except add, which is in seconds
     this.idleService.addIdleObserver(this, Preference.autoExportIdleWait)
-
-    Zotero.Notifier.registerObserver(this, ['sync'], 'BetterBibTeX', 1)
   }
 
   public init(autoexports) {
     this.autoexports = autoexports
   }
 
-  public pause(reason: 'startup' | 'end-of-idle' | 'start-of-sync' | 'preference-change') {
+  public pause(reason: 'startup' | 'end-of-idle' | 'preference-change') {
     log.debug('on-idle: queue.pause:', reason)
     this.scheduler.paused = true
   }
 
-  public resume(reason: 'startup' | 'end-of-sync' | 'start-of-idle' | 'preference-change') {
+  public resume(reason: 'startup' | 'start-of-idle' | 'preference-change') {
     log.debug('on-idle: queue.resume:', reason)
-    if (Zotero.Sync.Runner.syncInProgress) {
-      log.debug('on-idle: queue not resumed: sync in progress, end-of-sync will trigger resume')
-      this.scheduler.paused = true
-      return
-    }
 
     const is_idle = this.idleService.idleTime >= Preference.autoExportIdleWait * 1000
     switch (Preference.autoExport) {
@@ -209,7 +202,6 @@ const queue = new class TaskQueue {
         return
 
       case 'idle':
-        // don't re-schedule idle for end-of-sync / should never happen?
         if (!is_idle) {
           log.debug('on-idle: queue not resumed:', reason, "but we're not actually idle")
           this.scheduler.paused = true
@@ -226,8 +218,9 @@ const queue = new class TaskQueue {
   }
 
   public add(ae) {
+    log.debug('ae.scheduling', ae)
     const $loki = (typeof ae === 'number' ? ae : ae.$loki)
-    Events.emit('export-progress', 0, Translators.byId[ae.translatorID].label, $loki)
+    Events.emit('export-progress', 0, `Scheduled ${Translators.byId[ae.translatorID].label}`, $loki)
     this.scheduler.schedule($loki, this.run.bind(this, $loki))
   }
 
@@ -243,7 +236,8 @@ const queue = new class TaskQueue {
     await Zotero.BetterBibTeX.ready
 
     const ae = this.autoexports.get($loki)
-    Events.emit('export-progress', 0, Translators.byId[ae.translatorID].label, $loki)
+    log.debug('ae.starting', ae)
+    Events.emit('export-progress', 0, `Starting ${Translators.byId[ae.translatorID].label}`, $loki)
     if (!ae) throw new Error(`AutoExport ${$loki} not found`)
 
     ae.status = 'running'
@@ -282,9 +276,14 @@ const queue = new class TaskQueue {
       for (const pref of schema.translator[Translators.byId[ae.translatorID].label].preferences) {
         displayOptions[`preference_${pref}`] = ae[pref]
       }
-      displayOptions.auto_export_id = ae.$loki
 
-      const jobs = [ { scope, path: ae.path } ]
+      const jobs: ExportJob[] = [{
+        translatorID: ae.translatorID,
+        autoExport: ae.$loki,
+        displayOptions,
+        scope,
+        path: ae.path,
+      }]
 
       if (ae.recursive) {
         const collections = scope.type === 'library' ? Zotero.Collections.getByLibrary(scope.id, true) : Zotero.Collections.getByParent(scope.collection, true)
@@ -307,12 +306,17 @@ const queue = new class TaskQueue {
             .map((p: string) => autoExportPathReplaceDiacritics ? (fold2ascii.foldMaintaining(p) as string) : p)
             .join(autoExportPathReplaceDirSep || '-') + ext
           )
-          jobs.push({ scope: { type: 'collection', collection: collection.id }, path } )
+          jobs.push({
+            ...jobs[0],
+            scope: { type: 'collection', collection: collection.id },
+            path,
+          })
         }
       }
 
-      log.debug('on-idle: starting auto-export')
-      await Promise.all(jobs.map(job => Translators.exportItems(ae.translatorID, displayOptions, job.scope, job.path)))
+      log.debug('ae.starting', jobs.length, 'jobs for', ae.$loki)
+      await Promise.all(jobs.map(job => Translators.exportItemsByWorker(job)))
+      log.debug('ae.done', jobs.length, 'jobs for', ae.$loki)
 
       await repo.push(l10n.localize('Preferences.auto-export.git.message', { type: Translators.byId[ae.translatorID].label.replace('Better ', '') }))
 
@@ -336,54 +340,23 @@ const queue = new class TaskQueue {
   // idle observer
   protected observe(_subject, topic, data) {
     log.debug('on-idle: idle.observe:', { topic, data })
-    if (Preference.autoExport === 'off') {
-      log.debug('on-idle: idle.observe: auto-export is off')
-      this.pause('preference-change')
-      return
-    }
+    if (Preference.autoExport === 'idle') {
+      switch (topic) {
+        case 'back':
+        case 'active':
+          log.debug('on-idle: idle.observe: => pause', topic)
+          this.pause('end-of-idle')
+          break
 
-    switch (topic) {
-      case 'back':
-      case 'active':
-        log.debug('on-idle: idle.observe: => pause', topic)
-        this.pause('end-of-idle')
-        break
+        case 'idle':
+          log.debug('on-idle: idle.observe: => resume', topic)
+          this.resume('start-of-idle')
+          break
 
-      case 'idle':
-        log.debug('on-idle: idle.observe: => resume', topic)
-        this.resume('start-of-idle')
-        break
-
-      default:
-        log.error('Unexpected idle state', topic)
-        break
-    }
-  }
-
-  // pause during sync.
-  // It is theoretically possible that auto-export is paused because Zotero is idle and then restarted when the sync finishes, but
-  // I can't see how a system can be considered idle when Zotero is syncing.
-  protected notify(action, type) {
-    if (Preference.autoExport === 'off') {
-      log.debug('on-idle: sync.notify: auto-export is off')
-      this.pause('preference-change')
-      return
-    }
-
-    switch(`${type}.${action}`) {
-      case 'sync.start':
-        log.debug('on-idle: sync.notify: started => pausing queue')
-        this.pause('start-of-sync')
-        break
-
-      case 'sync.finish':
-        log.debug('on-idle: sync.notify: finished => resuming queue')
-        this.resume('end-of-sync')
-        break
-
-      default:
-        log.error('Unexpected Zotero notification state', { action, type })
-        break
+        default:
+          log.error('Unexpected idle state', topic)
+          break
+      }
     }
   }
 }
@@ -400,7 +373,7 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
     Events.on('libraries-removed', ids => this.remove('library', ids))
     Events.on('collections-changed', ids => this.schedule('collection', ids))
     Events.on('collections-removed', ids => this.remove('collection', ids))
-    Events.on('export-progress', (percent, _translator, ae) => {
+    Events.on('export-progress', (percent, _message, ae) => {
       if (typeof ae === 'number') this.progress.set(ae, percent)
     })
   }
