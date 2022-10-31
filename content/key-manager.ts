@@ -1,3 +1,5 @@
+Components.utils.import('resource://gre/modules/Services.jsm')
+
 import ETA from 'node-eta'
 
 import { kuroshiro } from './key-manager/japanese'
@@ -164,11 +166,8 @@ export class KeyManager {
   }
 
   public async init(): Promise<void> {
-    log.debug('KeyManager.init start')
     await kuroshiro.init()
-    log.debug('KeyManager.init kuro ready')
     jieba.init()
-    log.debug('KeyManager.init jieba ready')
 
     this.keys = DB.getCollection('citekey')
 
@@ -184,10 +183,8 @@ export class KeyManager {
     for (const field of await ZoteroDB.queryAsync('select fieldID, fieldName from fields')) {
       this.query.field[field.fieldName] = field.fieldID
     }
-    log.debug('KeyManager.init query ready')
 
     Formatter.update('init')
-    log.debug('KeyManager.init done')
   }
 
   public async start(): Promise<void> {
@@ -427,7 +424,7 @@ export class KeyManager {
     this.keys.findAndRemove({ itemID: { $in: [...deleted, ...this.regenerate] } })
     this.regenerate.push(...db.keys())
 
-    if (this.regenerate.length !== 0) {
+    if (this.regenerate.length !== 0 && Services.prompt.confirm(null, '(re)generating keys', `(re)generating ${this.regenerate.length} citekeys, proceed?`)) {
       const progressWin = new Zotero.ProgressWindow({ closeOnClick: false })
       progressWin.changeHeadline('Better BibTeX: Assigning citation keys')
       progressWin.addDescription(`Found ${this.regenerate.length} items without a citation key`)
