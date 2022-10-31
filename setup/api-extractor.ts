@@ -146,8 +146,22 @@ export class API {
       case ts.SyntaxKind.ArrayType:
         return this.ArrayType(type as ts.ArrayTypeNode)
 
+      case ts.SyntaxKind.TupleType:
+        return this.TupleType(type as ts.TupleTypeNode)
+
       default:
         throw {...type, kindName: ts.SyntaxKind[type.kind] } // eslint-disable-line no-throw-literal
+    }
+  }
+
+  private TupleType(tuple: ts.TupleTypeNode) {
+    return {
+      type: 'array',
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      prefixItems: tuple.elements.map((elt: ts.TypeNode) => this.schema(elt)),
+      items: false,
+      minItems: tuple.elements.length,
+      maxItems: tuple.elements.length,
     }
   }
 

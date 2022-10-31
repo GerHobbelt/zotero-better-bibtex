@@ -3,10 +3,14 @@
 import * as types from '../../gen/items/items'
 import * as recast from 'recast'
 import { builders as b } from 'ast-types'
+import _ from 'lodash'
+import { ajv } from '../ajv'
+import { sprintf } from 'sprintf-js'
+import jsesc from 'jsesc'
 
 type AST = any
 
-import api from '../../gen/api/key-formatter.json'
+import { methods } from '../../gen/api/key-formatter'
 // move this upgrade to setup/extract-api after migration
 const object_or_null = { oneOf: [ { type: 'object' }, { type: 'null' } ] }
 const basics = {
@@ -32,15 +36,35 @@ function upgrade(type) {
       }
 
     case 'array':
-      return {
-        type: 'object',
-        properties: {
-          type: { const: 'ArrayExpression' },
-          elements: { type: 'array', items: upgrade(type.items) },
-          ...basics,
-        },
-        required: [ 'type', 'elements' ],
-        additionalProperties: false,
+      if (type.prefixItems) {
+        return {
+          type: 'object',
+          properties: {
+            type: { const: 'ArrayExpression' },
+            elements: {
+              type: 'array',
+              prefixItems: type.prefixItems.map(upgrade),
+              items: type.items,
+              minItems: type.minItems,
+              maxItems: type.maxItems,
+            },
+            ...basics,
+          },
+          required: [ 'type', 'elements' ],
+          additionalProperties: false,
+        }
+      }
+      else {
+        return {
+          type: 'object',
+          properties: {
+            type: { const: 'ArrayExpression' },
+            elements: { type: 'array', items: upgrade(type.items) },
+            ...basics,
+          },
+          required: [ 'type', 'elements' ],
+          additionalProperties: false,
+        }
       }
   }
 
@@ -92,58 +116,151 @@ function upgrade(type) {
 
   throw { notUpgradable: type } // eslint-disable-line no-throw-literal
 }
-const astapi: typeof api = JSON.parse(JSON.stringify(api))
-for (const meta of Object.values(astapi)) {
-  for (const property of Object.keys(meta.schema.properties)) {
-    meta.schema.properties[property] = upgrade(meta.schema.properties[property])
-  }
-}
 
-const methodnames: Record<string, string> = Object.keys(astapi).reduce((acc, name) => { acc[name.toLowerCase()]=name; return acc }, {} as Record<string, string>)
-function findMethod(fname: string): string {
-  const uscore = fname.replace(/[a-z][A-Z]/g, chr => `${chr[0]}_${chr[1]}`).toLowerCase()
-  const duscore = fname.replace(/[a-z][A-Z]/g, chr => `${chr[0]}__${chr[1]}`).toLowerCase()
-  for (const prefix of ['', '$', '_']) {
-    for (let name of [uscore, duscore]) {
-      if (name = methodnames[prefix + name]) return name
+function creatorname(_schema, format) {
+  // @ts-ignore
+  creatorname.errors = []
+  let error = ''
+  try {
+    const expected = `${Date.now()}`
+    const vars = { f: expected, g: expected, i: expected, I: expected }
+    const found = sprintf(format, vars)
+    if (found.includes(expected)) return true
+    error = `${format} does not contain ${Object.keys(vars).map(v => `%(${v})s`).join('/')}`
+  }
+  catch (err) {
+    error = err.message
+  }
+
+  // @ts-ignore
+  creatorname.errors.push({
+    keyword: 'creatorname',
+    message: error,
+    params: { keyword: 'creatorname' },
+  })
+  return false
+}
+ajv.addKeyword({
+  keyword: 'creatorname',
+  validate: creatorname,
+})
+
+function postfix(_schema, format) {
+  // @ts-ignore
+  postfix.errors = []
+  let error = ''
+  try {
+    const expected = `${Date.now()}`
+    const vars = { a: expected, A: expected, n: expected }
+    const found = sprintf(format, vars)
+    if (!found.includes(expected)) {
+      error = `${format} does not contain ${Object.keys(vars).map(v => `%(${v})s`).join('/')}`
+    }
+    else if (found.split(expected).length > 2) {
+      error = `${format} contains multiple instances of ${Object.keys(vars).map(v => `%(${v})s`).join('/')}`
+    }
+    else {
+      return true
     }
   }
-  return ''
+  catch (err) {
+    error = err.message
+  }
+
+  // @ts-ignore
+  postfix.errors.push({
+    keyword: 'postfix',
+    message: error,
+    params: { keyword: 'postfix' },
+  })
+  return false
+}
+ajv.addKeyword({
+  keyword: 'postfix',
+  validate: postfix,
+})
+
+const api: typeof methods = _.cloneDeep(methods)
+for (const meta of Object.values(api)) {
+  for (const property of Object.keys(meta.schema.properties)) {
+    meta.schema.properties[property] = upgrade(meta.schema.properties[property])
+
+    if (meta.name === '_formatDate' || meta.name === '$date') {
+      meta.schema.properties[property].properties.value.pattern = '^([^%]|(%-?o?[ymdYDHMS]))+$'
+    }
+    else if (meta.name === '$postfix' && property === 'format') {
+      // @ts-ignore
+      meta.schema.properties[property].properties.value = { postfix: true }
+    }
+    else if (meta.name === '$authors' && property === 'name') {
+      // @ts-ignore
+      meta.schema.properties[property].properties.value = { creatorname: true }
+    }
+  }
 }
 
 import { validator } from '../ajv'
-for (const method of Object.values(astapi)) {
+for (const method of Object.values(api)) {
   (method  as any).validate = validator((method  as any).schema)
 }
 
-for (const fname in astapi) {
+for (const fname in api) {
   if (fname[0] !== '_' && fname[0] !== '$') throw new Error(`Unexpected fname ${fname}`)
 }
 
 type Context = { arguments?: boolean, coerce?: boolean }
 export class PatternParser {
   public code: string
-  private finder: AST
+  private patterns: AST
   private ftype: string
 
   constructor(source: string) {
-    this.finder = recast.parse('[].find(pattern => { try { return pattern() } catch (err) { if (err.next) return ""; throw err } })')
+    const finder = recast.parse('[].find(pattern => { try { return pattern() } catch (err) { if (err.next) return ""; throw err } })')
+    this.patterns = finder.program.body[0].expression.callee.object.elements
+
     this.addpattern(recast.parse(source).program.body[0].expression)
-    this.insert(recast.parse('"zotero-" + this.item.id').program.body[0].expression, false)
-    this.code = recast.prettyPrint(this.finder, {tabWidth: 2}).code
+
+    // eslint-disable-next-line prefer-template
+    this.code = [
+      recast.prettyPrint(finder.program.body[0].expression, {quote: 'single', tabWidth: 2}).code,
+      // this.citekey is set as a side-effect
+      'return this.citekey || ("zotero-" + this.item.id)',
+    ].join(';\n')
   }
 
   private error(expr): void {
     throw new Error(`Unexpected ${expr.type} at ${expr.loc.start.column}`)
   }
 
-  protected Literal(expr: AST, _context: Context): AST {
-    return expr
+  protected UnaryExpression(expr: AST, _context: Context): AST {
+    if (expr.operator === '-' && expr.argument.type === 'Literal' && typeof expr.argument.value === 'number') {
+      return b.literal(-1 * expr.argument.value)
+    }
+    else {
+      this.error(expr)
+    }
+  }
+
+  protected Literal(expr: AST, context: Context): AST {
+    if (context.arguments) {
+      return expr
+    }
+    else {
+      return b.callExpression(b.identifier('text'), [expr])
+    }
+  }
+
+  kind(str: string): 'function' | 'filter' {
+    switch (str[0]) {
+      case '$': return 'function'
+      case '_': return 'filter'
+      default: throw new Error(`indeterminate type for ${str}`)
+    }
   }
 
   private resolveArguments(fname: string, args: AST[]): AST[] {
-    const method = astapi[findMethod(fname)] // transitional before rename in formatter.ts
-    const kind = {$: 'function', _: 'filter'}[fname[0]]
+    const method = api[fname.toLowerCase()] // transitional before rename in formatter.ts
+    const kind = this.kind(fname)
     fname = fname.slice(1)
     const me = `${kind} ${JSON.stringify(fname)}`
     if (!method) throw new Error(`No such ${me}`)
@@ -180,14 +297,19 @@ export class PatternParser {
     else {
       if (method.parameters.length < args.length) throw new Error(`${me}: expected ${method.parameters.length} arguments, got ${args.length}`)
 
-      args = method.parameters.map((param: string) => parameters[param] || b.identifier('undefined'))
-      let arg
-      while (args.length && (arg = args[args.length - 1]).type === 'Identifier' && arg.name === 'undefined') args.pop()
+      args = method.parameters.map((param: string, i: number) => parameters[param] || ( typeof method.defaults[i] !== 'undefined' ? b.literal(method.defaults[i]) : b.identifier('undefined') ))
+      args.reverse()
+      const defaults = [...method.defaults].reverse()
+      while(args.length && ((args[0].type === 'Identifier' && args[0].name === 'undefined') || (args[0].type === 'Literal' && args[0].value === defaults[0]))) {
+        args.shift()
+        defaults.shift()
+      }
+      args.reverse()
     }
 
     let err: string
     if (err = method.validate(parameters)) {
-      throw new Error(`${me}: ${err}`)
+      throw new Error(`${me}: ${err} ${jsesc(parameters)}`)
     }
 
     return args
@@ -207,7 +329,7 @@ export class PatternParser {
       const name = types.name.field[expr.name.toLowerCase()]
       if (!name) throw new Error(`No such field ${expr.name}`)
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      return b.callExpression(b.identifier('get_field'), [ b.literal(name) ])
+      return b.callExpression(b.identifier('getField'), [ b.literal(name) ])
     }
     else {
       return b.callExpression(expr, [])
@@ -284,29 +406,34 @@ export class PatternParser {
   }
 
   private resolve(expr: AST) {
-    let fname: string
+    let passed: string
+    let callee: any
+    let prefix: string
 
     switch (expr.type) {
       case 'CallExpression':
         if (expr.callee.type === 'Identifier' && this.ftype === '$') {
-          fname = this.ftype
+          prefix = this.ftype
           this.ftype = '_'
         }
         else {
-          fname = '_'
+          prefix = '_'
         }
 
         if (expr.callee.type === 'Identifier') {
-          fname = expr.callee.name = `${fname}${expr.callee.name}`
+          callee = expr.callee
         }
         else if (expr.callee.type === 'MemberExpression' && expr.callee.property.type === 'Identifier') {
-          fname = expr.callee.property.name = `${fname}${expr.callee.property.name}`
+          callee = expr.callee.property
         }
         else {
           throw expr
         }
+        passed = callee.name
+        callee.name = api[`${prefix}${passed}`.toLowerCase()]?.name
+        if (!callee.name) throw new Error(`No such ${this.kind(prefix)} ${passed}`)
 
-        expr.arguments = this.resolveArguments(fname, expr.arguments)
+        expr.arguments = this.resolveArguments(callee.name, expr.arguments)
         this.resolve(expr.callee)
         break
 
@@ -339,8 +466,7 @@ export class PatternParser {
       expr = this.addThis(expr, { coerce: true })
     }
 
-    // const wrapper = reset this.citekey
-    this.finder.program.body[0].expression.callee.object.elements.push(b.arrowFunctionExpression([], expr, true))
+    this.patterns.push(b.arrowFunctionExpression([], expr, false))
   }
 
   private addpattern(expr: AST) {

@@ -13,6 +13,7 @@ Feature: Export
 
     Examples:
       | file                                                                                                                     | references |
+      | Zotero's Manuscript 'Type' is mapped to both biblatex's 'type' and 'howpublished' #2114                                  | 1          |
       | Configurable journal abbreviation for citekey #2097                                                                      | 1          |
       | BetterBibLaTeX exports articles as online #2058                                                                          | 3          |
       | How to export bib without month and date in year item (Using better bibtex) #2022                                        | 1          |
@@ -439,6 +440,12 @@ Feature: Export
     Given I import 3 references from "export/*.json"
     And I set preference .postscript to "export/*.js"
     Then an export using "Better BibTeX" should match "export/*.bibtex"
+
+  @postscript @bbt
+  Scenario: Custom field ordering -- dependent on order entry in Extra rather than static #2082
+    Given I import 1 reference from "export/*.json"
+    And I set preference .postscript to "export/*.js"
+    Then an export using "Better BibLaTeX" should match "export/*.biblatex"
 
   @postscript @bbt
   Scenario: Transforming exported file names (windows path conversion) #1939
