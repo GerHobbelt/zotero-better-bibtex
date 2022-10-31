@@ -80,7 +80,6 @@ jobs:
       bins: ${{ steps.balance.outputs.bins }}
       clients: ${{ steps.balance.outputs.clients }}
       slow: ${{ steps.slow.outputs.slow }}
-      beta: ${{ steps.beta.outputs.beta }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -92,7 +91,8 @@ jobs:
 
     - name: enable slow tests for master, scheduled builds, or tagged builds
       id: slow
-      if: github.ref == 'refs/heads/master' || github.event_name == 'schedule' || (github.event.head_commit.message == steps.version.outputs.version && startsWith(github.ref, 'refs/tags/'))
+      if:
+        (github.event.head_commit.message == steps.version.outputs.version && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'schedule' || github.ref == 'refs/heads/master'
       run: echo "::set-output name=slow::--slow"
 
     - name: enable beta for tagged builds and scheduled builds
@@ -171,7 +171,7 @@ jobs:
     # needs logs/logs to have them show up as logs in the artifact... no idea why
     - name: Run tests
       # continue-on-error: ${{ matrix.client == 'jurism' }}
-      run: xvfb-run --auto-servernum ./test/behave --client ${{ matrix.client }} --format ci --bin ${{ matrix.bin }} --bins $BINS ${{ steps.test.outputs.this }} --durations logs/stats/durations-${{ matrix.client }}-${{ matrix.bin }}.json ${{ needs.jobs.outputs.slow }} ${{ needs.jobs.outputs.beta }}
+      run: xvfb-run --auto-servernum ./test/behave --client ${{ matrix.client }} --format ci --bin ${{ matrix.bin }} --bins $BINS ${{ steps.test.outputs.this }} --durations logs/stats/durations-${{ matrix.client }}-${{ matrix.bin }}.json ${{ needs.jobs.outputs.slow }}
       env:
         PYTHONUNBUFFERED: true
 
