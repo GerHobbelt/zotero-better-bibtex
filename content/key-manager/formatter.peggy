@@ -3,6 +3,22 @@
     return (prefix || '') + method.replace(/[.]/g, '__').replace(/-/g, '_')
   }
 
+  function literal(v) {
+    if (v instanceof RegExp) return `/${v.source}/${v.flags}`
+
+    if (Array.isArray(v)) return '[' + v.map(literal).join(', ') + ']'
+
+    switch (typeof v) {
+      case 'undefined':
+        return 'undefined'
+      case 'string':
+      case 'number':
+      case 'boolean':
+        return JSON.stringify(v)
+    }
+    throw new Error(`unexpected argument value ${v}`)
+  }
+
   function match(fn, args, text, error) {
     if (!fn.match(/^[$_]/)) error(`unknown operator ${fn}`)
 
@@ -16,12 +32,17 @@
       }
     }
 
+    // kludge for regexes, otherwise length validation fails
+    if (method === '_replace' && args.length === 3 && args[2] === 'regex') {
+      args = [ new RegExp(args[0]), args[1] ]
+    }
+
     if (args.length > meta.parameters.length) error(`too many arguments for ${text}`)
+    if (meta.rest) error('handle rest parameters inline')
 
     const params = args.reduce((acc, v, i) => {
       const param = meta.parameters[i]
-      // horrid kludge for arrays
-      if (meta.schema.properties[param].type === 'array') v = v.split('/')
+      // horrid kludge for arrays / rest parameters
       acc[param] = v
       return acc
     }, {})
@@ -31,24 +52,9 @@
       error(`${text}: ${argerror}`)
     }
     else {
-      args = JSON.stringify(meta.parameters.slice(0, args.length).map(k => params[k])).slice(1, -1)
+      args = meta.parameters.slice(0, args.length).map(arg => params[arg]).map(arg => literal(arg)).join(', ')
       return `${method}(${args})`
     }
-  }
-
-  const postfix = {
-    postfix: null,
-    alpha: { start: 0, format: '%(a)s' },
-    numeric: { start: 0, format: '-%(n)s' },
-
-    set: function(pf) {
-      if (this.postfix && (this.postfix.start !== pf.start || this.postfix.format !== pf.format)) error(`postfix changed from ${this.postfix.format}+${this.postfix.start} to ${pf.format}+${pf.start}`)
-      const expected = `${Date.now()}`
-      const found = options.sprintf(pf.format, { a: expected, A: expected, n: expected })
-      if (!found.includes(expected)) error(`postfix ${pf.format} does not contain %(a)s, %(A)s or %(n)s`)
-      if (found.split(expected).length > 2) error(`postfix ${pf.format} contains multiple instances of %(a)s/%(A)s/%(n)s`)
-      this.postfix = { format: pf.format, start: pf.start ? 1 : 0 }
-    },
   }
 }
 
@@ -57,15 +63,15 @@ start
       var body = ''
 
       for (const pattern of patterns) {
-        body += `\ntry {\n  let citekey = '';\n`
+        body += `\ntry {\n  this.citekey = '';\n`
         for (const block of pattern) {
           body += `  ${block};\n`
         }
-        body += '  if (citekey) return citekey;\n}\ncatch (err) {\n  if (!err.next) throw err\n}\n'
+        body += '  if (this.citekey) return this.citekey;\n}\ncatch (err) {\n  if (!err.next) throw err\n}\n'
       }
       body += `\nreturn '';`
 
-      return { formatter: body, postfix: postfix.postfix || postfix.alpha }
+      return body
     }
 
 pattern
@@ -73,19 +79,23 @@ pattern
 
 block
   = [ \t\r\n]+                            { return '' }
-  / '[0]'                                 { postfix.set(postfix.numeric); return '' }
-  / '[postfix' start:'+1'? pf:stringparam ']' { postfix.set({ start: start, format: pf}); return '' }
+  / '[0]'                                 { return 'this.$postfix("-%(n)s")' }
+  / '[postfix' start:'+1'? pf:stringparam ']' { return `this.$postfix(${JSON.stringify(pf)}, ${start ? 1 : 0})` }
   / '[=' types:$[a-zA-Z/]+ ']'            {
       types = types.toLowerCase().split('/').map(type => type.trim()).map(type => options.items.name.type[type.toLowerCase()] || type);
       var unknown = types.find(type => !options.items.valid.type[type])
       if (typeof unknown !== 'undefined') error(`unknown item type "${unknown}; valid types are ${Object.keys(options.items.name.type)}"`);
-      return `if (!${JSON.stringify(types)}.includes(this.item.itemType)) throw { next: true }`;
+      return `this.$type(${types.map(t => literal(t)).join(', ')})`
     }
-  / '[>' min:$[0-9]+ ']'                 { return `if (citekey.length <= ${min}) throw { next: true }` }
+  / '[language=' languages:$[a-zA-Z/]+ ']'            { // add language checking in parse phase
+      languages = languages.toLowerCase().split('/').map(language => language.trim())
+      return `this.$language(${languages.map(l => literal(l)).join(', ')})`
+    }
+  / '[>' min:$[0-9]+ ']'                 { return `if (this.citekey.length <= ${min}) throw { next: true }` }
   / '[' method:method filters:filter* ']' {
-      return `citekey += this.${[method].concat(filters).join('.')}.value`
+      return `this.citekey += this.${[method].concat(filters).join('.')}.chunk`
     }
-  / chars:$[^\|>\[\]]+                     { return `citekey += ${JSON.stringify(chars)}` }
+  / chars:$[^\|>\[\]]+                     { return `this.citekey += ${JSON.stringify(chars)}` }
 
 method
   = prefix:('auth' / 'Auth' / 'authors' / 'Authors' / 'edtr' / 'Edtr' / 'editors' / 'Editors') rest:$[\.a-zA-Z]* params:fparams? flags:flag* {
@@ -93,21 +103,17 @@ method
 
       const input = prefix + rest
 
-      const scrub = (prefix[0] == prefix[0].toLowerCase());
-      prefix = prefix.toLowerCase();
-      let onlyEditors = false
-      if (prefix[0] === 'e') {
-        onlyEditors = true
-        if (prefix.startsWith('edtr')) rest = rest.replace(/^\.edtr\./i, '.auth.')
-        prefix = { edtr: 'auth', editors: 'authors' }[prefix]
-      }
-      const fn = method_name(prefix + rest, '$')
+      const fn = method_name(prefix.toLowerCase() + rest, '$')
 
       const args = {
-        onlyEditors: onlyEditors,
+        creator: prefix.match(/^a/i) ? 'author' : 'editor'
       }
-      if (params[0]) args.n = params[0]
-      if (params[1]) args.m = params[1]
+
+      params.forEach((p, i) => {
+        const n = parseInt(p)
+        if (!n || !isFinite(n)) error(`Unexpected integer value ${p}`)
+        args[i ? 'm' : 'n'] = n
+      })
 
       const paramnames = options.methods[fn].parameters
       if (paramnames.includes('withInitials')) args.withInitials = false
@@ -125,10 +131,9 @@ method
         }
       }
 
-      let method = match(fn, paramnames.slice(0, Object.keys(args).length).map(n => args[n]), input, error);
-      if (scrub) method += '._clean(true)';
-
-      return method;
+      let method = match(fn, paramnames.slice(0, Object.keys(args).length).map(p => args[p]), input, error);
+      if (prefix.match(/^[ae]/)) method = method + '._clean(true)'
+      return method
     }
   / operator:$([<>=] / [<>!] '=') n:$[0-9]+ {
     const method = {
@@ -139,10 +144,9 @@ method
       '>=': 'ge',
       '!=': 'ne',
     } || operator
-    return match('$' + method, [n], operator, error)
+    return match('$len', [operator, n], operator, error)
   }
   / name:$([a-z][-.a-zA-Z]+) &{ return options.methods[method_name(name, '$')] } p:fparams? {
-      if (name === 'zotero') postfix.set(postfix.numeric)
       return match('$' + name, p || [], name, error)
     }
   / prop:$([a-zA-Z]+) {
@@ -161,7 +165,7 @@ flag
 
 filter
   = ':(' dflt:$[^)]+ ')'                  { return `_default(${JSON.stringify(dflt)})` }
-  / ':>' min:$[0-9]+                      { return `_longer(${min})` }
+  / ':>' min:$[0-9]+                      { return `_len('>', ${min})` }
   / ':' name:$[-a-z]+ params:stringparam* { return match('_' + name, params, name, error) }
 
 stringparam
