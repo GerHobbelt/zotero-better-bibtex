@@ -1,7 +1,15 @@
-print('zotero-live-citations bcf83c171')
+
+  print('zotero-live-citations 9016790')
+  local mt, latest = pandoc.mediabag.fetch('https://retorque.re/zotero-better-bibtex/exporting/zotero.lua.revision')
+  latest = string.sub(latest, 1, 10)
+  if '9016790' ~= latest then
+    print('new version "' .. latest .. '" available at https://retorque.re/zotero-better-bibtex/exporting')
+  end
+
 do
 local _ENV = _ENV
 package.preload[ "locator" ] = function( ... ) local arg = _G.arg;
+local utils = require('utils')
 -- local lpeg = require('lpeg')
 
 local book = (lpeg.P('book') + lpeg.P('bk.') + lpeg.P('bks.')) / 'book'
@@ -49,12 +57,14 @@ function module.parse(input, shortlabel)
   local parsed = lpeg.Ct(suffix):match(input)
   if parsed then
     local _prefix, _label, _locator, _suffix = table.unpack(parsed)
+    if utils.trim(_prefix) == ',' then _prefix = '' end
     return _label, _locator, _prefix .. _suffix
   end
 
   parsed = lpeg.Ct(pseudo_locator):match(input)
   if parsed then
     local _prefix, _locator, _suffix = table.unpack(parsed)
+    if utils.trim(_prefix) == ',' then _prefix = '' end
     return nil, nil, _prefix .. _locator .. _suffix
   end
 
@@ -1712,11 +1722,15 @@ end
 -- SOFTWARE.
 --
 
--- local pl = require('pl.pretty') -- for pl.pretty.dump
 local json = require('lunajson')
 local csl_locator = require('locator')
 local utils = require('utils')
 local zotero = require('zotero')
+
+if lpeg == nil then
+  print('upgrade pandoc to version 2.16.2 or later')
+  os.exit()
+end
 
 -- -- global state -- --
 local config = {
@@ -2100,3 +2114,4 @@ return {
   { Div = Div },
   { Doc = Doc },
 }
+

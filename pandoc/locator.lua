@@ -1,3 +1,4 @@
+local utils = require('utils')
 -- local lpeg = require('lpeg')
 
 local book = (lpeg.P('book') + lpeg.P('bk.') + lpeg.P('bks.')) / 'book'
@@ -45,12 +46,14 @@ function module.parse(input, shortlabel)
   local parsed = lpeg.Ct(suffix):match(input)
   if parsed then
     local _prefix, _label, _locator, _suffix = table.unpack(parsed)
+    if utils.trim(_prefix) == ',' then _prefix = '' end
     return _label, _locator, _prefix .. _suffix
   end
 
   parsed = lpeg.Ct(pseudo_locator):match(input)
   if parsed then
     local _prefix, _locator, _suffix = table.unpack(parsed)
+    if utils.trim(_prefix) == ',' then _prefix = '' end
     return nil, nil, _prefix .. _locator .. _suffix
   end
 

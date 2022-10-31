@@ -398,10 +398,11 @@ export function convert(formulas: string): string {
       })
     })
 
-    // coerce to string
+    // reset accumulator and force string coercion
     formula.unshift(b.callExpression(b.memberExpression(b.thisExpression(), b.identifier('reset')), []))
 
-    return stitch(formula, '+')
+    formula = stitch(formula, '+')
+    return b.callExpression(b.memberExpression(b.thisExpression(), b.identifier('finalize')), [formula])
   })
 
   ast = types.visit(parse('formulas.find(pattern => { try { return pattern() } catch (err) { if (err.next) return ""; throw err } })'), {

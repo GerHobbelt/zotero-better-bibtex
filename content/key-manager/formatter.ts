@@ -162,6 +162,8 @@ class Item {
   public creators: { lastName?: string, firstName?: string, name?: string, creatorType: string, fieldMode?: number, source?: string }[]
   public title: string
   public itemID: number
+  public itemKey: string
+  public key: string
   public id: number
   public libraryID: number
   public transliterateMode: 'german' | 'japanese' | 'chinese' | ''
@@ -174,6 +176,7 @@ class Item {
 
     if ((item as ZoteroItem).getField) {
       this.itemID = this.id = (item as ZoteroItem).id
+      this.itemKey = this.key = (item as ZoteroItem).key
       this.itemType = Zotero.ItemTypes.getName((item as ZoteroItem).itemTypeID)
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       this.getField = function(name: string): string | number {
@@ -197,6 +200,7 @@ class Item {
     else {
       this.itemType = (item as SerializedRegularItem).itemType
       this.itemID = this.id = (item as SerializedRegularItem).itemID
+      this.itemKey = this.key = (item as SerializedRegularItem).itemKey
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       this.getField = (name: string) => name === 'title' ? this.title : this.item[name] || this.extraFields?.kv[name] || ''
       this.creators = (item as SerializedRegularItem).creators
@@ -365,6 +369,12 @@ class PatternFormatter {
     return ''
   }
 
+  public finalize(_citekey: string) {
+    if (this.citekey && this.folding) this.citekey = this.transliterate(this.citekey)
+    this.citekey = this.citekey.replace(this.re.unsafechars, '')
+    return this.citekey
+  }
+
   public format(item: ZoteroItem | SerializedItem): string {
     this.item = new Item(item)
     this.chunk = ''
@@ -377,11 +387,7 @@ class PatternFormatter {
     }
 
     this.$postfix()
-    let citekey = this.generate() || `zotero-${this.item.itemID}`
-    if (citekey && this.folding) citekey = this.transliterate(citekey)
-    citekey = citekey.replace(this.re.unsafechars, '')
-
-    return citekey
+    return this.generate()
   }
 
   /**
@@ -433,6 +439,13 @@ class PatternFormatter {
       date: this.item.getField('date'),
       dateAdded: this.item.getField('dateAdded'),
     }, null, {}))
+  }
+
+  /**
+   * returns the internal item ID/key
+   */
+  public $item(id: 'id' | 'key' = 'key') {
+    return this.$text(id === 'id' ? `${this.item.itemID}` : this.item.itemKey)
   }
 
   /**
