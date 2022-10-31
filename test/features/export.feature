@@ -237,6 +237,10 @@ Feature: Export
       | preserve @strings between import-export #1162                                                                      | 1          |
       | titles are title-cased in .bib file #558                                                                           | 2          |
 
+    @use.with_client=zotero
+    Examples:
+      | BibTeX export is incompatible with Zotero 6 Preprint item type. #2080                                              | 1          |
+
   @csl
   Scenario Outline: Export <references> references for CSL JSON to <file>
     When I import <references> references from "export/<file>.json"
