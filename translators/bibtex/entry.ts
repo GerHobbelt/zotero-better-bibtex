@@ -6,13 +6,13 @@ declare const Zotero: any
 import { RegularItem as Item } from '../../gen/typings/serialized-item'
 import { Cache } from '../../typings/cache'
 import type { Translators } from '../../typings/translators'
-import type { ParsedDate } from '../../content/dateparser'
+import * as DateParser from '../../content/dateparser'
 
-import { Translator } from '../lib/translator'
+import { Translation } from '../lib/translator'
+
 import * as postscript from '../lib/postscript'
 
-import { Exporter } from './exporter'
-import { text2latex, replace_command_spacers } from './unicode_translator'
+import { replace_command_spacers } from './unicode_translator'
 import { datefield } from './datefield'
 import * as ExtraFields from '../../gen/items/extra-fields.json'
 import { label as propertyLabel } from '../../gen/items/items'
@@ -23,6 +23,8 @@ import { babelLanguage } from '../../content/text'
 import BabelTag from '../../gen/babel/tag.json'
 
 import { arXiv } from '../../content/arXiv'
+
+import { stringCompare } from '../lib/string-compare'
 
 /*
  * h1 class: Entry
@@ -86,18 +88,8 @@ const fieldOrder = [
   return acc
 }, {})
 
-
 function property_sort(a: [string, string], b: [string, string]): number {
-  return Translator.stringCompare(a[0], b[0])
-}
-
-const re = {
-  // private nonLetters: new Zotero.Utilities.XRegExp('[^\\p{Letter}]', 'g')
-  punctuationAtEnd: new Zotero.Utilities.XRegExp('[\\p{Punctuation}]$'),
-  startsWithLowercase: new Zotero.Utilities.XRegExp('^[\\p{Ll}]'),
-  hasLowercaseWord: new Zotero.Utilities.XRegExp('\\s[\\p{Ll}]'),
-  whitespace: new Zotero.Utilities.XRegExp('[\\p{Zs}]+'),
-  nonwordish: new Zotero.Utilities.XRegExp('[^\\p{L}\\p{N}]', 'g'),
+  return stringCompare(a[0], b[0])
 }
 
 const enc_creators_marker = {
@@ -130,7 +122,7 @@ export class Entry {
   public useprefix: boolean
   public language: string
   public english: boolean
-  public date: ParsedDate | { type: 'none' }
+  public date: DateParser.ParsedDate | { type: 'none' }
 
   public config: Config
 
@@ -138,14 +130,22 @@ export class Entry {
   private quality_report: string[] = []
   private extraFields: ParsedExtraFields
 
+  private re: {
+    punctuationAtEnd: any
+    startsWithLowercase: any
+    hasLowercaseWord: any
+    whitespace: any
+    nonwordish: any
+  }
+
   protected addCreators() {} // eslint-disable-line @typescript-eslint/no-empty-function
 
-  public static installPostscript(): void {
+  public static installPostscript(translation: Translation): void {
     try {
-      if (Translator.preferences.postscript.trim()) {
+      if (translation.preferences.postscript.trim()) {
         Entry.prototype.postscript = postscript.postscript(
           'tex',
-          Translator.preferences.postscript,
+          translation.preferences.postscript,
           'this.inPostscript' // workaround for https://github.com/Juris-M/zotero/issues/65
         )
       }
@@ -155,22 +155,35 @@ export class Entry {
     }
     catch (err) {
       Entry.prototype.postscript = postscript.noop
-      log.error('failed to install postscript', err, '\n', Translator.preferences.postscript)
+      log.error('failed to install postscript', err, '\n', translation.preferences.postscript)
     }
   }
 
   private metadata: Cache.ExportedItemMetadata = { DeclarePrefChars: '', noopsort: false, packages: [] }
   private packages: Record<string, boolean> = {}
   private juniorcomma: boolean
+  private translation: Translation
 
   public lint(_explanation: Record<string, string>): string[] {
     return []
   }
 
-  constructor(item, config: Config) {
+  constructor(item, config: Config, translation: Translation) {
+    if (!this.re) {
+      Entry.prototype.re = {
+        // private nonLetters: new Zotero.Utilities.XRegExp('[^\\p{Letter}]', 'g')
+        punctuationAtEnd: new Zotero.Utilities.XRegExp('[\\p{Punctuation}]$'),
+        startsWithLowercase: new Zotero.Utilities.XRegExp('^[\\p{Ll}]'),
+        hasLowercaseWord: new Zotero.Utilities.XRegExp('\\s[\\p{Ll}]'),
+        whitespace: new Zotero.Utilities.XRegExp('[\\p{Zs}]+'),
+        nonwordish: new Zotero.Utilities.XRegExp('[^\\p{L}\\p{N}]', 'g'),
+      }
+    }
+
+    this.translation = translation
     this.item = item
     this.config = config
-    this.date = item.date ? Zotero.BetterBibTeX.parseDate(item.date) : { type: 'none' }
+    this.date = item.date ? DateParser.parse(item.date) : { type: 'none' }
 
     if (!this.item.language) {
       this.english = true
@@ -190,7 +203,7 @@ export class Entry {
     let entrytype: any
 
     // workaround for preprints, https://forums.zotero.org/discussion/comment/385524#Comment_385524
-    const isPrePrint = Translator.BetterBibTeX && this.item.itemType === 'report' && this.item.extraFields.kv.type?.toLowerCase() === 'article'
+    const isPrePrint = this.translation.BetterBibTeX && this.item.itemType === 'report' && this.item.extraFields.kv.type?.toLowerCase() === 'article'
 
     // preserve for thesis type etc
     let csl_type = this.item.extraFields.kv.type
@@ -261,8 +274,8 @@ export class Entry {
       }
     }
 
-    if (Translator.preferences.jabrefFormat) {
-      if (Translator.preferences.testing) {
+    if (this.translation.preferences.jabrefFormat) {
+      if (this.translation.preferences.testing) {
         this.add({name: 'timestamp', value: '2015-02-24 12:14:36 +0100'})
       }
       else {
@@ -272,7 +285,7 @@ export class Entry {
 
     if ((this.item.arXiv = arXiv.parse(this.item.publicationTitle)) && this.item.arXiv.id) {
       this.item.arXiv.source = 'publicationTitle'
-      if (Translator.BetterBibLaTeX) delete this.item.publicationTitle
+      if (this.translation.BetterBibLaTeX) delete this.item.publicationTitle
     }
     else if ((this.item.arXiv = arXiv.parse(this.item.extraFields.tex.arxiv?.value)) && this.item.arXiv.id) {
       this.item.arXiv.source = 'extra'
@@ -293,7 +306,7 @@ export class Entry {
   private valueish(value) {
     switch (typeof value) {
       case 'number': return `${value}`
-      case 'string': return Zotero.Utilities.XRegExp.replace(value, re.nonwordish, '', 'all').toLowerCase()
+      case 'string': return Zotero.Utilities.XRegExp.replace(value, this.re.nonwordish, '', 'all').toLowerCase()
       default: return ''
     }
   }
@@ -328,14 +341,14 @@ export class Entry {
    *   ignored)
    */
   public add(field: Translators.BibTeX.Field): string {
-    if (Translator.preferences.testing && !this.inPostscript && field.name !== field.name.toLowerCase()) throw new Error(`Do not add mixed-case field ${field.name}`)
+    if (this.translation.preferences.testing && !this.inPostscript && field.name !== field.name.toLowerCase()) throw new Error(`Do not add mixed-case field ${field.name}`)
 
     if (!field.value && !field.bibtex && this.inPostscript) {
       delete this.has[field.name]
       return null
     }
 
-    if (Translator.skipField[field.name]) return null
+    if (this.translation.skipField[field.name]) return null
 
     field.enc = field.enc || this.config.fieldEncoding[field.name] || 'latex'
 
@@ -351,9 +364,9 @@ export class Entry {
       }
 
       // bare year
-      // if (Translator.BetterBibLaTeX && (typeof field.value === 'number' || (typeof field.value === 'string' && field.value.match(/^[0-9]+$/)))) return this.add({...field, bibtex: `${field.value}`, enc: 'latex'})
+      // if (this.translation.BetterBibLaTeX && (typeof field.value === 'number' || (typeof field.value === 'string' && field.value.match(/^[0-9]+$/)))) return this.add({...field, bibtex: `${field.value}`, enc: 'latex'})
 
-      if (Translator.BetterBibLaTeX && Translator.preferences.biblatexExtendedDateFormat && Zotero.BetterBibTeX.isEDTF(field.value, true)) {
+      if (this.translation.BetterBibLaTeX && this.translation.preferences.biblatexExtendedDateFormat && DateParser.isEDTF(field.value as string, true)) {
         return this.add({
           ...field,
           value: (field.value as string).replace(/\.[0-9]{3}[a-z]+$/i, ''),
@@ -361,16 +374,16 @@ export class Entry {
         })
       }
 
-      const date = Zotero.BetterBibTeX.parseDate(field.value)
+      const date = DateParser.parse(field.value as string)
 
-      this.add(datefield(date, field))
+      this.add(datefield(date, field, this.translation))
 
       if (date.orig) {
         this.add(datefield(date.orig, {
           ...field,
           name: (field.orig && field.orig.inherit) ? `orig${field.name}` : (field.orig && field.orig.name),
           verbatim: (field.orig && field.orig.inherit && field.verbatim) ? `orig${field.verbatim}` : (field.orig && field.orig.verbatim),
-        }))
+        }, this.translation))
       }
 
       return field.name
@@ -498,7 +511,7 @@ export class Entry {
   public getBibString(value): string {
     if (!value || typeof value !== 'string') return null
 
-    switch (Translator.preferences.exportBibTeXStrings) {
+    switch (this.translation.preferences.exportBibTeXStrings) {
       case 'off':
         return null
 
@@ -507,12 +520,12 @@ export class Entry {
 
       case 'match':
         // the importer uppercases string declarations
-        return Exporter.strings[value.toUpperCase()] && value
+        return this.translation.bibtex.strings[value.toUpperCase()] && value
 
       case 'match+reverse':
         // the importer uppercases string declarations
         value = value.toUpperCase()
-        return Exporter.strings[value] ? value : Exporter.strings_reverse[value]
+        return this.translation.bibtex.strings[value] ? value : this.translation.bibtex.strings_reverse[value]
 
       default:
         return null
@@ -541,8 +554,8 @@ export class Entry {
   }
 
   public complete(): void {
-    if (Translator.preferences.jabrefFormat >= 4 && this.item.collections?.length) { // eslint-disable-line no-magic-numbers
-      const groups = Array.from(new Set(this.item.collections.map(key => Translator.collections[key]?.name).filter(name => name))).sort()
+    if (this.translation.preferences.jabrefFormat >= 4 && this.item.collections?.length) { // eslint-disable-line no-magic-numbers
+      const groups = Array.from(new Set(this.item.collections.map(key => this.translation.collections[key]?.name).filter(name => name))).sort()
       this.add({ name: 'groups', value: groups.join(',') })
     }
 
@@ -551,7 +564,7 @@ export class Entry {
       this.add({ name: 'ids', value: this.item.extraFields.aliases.filter(alias => alias !== this.item.citationKey).join(','), enc: 'verbatim' })
     }
 
-    if (Translator.BetterBibLaTeX) this.add({ name: 'pubstate', value: this.item.status })
+    if (this.translation.BetterBibLaTeX) this.add({ name: 'pubstate', value: this.item.status })
 
     for (const [key, value] of Object.entries(this.item.extraFields.kv)) {
       const type = ExtraFields[key].type
@@ -566,7 +579,7 @@ export class Entry {
 
       let name = null
 
-      if (Translator.BetterBibLaTeX) {
+      if (this.translation.BetterBibLaTeX) {
         switch (key) {
           case 'issuingAuthority':
             name = 'institution'
@@ -648,7 +661,7 @@ export class Entry {
         }
       }
 
-      if (Translator.BetterBibTeX) {
+      if (this.translation.BetterBibTeX) {
         switch (key) {
           case 'call-number':
             name = 'lccn'
@@ -670,12 +683,12 @@ export class Entry {
     }
 
     this.add({ name: 'annotation', value: this.item.extra?.replace(/\n+/g, newlines => (newlines.length > 1 ? '\n\n' : ' ')).trim() })
-    if (Translator.options.exportNotes) {
+    if (this.translation.options.exportNotes) {
       // if bibtexURL === 'note' is active, the note field will have been filled with an URL. In all other cases, if this is attempting to overwrite the 'note' field, I want the test suite to throw an error
-      if (!(Translator.BetterBibTeX && Translator.preferences.bibtexURL === 'note')) this.add({ name: 'note', value: this.item.notes?.map((note: { note: string }) => note.note).join('</p><p>'), html: true })
+      if (!(this.translation.BetterBibTeX && this.translation.preferences.bibtexURL === 'note')) this.add({ name: 'note', value: this.item.notes?.map((note: { note: string }) => note.note).join('</p><p>'), html: true })
     }
 
-    const bibtexStrings = Translator.preferences.exportBibTeXStrings.startsWith('match')
+    const bibtexStrings = this.translation.preferences.exportBibTeXStrings.startsWith('match')
     for (const [name, field] of Object.entries(this.item.extraFields.tex)) {
       // psuedo-var, sets the entry type. Repeat application here because this needs to override all else.
       if (name === 'entrytype' || name === 'referencetype') { // phase out reference
@@ -699,7 +712,7 @@ export class Entry {
         case 'arxiv':
         case 'jstor':
         case 'hdl':
-          if (Translator.BetterBibLaTeX) {
+          if (this.translation.BetterBibLaTeX) {
             this.override({ name: 'eprinttype', value: name })
             this.override({ name: 'eprint', value: field.value, ...mode })
           }
@@ -708,7 +721,7 @@ export class Entry {
           }
           break
         case 'googlebooksid':
-          if (Translator.BetterBibLaTeX) {
+          if (this.translation.BetterBibLaTeX) {
             this.override({ name: 'eprinttype', value: 'googlebooks' })
             this.override({ name: 'eprint', value: field.value, ...mode })
           }
@@ -744,21 +757,21 @@ export class Entry {
 
     let allow: postscript.Allow = { cache: true, write: true }
     try {
-      allow = this.postscript(this, this.item, Translator, Zotero, this.extraFields)
+      allow = this.postscript(this, this.item, this.translation, Zotero, this.extraFields)
     }
     catch (err) {
-      if (Translator.preferences.testing) throw err
+      if (this.translation.preferences.testing) throw err
       log.error('Entry.postscript failed:', err)
       allow.cache = false
     }
     this.item.$cacheable = this.item.$cacheable && allow.cache
 
-    for (const name of Translator.skipFields) {
+    for (const name of this.translation.skipFields) {
       this.remove(name)
     }
 
     if (this.has.url && this.has.doi) {
-      switch (Translator.preferences.DOIandURL) {
+      switch (this.translation.preferences.DOIandURL) {
         case 'url':
           delete this.has.doi
           break
@@ -779,14 +792,23 @@ export class Entry {
     ref += this.qualityReport()
     ref += '\n'
 
-    if (allow.write) Zotero.write(ref)
+    if (allow.write) this.translation.output.body += ref
 
-    this.metadata.DeclarePrefChars = Exporter.unique_chars(this.metadata.DeclarePrefChars)
+    this.metadata.DeclarePrefChars = this.unique_chars(this.metadata.DeclarePrefChars)
 
     this.metadata.packages = Object.keys(this.packages)
-    if (this.item.$cacheable) Zotero.BetterBibTeX.cacheStore(this.item.itemID, Translator.options, Translator.preferences, ref, this.metadata)
+    if (this.item.$cacheable) {
+      Zotero.BetterBibTeX.Cache.store(
+        this.translation.translator.label,
+        this.item.itemID,
+        this.translation.options,
+        this.translation.preferences,
+        ref,
+        this.metadata
+      )
+    }
 
-    Exporter.postfix.add(this.metadata)
+    this.translation.bibtex.postfix.add(this.metadata)
   }
 
   /*
@@ -806,10 +828,10 @@ export class Entry {
    * @return {String} field.value encoded as verbatim LaTeX string (minimal escaping). If in Better BibTeX, wraps return value in `\url{string}`
    */
   protected enc_url(f): string {
-    if (Translator.BetterBibTeX && Translator.preferences.bibtexURL.endsWith('-ish')) {
+    if (this.translation.BetterBibTeX && this.translation.preferences.bibtexURL.endsWith('-ish')) {
       return (f.value || '').replace(/([#\\%&{}])/g, '\\$1') // or maybe enc_latex?
     }
-    else if (Translator.BetterBibTeX && Translator.preferences.bibtexURL === 'note') {
+    else if (this.translation.BetterBibTeX && this.translation.preferences.bibtexURL === 'note') {
       return `\\url{${this.enc_verbatim(f)}}`
     }
     else {
@@ -825,7 +847,7 @@ export class Entry {
    */
   protected enc_verbatim(f): string {
     let value: string = f.value || ''
-    // if (!Translator.unicode) value = value.replace(/[^\x20-\x7E]/g, (chr => `\\%${`00${chr.charCodeAt(0).toString(16).slice(-2)}`}`))
+    // if (!this.translation.unicode) value = value.replace(/[^\x20-\x7E]/g, (chr => `\\%${`00${chr.charCodeAt(0).toString(16).slice(-2)}`}`))
 
     // remove unbalanced braces
     const braces: {c: string, pos: number}[] = []
@@ -852,7 +874,7 @@ export class Entry {
   protected _enc_creators_scrub_name(name: string): string {
     name = name.replace(/uFFFC/g, '') // these should never appear
     name = name.replace(/\u00A0/g, '\uFFFC') // safeguard non-breaking spaces -- the only non-space space-ish allowed in names (see #859)
-    name =  Zotero.Utilities.XRegExp.replace(name, re.whitespace, ' ', 'all') // all the rest must go
+    name =  Zotero.Utilities.XRegExp.replace(name, this.re.whitespace, ' ', 'all') // all the rest must go
     name = name.replace(/\uFFFC/g, '\u00A0') // restore non-breaking spaces
     return name
   }
@@ -883,15 +905,15 @@ export class Entry {
           given: this._enc_creators_scrub_name(creator.firstName || ''),
         }
 
-        if (Translator.preferences.parseParticles) Zotero.BetterBibTeX.CSL().parseParticles(name)
+        if (this.translation.preferences.parseParticles) Zotero.BetterBibTeX.CSL().parseParticles(name)
 
-        if (!Translator.BetterBibLaTeX || !Translator.preferences.biblatexExtendedNameFormat) {
+        if (!this.translation.BetterBibLaTeX || !this.translation.preferences.biblatexExtendedNameFormat) {
           // side effects to set use-prefix/uniorcomma -- make sure addCreators is called *before* adding 'options'
           if (!this.useprefix) this.useprefix = !!name['non-dropping-particle']
           if (!this.juniorcomma) this.juniorcomma = (f.juniorcomma && name['comma-suffix'])
         }
 
-        if (Translator.BetterBibTeX) {
+        if (this.translation.BetterBibTeX) {
           name = this._enc_creators_bibtex(name)
         }
         else {
@@ -899,7 +921,7 @@ export class Entry {
         }
 
         name = name.replace(/ and /g, ' {and} ')
-        if (Translator.and.names.repl !== ' {and} ') name = name.replace(Translator.and.names.re, Translator.and.names.repl)
+        if (this.translation.and.names.repl !== ' {and} ') name = name.replace(this.translation.and.names.re, this.translation.and.names.repl)
 
       }
       else {
@@ -909,7 +931,7 @@ export class Entry {
       encoded.push(name.trim())
     }
 
-    return replace_command_spacers(encoded.join(Translator.preferences.separatorNames))
+    return replace_command_spacers(encoded.join(this.translation.preferences.separatorNames))
   }
 
   /*
@@ -922,7 +944,7 @@ export class Entry {
    */
   protected enc_literal(f, raw = false) {
     if (!f.value) return null
-    return this.enc_latex({...f, value: Translator.preferences.exportBraceProtection ? new String(f.value) : f.value}, { raw }) // eslint-disable-line no-new-wrappers
+    return this.enc_latex({...f, value: this.translation.preferences.exportBraceProtection ? new String(f.value) : f.value}, { raw }) // eslint-disable-line no-new-wrappers
   }
 
   /*
@@ -945,11 +967,11 @@ export class Entry {
     if (f.raw || options.raw) return f.value
 
     const caseConversion = this.config.caseConversion[f.name] || f.caseConversion
-    const latex = text2latex(f.value, {html: f.html, caseConversion: caseConversion && this.english, creator: options.creator})
-    for (const pkg of latex.packages) {
+    const { latex, packages, raw } = this.translation.bibtex.text2latex(f.value, {html: f.html, caseConversion: caseConversion && this.english, creator: options.creator })
+    for (const pkg of packages) {
       this.packages[pkg] = true
     }
-    let value: String | string = latex.latex
+    let value: String | string = latex
 
     /*
       biblatex has a langid field it can use to exclude non-English
@@ -959,22 +981,22 @@ export class Entry {
       bibtex to back off from non-English titles is to wrap the whole
       thing in braces.
     */
-    if (caseConversion && Translator.BetterBibTeX && !this.english && Translator.preferences.exportBraceProtection) value = `{${value}}`
+    if (caseConversion && this.translation.BetterBibTeX && !this.english && this.translation.preferences.exportBraceProtection) value = `{${value}}`
 
-    if (f.value instanceof String && !latex.raw) value = new String(`{${value}}`) // eslint-disable-line no-new-wrappers
+    if (f.value instanceof String && !raw) value = new String(`{${value}}`) // eslint-disable-line no-new-wrappers
     return value
   }
 
   protected enc_tags(f): string {
     const tags = f.value
       .map(tag => (typeof tag === 'string' ? { tag } : tag))
-      .filter(tag => (Translator.preferences.automaticTags || (tag.type !== 1)) && tag.tag !== Translator.preferences.rawLaTag)
+      .filter(tag => (this.translation.preferences.automaticTags || (tag.type !== 1)) && tag.tag !== this.translation.preferences.rawLaTag)
     if (tags.length === 0) return null
 
-    tags.sort((a, b) => Translator.stringCompare(a.tag, b.tag))
+    tags.sort((a, b) => stringCompare(a.tag, b.tag))
 
     for (const tag of tags) {
-      if (Translator.BetterBibTeX) {
+      if (this.translation.BetterBibTeX) {
         tag.tag = tag.tag.replace(/([#\\%&])/g, '\\$1')
       }
       else {
@@ -1000,20 +1022,20 @@ export class Entry {
   }
 
   relPath(path) {
-    const normalize = p => Translator.paths.caseSensitive ? p : p.toLowerCase()
-    const drive = p => Translator.preferences.platform === 'win' && p.match(/^[a-z]:\//) ? p.substring(0, 2) : ''
+    const normalize = p => this.translation.paths.caseSensitive ? p : p.toLowerCase()
+    const drive = p => this.translation.preferences.platform === 'win' && p.match(/^[a-z]:\//) ? p.substring(0, 2) : ''
 
-    if (drive(Translator.export.dir) !== drive(path)) return path
+    if (drive(this.translation.export.dir) !== drive(path)) return path
 
-    const from = Translator.export.dir.split(Translator.paths.sep)
-    const to = path.split(Translator.paths.sep)
+    const from = this.translation.export.dir.split(this.translation.paths.sep)
+    const to = path.split(this.translation.paths.sep)
 
     while (from.length && to.length && normalize(from[0]) === normalize(to[0])) {
       from.shift()
       to.shift()
     }
     // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
-    return `..${Translator.paths.sep}`.repeat(from.length) + to.join(Translator.paths.sep)
+    return `..${this.translation.paths.sep}`.repeat(from.length) + to.join(this.translation.paths.sep)
   }
 
   protected enc_attachments(f, modify?: (path: string) => string): string {
@@ -1030,7 +1052,7 @@ export class Entry {
         path: '',
       }
 
-      if (Translator.options.exportFileData) {
+      if (this.translation.options.exportFileData) {
         att.path = attachment.saveFile ? attachment.defaultPath : ''
       }
       else if (attachment.localPath) {
@@ -1041,22 +1063,23 @@ export class Entry {
       // att.path = att.path.replace(/^storage:/, '')
       att.path = att.path.replace(/(?:\s*[{}]+)+\s*/g, ' ')
 
-      if (Translator.options.exportFileData) {
-        attachment.saveFile(att.path, true)
+      if (this.translation.options.exportFileData && attachment.saveFile) {
+        this.translation.output.attachments.push(attachment)
+        // attachment.saveFile(attachment.defaultPath, true)
       }
 
       if (!att.title) att.title = att.path.replace(/.*[\\/]/, '') || 'attachment'
 
       if (!att.mimetype && (att.path.slice(-4).toLowerCase() === '.pdf')) att.mimetype = 'application/pdf' // eslint-disable-line no-magic-numbers
 
-      if (Translator.preferences.relativeFilePaths && Translator.export.dir) {
+      if (this.translation.preferences.relativeFilePaths && this.translation.export.dir) {
         const relative = this.relPath(att.path)
         if (relative !== att.path) {
           this.item.$cacheable = false
           att.path = relative
         }
       }
-      if (Translator.preferences.testing) att.path = att.path.replace(/.*[.]BBTZ5TEST\/(zotero|jurism)\//, '~/BBTZ5TEST/').replace(/\/storage\/[^/]+\//, '/storage/')
+      if (this.translation.preferences.testing) att.path = att.path.replace(/.*[.]BBTZ5TEST\/(zotero|jurism)\//, '~/BBTZ5TEST/').replace(/\/storage\/[^/]+\//, '/storage/')
 
       if (modify) att.path = modify(att.path)
       attachments.push(att)
@@ -1068,10 +1091,10 @@ export class Entry {
     attachments.sort((a, b) => {
       if ((a.mimetype === 'text/html') && (b.mimetype !== 'text/html')) return 1
       if ((b.mimetype === 'text/html') && (a.mimetype !== 'text/html')) return -1
-      return Translator.stringCompare(a.path, b.path)
+      return stringCompare(a.path, b.path)
     })
 
-    if (Translator.preferences.jabrefFormat) return attachments.map(att => [att.title, att.path, att.mimetype].map(part => part.replace(/([\\{}:;])/g, '\\$1')).join(':')).join(';')
+    if (this.translation.preferences.jabrefFormat) return attachments.map(att => [att.title, att.path, att.mimetype].map(part => part.replace(/([\\{}:;])/g, '\\$1')).join(':')).join(';')
     return attachments.map(att => att.path.replace(/([\\{}:;])/g, '\\$1')).join(';')
   }
 
@@ -1079,8 +1102,8 @@ export class Entry {
     // space at end is always OK
     if (particle[particle.length - 1] === ' ') return particle
 
-    if (Translator.BetterBibLaTeX) {
-      if (Zotero.Utilities.XRegExp.test(particle, re.punctuationAtEnd)) this.metadata.DeclarePrefChars += particle[particle.length - 1]
+    if (this.translation.BetterBibLaTeX) {
+      if (Zotero.Utilities.XRegExp.test(particle, this.re.punctuationAtEnd)) this.metadata.DeclarePrefChars += particle[particle.length - 1]
       // if BBLT, always add a space if it isn't there
       return `${particle} `
     }
@@ -1091,7 +1114,7 @@ export class Entry {
     if (particle[particle.length - 1] === '.') return `${particle} `
 
     // if it ends in any other punctuation, it's probably something like d'Medici -- no space
-    if (Zotero.Utilities.XRegExp.test(particle, re.punctuationAtEnd)) {
+    if (Zotero.Utilities.XRegExp.test(particle, this.re.punctuationAtEnd)) {
       if (relax) return `${particle}${enc_creators_marker.relax} `
       return particle
     }
@@ -1102,7 +1125,7 @@ export class Entry {
 
   // eslint-disable-next-line @typescript-eslint/ban-types
   private _enc_creator_part(part: string | String): string | String {
-    const { latex, packages } = text2latex((part as string), { creator: true, commandspacers: true })
+    const { latex, packages } = this.translation.bibtex.text2latex((part as string), { creator: true, commandspacers: true })
     for (const pkg of packages) {
       this.packages[pkg] = true
     }
@@ -1120,7 +1143,7 @@ export class Entry {
     const initials_marker_pos: number = (name.given || '').indexOf(enc_creators_marker.initials) // end of guarded area
     let initials: string | String
 
-    if (Translator.preferences.biblatexExtendedNameFormat && (name['dropping-particle'] || name['non-dropping-particle'] || name['comma-suffix'])) {
+    if (this.translation.preferences.biblatexExtendedNameFormat && (name['dropping-particle'] || name['non-dropping-particle'] || name['comma-suffix'])) {
       if (initials_marker_pos >= 0) {
         initials = name.given.substring(0, initials_marker_pos)
         if (initials.length > 1) initials = new String(initials) // eslint-disable-line no-new-wrappers
@@ -1143,7 +1166,7 @@ export class Entry {
       return namebuilder.join(', ')
     }
 
-    if (family && Zotero.Utilities.XRegExp.test(family, re.startsWithLowercase)) family = new String(family) // eslint-disable-line no-new-wrappers
+    if (family && Zotero.Utilities.XRegExp.test(family, this.re.startsWithLowercase)) family = new String(family) // eslint-disable-line no-new-wrappers
 
     if (family) family = this._enc_creator_part(family)
 
@@ -1187,7 +1210,7 @@ export class Entry {
 
     // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
     if (name['non-dropping-particle']) family = new String(this._enc_creators_pad_particle(name['non-dropping-particle']) + family) // eslint-disable-line no-new-wrappers
-    if (Zotero.Utilities.XRegExp.test(family, re.startsWithLowercase) || Zotero.Utilities.XRegExp.test(family, re.hasLowercaseWord)) family = new String(family) // eslint-disable-line no-new-wrappers
+    if (Zotero.Utilities.XRegExp.test(family, this.re.startsWithLowercase) || Zotero.Utilities.XRegExp.test(family, this.re.hasLowercaseWord)) family = new String(family) // eslint-disable-line no-new-wrappers
 
     // https://github.com/retorquere/zotero-better-bibtex/issues/978 -- enc_latex can return null
     family = family ? this._enc_creator_part(family) : ''
@@ -1197,7 +1220,7 @@ export class Entry {
 
     if (name['dropping-particle']) family = `${this._enc_creator_part(this._enc_creators_pad_particle(name['dropping-particle'], true))}${family}`
 
-    if (Translator.BetterBibTeX && Translator.preferences.bibtexParticleNoOp && (name['non-dropping-particle'] || name['dropping-particle'])) {
+    if (this.translation.BetterBibTeX && this.translation.preferences.bibtexParticleNoOp && (name['non-dropping-particle'] || name['dropping-particle'])) {
       family = `{\\noopsort{${this._enc_creator_part(name.family.toLowerCase())}}}${family}`
       this.metadata.noopsort = true
     }
@@ -1244,10 +1267,10 @@ export class Entry {
     // the 'collections' field is accessed... rendering a lot of items uncacheable
     const $cacheable = this.item.$cacheable
     try {
-      if (!Translator.preferences.qualityReport) return ''
+      if (!this.translation.preferences.qualityReport) return ''
 
       let report: string[] = this.lint({
-        timestamp: `added because JabRef format is set to ${Translator.preferences.jabrefFormat || '?'}`,
+        timestamp: `added because JabRef format is set to ${this.translation.preferences.jabrefFormat || '?'}`,
       })
 
       if (report) {
@@ -1265,7 +1288,7 @@ export class Entry {
           }
         }
 
-        if (this.has.title && Translator.preferences.exportTitleCase) {
+        if (this.has.title && this.translation.preferences.exportTitleCase) {
           const titleCased = Zotero.BetterBibTeX.titleCase(this.has.title.value) === this.has.title.value
           if (this.has.title.value.match(/\s/)) {
             if (titleCased) report.push('? Title looks like it was stored in title-case in Zotero')
@@ -1309,7 +1332,7 @@ export class Entry {
       const unused_props = Object.entries(this.item.extraFields.kv).map(([p, v]) => [ `extra: ${propertyLabel[p.toLowerCase()] || p}`, v ])
         .concat(Object.entries(this.item))
         .map(([p, v]) => [p, v, this.valueish(v) ])
-        .filter(([p, v, vi]) => vi !== '' && !ignore_unused_props.includes(p) && !used_values.includes(this.valueish(v)))
+        .filter(([p, _v, vi]) => vi !== '' && !ignore_unused_props.includes(p) && !used_values.includes(vi))
         .sort(property_sort)
 
       for (const [prop, value, valueish] of unused_props) {
@@ -1320,13 +1343,21 @@ export class Entry {
 
       if (!report.length) return ''
 
-      report.unshift(`== ${Translator.BetterBibTeX ? 'BibTeX' : 'BibLateX'} quality report for ${this.item.citationKey}:`)
+      report.unshift(`== ${this.translation.BetterBibTeX ? 'BibTeX' : 'BibLateX'} quality report for ${this.item.citationKey}:`)
       return report.map(line => `% ${line}\n`).join('')
     }
     finally {
       // restore cacheable state
       this.item.$cacheable = $cacheable
     }
+  }
+
+  private unique_chars(str) {
+    let uniq = ''
+    for (const c of str) {
+      if (uniq.indexOf(c) < 0) uniq += c
+    }
+    return uniq
   }
 }
 

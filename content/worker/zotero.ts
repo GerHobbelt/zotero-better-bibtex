@@ -3,14 +3,19 @@
 importScripts('resource://gre/modules/osfile.jsm')
 importScripts('resource://zotero/config.js') // import ZOTERO_CONFIG'
 
-import type { TranslatorHeader } from '../../translators/lib/translator'
+import type { TranslatorMetadata } from '../../translators/lib/translator'
 import type { Translators } from '../../typings/translators'
 import { valid } from '../../gen/items/items'
+import { generateBibLaTeX } from '../../translators/bibtex/biblatex'
+import { generateBibTeX } from '../../translators/bibtex/bibtex'
+import { generateCSLJSON } from '../../translators/csl/json'
+import { generateCSLYAML, parseCSLYAML } from '../../translators/csl/yaml'
+import { Translation } from '../../translators/lib/translator'
 
 import { DOMParser as XMLDOMParser } from '@xmldom/xmldom'
 import * as CSL from 'citeproc'
 
-declare var ZOTERO_TRANSLATOR_INFO: TranslatorHeader // eslint-disable-line no-var
+declare var ZOTERO_TRANSLATOR_INFO: TranslatorMetadata // eslint-disable-line no-var
 
 const NodeType = {
   ELEMENT_NODE                : 1,
@@ -129,7 +134,6 @@ const ZD = require('../../submodules/zotero-utilities/date.js')
 declare const doExport: () => void
 declare const dump: (message: string) => void
 
-// import XRegExp = require('xregexp')
 import * as DateParser from '../../content/dateparser'
 // import * as Extra from '../../content/extra'
 import { qualityReport } from '../../content/qr-check'
@@ -159,20 +163,34 @@ for(const [key, value] of (new URLSearchParams(ctx.location.search)).entries()) 
 
 export const workerJob: Partial<Translators.Worker.Job> = {}
 
-class WorkerZoteroBetterBibTeX {
-  public CSL() { return CSL }
+function cacheFetch(_translator: string, itemID: number, _options: any, _prefs: any) {
+  // ignore all the other cacheFetch params because we have a targetted cache here
+  return workerJob.data.cache[itemID]
+}
+function cacheStore(_translator: string, itemID: number, _options: any, _prefs: any, entry: string, metadata: any) {
+  dump(JSON.stringify({ kind: 'cache', itemID, entry, metadata }))
+  if (workerJob.preferences.cache) Zotero.send({ kind: 'cache', itemID, entry, metadata })
+  return true
+}
 
-  public cacheFetch(itemID: number) {
-    return workerJob.data.cache[itemID]
+class WorkerZoteroBetterBibTeX {
+  public Cache = {
+    store: cacheStore,
+    fetch: cacheFetch,
   }
+
+  public CSL() { return CSL }
 
   public setProgress(percent: number) {
     Zotero.send({ kind: 'progress', percent, translator: workerJob.translator, autoExport: workerJob.autoExport })
   }
 
-  public cacheStore(itemID: number, options: any, prefs: any, entry: string, metadata: any) {
-    if (workerJob.preferences.cache) Zotero.send({ kind: 'cache', itemID, entry, metadata })
-    return true
+  public cacheFetch(itemID: number) {
+    return cacheFetch('', itemID, null, null)
+  }
+
+  public cacheStore(itemID: number, _options: any, _prefs: any, entry: string, metadata: any) {
+    return cacheStore('', itemID, null, null, entry, metadata)
   }
 
   public qrCheck(value, test, options = null) {
@@ -204,6 +222,12 @@ class WorkerZoteroBetterBibTeX {
   public strToISO(str) {
     return DateParser.strToISO(str)
   }
+
+  public generateBibLaTeX(translation: Translation) { generateBibLaTeX(translation) }
+  public generateBibTeX(translation: Translation) { generateBibTeX(translation) }
+  generateCSLYAML(translation: Translation) { generateCSLYAML(translation) }
+  generateCSLJSON(translation: Translation) { generateCSLJSON(translation) }
+  parseCSLYAML(input: string): any { return parseCSLYAML(input) }
 }
 
 const WorkerZoteroUtilities = {
@@ -419,7 +443,7 @@ class WorkerZotero {
     }
   }
   public logError(err) {
-    dump(`worker: error: ${err}\n`)
+    dump(`worker: error: ${err}\n${err.stack}\n`)
     this.send({ kind: 'error', message: `${err}\n${err.stack}` })
   }
 
@@ -453,13 +477,15 @@ class WorkerZotero {
   }
 }
 
-export const Zotero = new WorkerZotero // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
+// haul to top
+export var Zotero = new WorkerZotero // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match,no-var
 
 const dec = new TextDecoder('utf-8')
 ctx.onmessage = function(e: { isTrusted?: boolean, data?: Translators.Worker.Message } ): void { // eslint-disable-line prefer-arrow/prefer-arrow-functions
   if (!e.data) return // some kind of startup message
 
   try {
+    dump(`\nworker: got ${e.data.kind}\n`)
     switch (e.data.kind) {
       case 'start':
         Object.assign(workerJob, JSON.parse(dec.decode(new Uint8Array(e.data.config))))
@@ -472,12 +498,17 @@ ctx.onmessage = function(e: { isTrusted?: boolean, data?: Translators.Worker.Mes
       case 'stop':
         break
 
+      case 'ping':
+        ctx.postMessage({ kind: 'ping' })
+        break
+
       default:
         log.error('unexpected message:', e)
         break
     }
   }
   catch (err) {
+    dump(`\nworker error: ${err.message}\n`)
     Zotero.logError(err)
   }
 }
