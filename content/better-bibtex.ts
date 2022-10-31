@@ -36,7 +36,7 @@ Components.utils.import('resource://gre/modules/AddonManager.jsm')
 declare const AddonManager: any
 
 import { log } from './logger'
-import { Events, itemsChanged as notifyItemsChanged } from './events'
+import { Events } from './events'
 
 import { Translators } from './translators'
 import { DB } from './db/main'
@@ -95,26 +95,6 @@ AddonManager.addAddonListener({
 /*
   MONKEY PATCHES
 */
-
-// zotero beta moves itemToCSLJSON to Zotero.Utilities.Item
-$patch$(Zotero.Utilities.Item?.itemToCSLJSON ? Zotero.Utilities.Item : Zotero.Utilities, 'itemToCSLJSON', original => function itemToCSLJSON(zoteroItem: { itemID: any }) {
-  const cslItem = original.apply(this, arguments)
-
-  try {
-    if (typeof Zotero.Item !== 'undefined' && !(zoteroItem instanceof Zotero.Item)) {
-      const citekey = Zotero.BetterBibTeX.KeyManager.get(zoteroItem.itemID)
-      if (citekey) {
-        cslItem['citation-key'] = citekey.citekey
-      }
-    }
-  }
-  catch (err) {
-    log.error('failed patching CSL-JSON:', err)
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  return cslItem
-})
 
 // https://github.com/retorquere/zotero-better-bibtex/issues/1221
 $patch$(Zotero.Items, 'merge', original => async function Zotero_Items_merge(item: ZoteroItem, otherItems: ZoteroItem[]) {
@@ -724,7 +704,7 @@ notify('item', (action: string, type: any, ids: any[], extraData: { [x: string]:
       return
   }
 
-  notifyItemsChanged(items.concat(parents))
+  Events.itemsChanged(items.concat(parents))
 })
 
 notify('collection', (event: string, _type: any, ids: string | any[], _extraData: any) => {
