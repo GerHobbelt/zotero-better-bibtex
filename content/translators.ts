@@ -244,7 +244,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       job: id,
     }
 
-    const selector = schema.translator[translator.label]?.cached ? cacheSelector(translator.label, config.options, config.preferences) : null
+    const selector = schema.translator[translator.label]?.cache ? cacheSelector(translator.label, config.options, config.preferences) : null
 
     let items: any[] = []
     this.worker.onmessage = (e: { data: Translator.Worker.Message }) => {
@@ -403,6 +403,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     // stringify gets around 'object could not be cloned', and arraybuffers can be passed zero-copy. win-win
     const abconfig = enc.encode(JSON.stringify(config)).buffer
 
+    log.debug('worker export started:', config.data.items.length, 'items, cache:', !!cache, Object.keys(config.data.cache).length, 'items cached')
     this.worker.postMessage({ kind: 'start', config: abconfig }, [ abconfig ])
 
     return deferred.promise
@@ -506,7 +507,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       Zotero.File.getContentsFromURL(`resource://zotero-better-bibtex/${header.label}.js`),
     ].join('\n')
 
-    if (schema.translator[header.label]?.cached) Cache.getCollection(header.label).removeDataOnly()
+    if (schema.translator[header.label]?.cache) Cache.getCollection(header.label).removeDataOnly()
 
     // importing AutoExports would be circular, so access DB directly
     const autoexports = DB.getCollection('autoexport')

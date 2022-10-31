@@ -517,7 +517,7 @@ Feature: Export
     When I set preference .parseParticles to false
     Then an export using "Better BibLaTeX" should match "export/*.off.biblatex"
 
-  @ae
+  @retries=5
   Scenario: auto-export
     Given I import 3 references with 2 attachments from "export/*.json" into a new collection
     And I set preference .autoExport to "immediate"
@@ -526,7 +526,7 @@ Feature: Export
     And an auto-export of "/auto-export" to "~/autoexport.coll.bib" using "Better BibLaTeX" should match "export/*.before.coll.biblatex"
     When I select the item with a field that is "IEEE"
     And I remove the selected item
-    And I wait 10 seconds
+    And I wait 15 seconds
     Then "~/autoexport.bib" should match "export/*.after.biblatex"
     And "~/autoexport.coll.bib" should match "export/*.after.coll.biblatex"
 

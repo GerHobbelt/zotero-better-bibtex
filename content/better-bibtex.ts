@@ -96,6 +96,26 @@ AddonManager.addAddonListener({
   MONKEY PATCHES
 */
 
+// zotero moved itemToCSLJSON to Zotero.Utilities.Item, jurism for the moment keeps it on ZU
+$patch$(Zotero.Utilities.Item?.itemToCSLJSON ? Zotero.Utilities.Item : Zotero.Utilities, 'itemToCSLJSON', original => function itemToCSLJSON(zoteroItem: { itemID: any }) {
+  const cslItem = original.apply(this, arguments)
+
+  try {
+    if (typeof Zotero.Item !== 'undefined' && !(zoteroItem instanceof Zotero.Item)) {
+      const citekey = Zotero.BetterBibTeX.KeyManager.get(zoteroItem.itemID)
+      if (citekey) {
+        cslItem['citation-key'] = citekey.citekey
+      }
+    }
+  }
+  catch (err) {
+    log.error('failed patching CSL-JSON:', err)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return cslItem
+})
+
 // https://github.com/retorquere/zotero-better-bibtex/issues/1221
 $patch$(Zotero.Items, 'merge', original => async function Zotero_Items_merge(item: ZoteroItem, otherItems: ZoteroItem[]) {
   try {
@@ -581,10 +601,12 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
         // there wasn't an error starting a worker earlier
         disabled = 'failed to start a chromeworker, disabled until restart'
       }
+      /*
       else if (this.location?.path.startsWith('\\\\')) {
         // check for SMB path for #1396
         disabled = 'chrome workers fail on smb paths'
       }
+      */
       else {
         disabled = Object.keys(this._handlers).filter(handler => !['done', 'itemDone', 'error'].includes(handler)).join(', ')
         if (disabled) disabled = `handlers: ${disabled}`

@@ -695,7 +695,7 @@ export class Entry {
       }
     }
 
-    this.add({ name: 'annotation', value: this.item.extra?.replace(/\n+/g, ' ') })
+    this.add({ name: 'annotation', value: this.item.extra?.replace(/\n+/g, newlines => (newlines.length > 1 ? '\n\n' : ' ')).trim() })
     if (Translator.options.exportNotes) {
       // if bibtexURL === 'note' is active, the note field will have been filled with an URL. In all other cases, if this is attempting to overwrite the 'note' field, I want the test suite to throw an error
       if (!(Translator.BetterBibTeX && Translator.preferences.bibtexURL === 'note')) this.add({ name: 'note', value: this.item.notes?.map((note: { note: string }) => note.note).join('</p><p>'), html: true })
@@ -1128,7 +1128,6 @@ export class Entry {
     const initials_marker_pos: number = (name.given || '').indexOf(enc_creators_marker.initials) // end of guarded area
     let initials: string | String
 
-    log.debug('biblatexExtendedNameFormat:', Translator.preferences.biblatexExtendedNameFormat)
     if (Translator.preferences.biblatexExtendedNameFormat && (name['dropping-particle'] || name['non-dropping-particle'] || name['comma-suffix'])) {
       if (initials_marker_pos >= 0) {
         initials = name.given.substring(0, initials_marker_pos)
