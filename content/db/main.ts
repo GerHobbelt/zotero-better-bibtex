@@ -15,7 +15,8 @@ export function scrubAutoExport(ae: any): void { // eslint-disable-line @typescr
   for (const k of Object.keys(ae)) {
     if (!properties[k]) delete ae[k]
   }
-  log.debug('scrubed:', { ae })
+  delete ae.worker
+  log.debug('scrubbed:', { ae })
 
   return ae // eslint-disable-line @typescript-eslint/no-unsafe-return
 }
@@ -144,6 +145,10 @@ class Main extends Loki {
 
       Preference.scrubDatabase = false
     }
+
+    autoexport.on(['insert', 'update'], (ae: { path: string, $loki: number }) => {
+      autoexport.removeWhere({ $and: [ { path: ae.path }, { $loki: { $ne: ae.$loki } } ] })
+    })
   }
 }
 
