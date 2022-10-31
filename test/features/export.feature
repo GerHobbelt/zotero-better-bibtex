@@ -13,6 +13,7 @@ Feature: Export
 
     Examples:
       | file                                                                                                                     | references |
+      | authEtal2(sep='&') + year =  & disappears #2252                                                                          | 1          |
       | Apply Title Casing to tex.subtitle entry on export #2213                                                                 | 1          |
       | Citation key format backward compatibility issue. #2204                                                                  | 1          |
       | inspireHep fetching broken #2201                                                                                         | 1          |
@@ -645,6 +646,11 @@ Feature: Export
     When I set preference .bibtexURL to "url"
     And I set preference .verbatimFields to "doi,file,ids,eprint,verba,verbb,verbc,groups"
     Then an export using "Better BibTeX" should match "export/*.bibtex"
+
+  @use.with_client=zotero
+  Scenario: Using zotero.lua .md to .docx to add canonic number after comma without 'p.' #2248
+    Given I import 2 references from "export/*.json"
+    When I compile "export/*.md" to "~/*.odt" it should match "export/*.odt"
 
 # Scenario: error exporting Better BibLaTex this.preference.skipFields is undefined #2029
 # Given I restart Zotero
