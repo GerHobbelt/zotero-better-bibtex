@@ -2,7 +2,7 @@
 
 importScripts('resource://gre/modules/osfile.jsm')
 
-import type { ITranslator } from '../lib/translator'
+import type { ITranslator } from '../../translators/lib/translator'
 import type { Translators } from '../../typings/translators'
 
 declare const doExport: () => void
@@ -141,7 +141,7 @@ function makeDirs(path) {
     path = OS.Path.dirname(path)
   }
 
-  if (!isWinRoot(path) && !(OS.File.stat(path) as OS.File.Entry).isDir) throw new Error(`makeDirs: root ${path} is not a directory`)
+  if (!isWinRoot(path) && !(OS.File.stat(path) as OS.File.FileInfo).isDir) throw new Error(`makeDirs: root ${path} is not a directory`)
 
   for (path of paths) {
     OS.File.makeDir(path) as void
@@ -291,13 +291,11 @@ export const Zotero = new WorkerZotero // eslint-disable-line @typescript-eslint
 
 const dec = new TextDecoder('utf-8')
 ctx.onmessage = function(e: { isTrusted?: boolean, data?: Translators.Worker.Message } ): void { // eslint-disable-line prefer-arrow/prefer-arrow-functions
-  log.debug('worker: received', { isTrusted: e.isTrusted, kind: e.data?.kind })
   if (!e.data) return // some kind of startup message
 
   try {
     switch (e.data.kind) {
       case 'start':
-        log.debug('worker: starting')
         Zotero.BetterBibTeX.localeDateOrder = workerContext.localeDateOrder
         Zotero.init(JSON.parse(dec.decode(new Uint8Array(e.data.config))))
         doExport()
@@ -309,7 +307,7 @@ ctx.onmessage = function(e: { isTrusted?: boolean, data?: Translators.Worker.Mes
         break
 
       default:
-        log.debug('unexpected message, stopping worker:', e)
+        log.error('unexpected message, stopping worker:', e)
         close()
         break
     }

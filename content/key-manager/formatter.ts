@@ -9,7 +9,7 @@ import scripts = require('xregexp/tools/output/scripts')
 import { transliterate } from 'transliteration'
 
 import { flash } from '../flash'
-import { Preference } from '../../gen/preferences'
+import { Preference } from '../prefs'
 import { JournalAbbrev } from '../journal-abbrev'
 import * as Extra from '../extra'
 import { buildCiteKey as zotero_buildCiteKey } from './formatter-zotero'
@@ -34,6 +34,7 @@ import { kuroshiro } from './japanese'
 import AJV from 'ajv'
 import { validator } from '../ajv'
 const ajv = new AJV({ coerceTypes: true })
+import { dictsync as csv2dict } from '../load-csv'
 
 import BabelTag from '../../gen/babel/tag.json'
 type ValueOf<T> = T[keyof T]
@@ -265,6 +266,8 @@ class PatternFormatter {
     word: Zotero.Utilities.XRegExp('[\\p{L}\\p{Nd}\\{Pc}\\p{M}]+(-[\\p{L}\\p{Nd}\\{Pc}\\p{M}]+)*', 'g'),
   }
 
+  private acronyms: Record<string, Record<string, string>> = {}
+
   /*
    * three-letter month abbreviations. I assume these are the same ones that the
    * docs say are defined in some appendix of the LaTeX book. (I don't have the
@@ -458,10 +461,13 @@ class PatternFormatter {
 
   /** returns the journal abbreviation, or, if not found, the journal title, If 'automatic journal abbreviation' is enabled in the BBT settings,
    * it will use the same abbreviation filter Zotero uses in the wordprocessor integration. You might want to use the `abbr` filter on this.
+   * Abbreviation behavior can be specified as `abbrev+auto` (the default) which uses the explicit journal abbreviation if present, and tries the automatic
+   * abbreviator if not (if auto-abbrev is enabled in the preferences), `auto` (skip explicit journal abbreviation even if present), `abbrev`
+   * (no auto-abbrev even if it is enabled in the preferences) or `off` (no abbrevation).
    */
-  public $journal() {
+  public $journal(abbrev: 'abbrev+auto' | 'abbrev' | 'auto' | 'off' = 'abbrev+auto') {
     // this.item.item is the native item stored inside the this.item sorta-proxy
-    return this.set(JournalAbbrev.get(this.item.item, true) || this.item.getField('publicationTitle') || '')
+    return this.set((abbrev === 'off' ? '' : JournalAbbrev.get(this.item.item, abbrev)) || this.item.getField('publicationTitle') || '')
   }
 
   /** The last name of up to N authors. If there are more authors, "EtAl" is appended. */
@@ -827,6 +833,38 @@ class PatternFormatter {
    */
   public _abbr() {
     return this.set(this.value.split(/\s+/).map(word => word.substring(0, 1)).join(' '))
+  }
+
+  /**
+   * Does an acronym lookup for the text. You can optionally pass the name of the list; the list must live in the Zotero/better-bibtex directory in your profile,
+   * and must use commas as the delimiter.
+   */
+  public _acronym(list='acronyms') {
+    list = list.replace(/\.csv$/i, '')
+
+    try {
+      if (!this.acronyms[list]) {
+        this.acronyms[list] = csv2dict(OS.Path.join(Zotero.BetterBibTeX.dir, `${list}.csv`))
+          .reduce((acc: Record<string, string>, row: Record<string, string>) => {
+            row.full = (row.full || '').trim().toLowerCase()
+            row.acronym = (row.acronym || '').trim()
+            if (row.full && row.acronym) {
+              if (acc[row.full]) log.error('acronyms: parsing', list, row, 'duplicate')
+              acc[row.full] = row.acronym
+            }
+            else {
+              log.error('acronyms: parsing', list, row, 'incomplete')
+            }
+            return acc
+          }, {} as Record<string, string>)
+      }
+    }
+    catch (err) {
+      log.error('error parsing acronym list', list)
+      this.acronyms[list] = {}
+    }
+
+    return this.set(this.acronyms[list][this.value.toLowerCase()] || this.value)
   }
 
   /** Forces the text inserted by the field marker to be in lowercase. For example, `[auth:lower]` expands the last name of the first author in lowercase. */
