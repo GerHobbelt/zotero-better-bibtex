@@ -1,3 +1,5 @@
+Components.utils.import('resource://gre/modules/Services.jsm')
+
 import ETA from 'node-eta'
 
 import { kuroshiro } from './key-manager/japanese'
@@ -71,7 +73,7 @@ export class KeyManager {
     ids = this.expandSelection(ids)
 
     for (const item of await getItemsAsync(ids)) {
-      if (!item.isRegularItem()) continue
+      if (item.isFeedItem || !item.isRegularItem()) continue
 
       const extra = this.getField(item, 'extra')
       const parsed = Extra.get(extra, 'zotero')
@@ -96,7 +98,7 @@ export class KeyManager {
     ids = this.expandSelection(ids)
 
     for (const item of await getItemsAsync(ids)) {
-      if (!item.isRegularItem()) continue
+      if (item.isFeedItem || !item.isRegularItem()) continue
 
       const parsed = Extra.get(item.getField('extra'), 'zotero', { citationKey: true })
       if (!parsed.extraFields.citationKey) continue
@@ -132,7 +134,7 @@ export class KeyManager {
 
     const updates = []
     for (const item of await getItemsAsync(ids)) {
-      if (!item.isRegularItem()) continue
+      if (item.isFeedItem || !item.isRegularItem()) continue
 
       const extra = item.getField('extra')
 
@@ -422,7 +424,18 @@ export class KeyManager {
     this.keys.findAndRemove({ itemID: { $in: [...deleted, ...this.regenerate] } })
     this.regenerate.push(...db.keys())
 
-    if (this.regenerate.length !== 0) {
+    const regenerate = (
+      this.regenerate.length !== 0
+      /*
+      &&
+      (
+        Preference.testing
+        ||
+        Services.prompt.confirm(null, l10n.localize('KeyManager.regenerate'), l10n.localize('KeyManager.regenerate.confirm', { n: this.regenerate.length }))
+      )
+      */
+    )
+    if (regenerate) {
       const progressWin = new Zotero.ProgressWindow({ closeOnClick: false })
       progressWin.changeHeadline('Better BibTeX: Assigning citation keys')
       progressWin.addDescription(`Found ${this.regenerate.length} items without a citation key`)
@@ -463,7 +476,7 @@ export class KeyManager {
   }
 
   public update(item: ZoteroItem, current?: { pinned: boolean, citekey: string }): string {
-    if (!item.isRegularItem()) return null
+    if (item.isFeedItem || !item.isRegularItem()) return null
 
     current = current || this.keys.findOne($and({ itemID: item.id }))
 

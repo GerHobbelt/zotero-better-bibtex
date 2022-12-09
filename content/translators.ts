@@ -78,11 +78,14 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     this.uninstall('\u672B BetterBibTeX JSON (for debugging)')
     this.uninstall('BetterBibTeX JSON (for debugging)')
 
+    log.debug('zotero translators: waiting for init')
     await Zotero.Translators.init()
+    log.debug('zotero translators: init done')
 
     const reinit: { header: Translator.Header, code: string }[] = []
     let header: Translator.Header
     let code: string
+    // fetch from resource because that has the hash
     for (header of Object.keys(this.byName).map(name => JSON.parse(Zotero.File.getContentsFromURL(`resource://zotero-better-bibtex/${name}.json`)) as Translator.Header)) {
       if (code = await this.install(header)) reinit.push({ header, code })
     }

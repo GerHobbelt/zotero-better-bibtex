@@ -364,7 +364,7 @@ else {
     if (col.id !== 'zotero-items-column-citekey') return original.apply(this, arguments)
 
     const item = this.getRow(row).ref
-    if (!item.isRegularItem()) return ''
+    if (!item.isRegularItem() || item.isFeedItem) return ''
 
     if (Zotero.BetterBibTeX.ready.isPending()) { // eslint-disable-line @typescript-eslint/no-use-before-define
       if (!itemTreeViewWaiting[item.id]) {
@@ -585,7 +585,7 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
         // there wasn't an error starting a worker earlier
         noworker = 'failed to start a chromeworker, disabled until restart'
       }
-      else if (!translator.displayOptions.worker) {
+      else if (typeof translator.displayOptions.worker === 'undefined') {
         noworker = `${translator.label} does not support background export`
       }
       else if (!displayOptions.worker) {
@@ -671,6 +671,8 @@ notify('item', (action: string, type: any, ids: any[], extraData: { [x: string]:
   // https://groups.google.com/forum/#!topic/zotero-dev/99wkhAk-jm0
   const parentIDs = []
   const items = action === 'delete' ? [] : Zotero.Items.get(ids).filter((item: ZoteroItem) => {
+    if (item.isFeedItem) return false
+
     if (item.isAttachment() || item.isNote()) {
       const parentID = item.parentID
       if (typeof parentID === 'number') parentIDs.push(parentID)
