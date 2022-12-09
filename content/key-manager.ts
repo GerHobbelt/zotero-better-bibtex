@@ -12,6 +12,7 @@ import { Events } from './events'
 import { fetchAsync as fetchInspireHEP } from './inspire-hep'
 import * as Extra from './extra'
 import { $and, Query } from './db/loki'
+import { excelColumn } from './text'
 
 import * as ZoteroDB from './db/zotero'
 
@@ -25,7 +26,6 @@ import { DB as Cache } from './db/cache'
 import { patch as $patch$ } from './monkey-patch'
 
 import { sprintf } from 'sprintf-js'
-import { intToExcelCol } from 'excel-column-name'
 
 import * as l10n from './l10n'
 
@@ -34,7 +34,7 @@ type CitekeySearchRecord = { itemID: number, libraryID: number, itemKey: string,
 export class KeyManager {
   public keys: any
   public query: {
-    field: { extra?: number }
+    field: { extra?: number, title?: number }
     type: {
       note?: number
       attachment?: number
@@ -353,6 +353,7 @@ export class KeyManager {
 
   public async rescan(clean?: boolean): Promise<void> {
     if (Preference.scrubDatabase) {
+      log.debug('scrubbing database')
       this.keys.removeWhere(i => !i.citekey) // 2047
 
       let errors = 0
@@ -386,14 +387,19 @@ export class KeyManager {
       const m = keyLine.exec(extra)
       return m ? m[2].trim() : ''
     }
-    const db: Map<number, { itemKey: string, citationKey: string }> = (await ZoteroDB.queryAsync(`
+
+    type DBState = Map<number, { itemKey: string, citationKey: string }>
+    const inzdb: DBState = (await ZoteroDB.queryAsync(`
       SELECT item.itemID, item.key, extra.value as extra
       FROM items item
-      LEFT JOIN itemData field ON field.itemID = item.itemID AND field.fieldID = ${this.query.field.extra}
-      LEFT JOIN itemDataValues extra ON extra.valueID = field.valueID
-      WHERE item.itemID NOT IN (select itemID from deletedItems)
-      AND item.itemTypeID NOT IN (${this.query.type.attachment}, ${this.query.type.note}, ${this.query.type.annotation || this.query.type.note})
-    `)).reduce((acc: Map<number, { itemKey: string, citationKey: string }>, item) => {
+
+      LEFT JOIN itemData extraField ON extraField.itemID = item.itemID AND extraField.fieldID = ${this.query.field.extra}
+      LEFT JOIN itemDataValues extra ON extra.valueID = extraField.valueID
+
+      WHERE item.itemID NOT IN (SELECT itemID FROM deletedItems)
+        AND item.itemTypeID NOT IN (${this.query.type.attachment}, ${this.query.type.note}, ${this.query.type.annotation || this.query.type.note})
+        AND item.itemID NOT IN (SELECT itemID from feedItems)
+    `)).reduce((acc: DBState, item) => {
       acc.set(item.itemID, {
         itemKey: item.key,
         citationKey: getKey(item.extra),
@@ -402,40 +408,34 @@ export class KeyManager {
     }, new Map)
 
     const deleted: number[] = []
-    for (const item of this.keys.data) {
-      const key = db.get(item.itemID)
+    for (const bbt of this.keys.data) {
+      const zotero = inzdb.get(bbt.itemID)
 
-      if (!key) {
-        deleted.push(item.itemID)
+      if (!zotero) {
+        deleted.push(bbt.itemID)
+        // log.debug('keymanager.rescan: deleted', bbt, 'from key database, no counterpart in Zotero DB')
       }
-      else if (key.citationKey && (!item.pinned || item.citekey !== key.citationKey)) {
-        this.keys.update({...item, pinned: true, citekey: key.citationKey, itemKey: key.itemKey })
+      else if (zotero.citationKey && (!bbt.pinned || bbt.citekey !== zotero.citationKey)) {
+        this.keys.update({...bbt, pinned: true, citekey: zotero.citationKey, itemKey: zotero.itemKey })
+        // log.debug('keymanager.rescan: updated', bbt, 'using', zotero)
       }
-      else if (!key.citationKey && item.citekey && item.pinned) {
-        this.keys.update({...item, pinned: false, itemKey: key.itemKey})
+      else if (!zotero.citationKey && bbt.citekey && bbt.pinned) {
+        this.keys.update({...bbt, pinned: false, itemKey: zotero.itemKey})
+        // log.debug('keymanager.rescan: updated', bbt, 'using', zotero)
       }
-      else if (!item.citekey) {
-        this.regenerate.push(item.itemID)
+      else if (!bbt.citekey) { // this should not be possible
+        this.regenerate.push(bbt.itemID)
+        // log.debug('keymanager.rescan: regenerating', bbt, 'missing citekey')
       }
 
-      db.delete(item.itemID)
+      inzdb.delete(bbt.itemID)
     }
+    // if (inzdb.size) log.debug('keymanager.rescan:', inzdb.size, 'new items', { itemIDs: [...inzdb.entries()] })
 
     this.keys.findAndRemove({ itemID: { $in: [...deleted, ...this.regenerate] } })
-    this.regenerate.push(...db.keys())
+    this.regenerate.push(...inzdb.keys()) // generate new keys for items that are in the Z db but not in the BBT db
 
-    const regenerate = (
-      this.regenerate.length !== 0
-      /*
-      &&
-      (
-        Preference.testing
-        ||
-        Services.prompt.confirm(null, l10n.localize('KeyManager.regenerate'), l10n.localize('KeyManager.regenerate.confirm', { n: this.regenerate.length }))
-      )
-      */
-    )
-    if (regenerate) {
+    if (this.regenerate.length) {
       const progressWin = new Zotero.ProgressWindow({ closeOnClick: false })
       progressWin.changeHeadline('Better BibTeX: Assigning citation keys')
       progressWin.addDescription(`Found ${this.regenerate.length} items without a citation key`)
@@ -444,20 +444,17 @@ export class KeyManager {
       progressWin.show()
 
       const eta = new ETA(this.regenerate.length, { autoStart: true })
-      while (this.regenerate.length) {
-        const item = await getItemsAsync(this.regenerate.pop())
-
+      for (const itemID of this.regenerate) {
         try {
-          this.update(item)
+          this.update(await getItemsAsync(itemID))
         }
         catch (err) {
-          log.error('KeyManager.rescan: update', (eta.done as number) + 1, 'failed:', err)
+          log.error('KeyManager.rescan: update', (eta.done as number) + 1, 'failed:', err.message || err, err.stack)
         }
 
         eta.iterate()
 
-        // eslint-disable-next-line no-magic-numbers
-        if ((eta.done % 10) === 1) {
+        if ((eta.done % 10) === 1) { // eslint-disable-line no-magic-numbers
           log.debug('keymanager.rescan: regenerated', eta.done)
           // eslint-disable-next-line no-magic-numbers
           progress.setProgress((eta.done * 100) / eta.count)
@@ -521,23 +518,21 @@ export class KeyManager {
     const conflictQuery: Query = { $and: [ { itemID: { $ne: item.id } } ] }
     if (Preference.keyScope !== 'global') conflictQuery.$and.push({ libraryID: { $eq: item.libraryID } })
 
-    let postfix: string
     const seen = {}
     // eslint-disable-next-line no-constant-condition
-    for (let n = Formatter.postfix.start; true; n += 1) {
-      if (n) {
-        const alpha = intToExcelCol(n)
-        postfix = sprintf(Formatter.postfix.format, { a: alpha.toLowerCase(), A: alpha, n })
-      }
-      else {
-        postfix = ''
-      }
+    for (let n = Formatter.postfix.offset; true; n += 1) {
+      const postfixed = citekey.replace(Formatter.postfix.marker, () => {
+        let postfix = ''
+        if (n) {
+          const alpha = excelColumn(n)
+          postfix = sprintf(Formatter.postfix.template, { a: alpha.toLowerCase(), A: alpha, n })
+        }
+        // this should never happen, it'd mean the postfix pattern doesn't have placeholders, which should have been caught by parsePattern
+        if (seen[postfix]) throw new Error(`${JSON.stringify(Formatter.postfix)} does not generate unique postfixes`)
+        seen[postfix] = true
+        return postfix
+      })
 
-      // this should never happen, it'd mean the postfix pattern doesn't have placeholders, which should have been caught by parsePattern
-      if (seen[postfix]) throw new Error(`${JSON.stringify(Formatter.postfix)} does not generate unique postfixes`)
-      seen[postfix] = true
-
-      const postfixed = citekey + postfix
       const conflict = transient.includes(postfixed) || this.keys.findOne({ $and: [...conflictQuery.$and, { citekey: { $eq: postfixed } }] })
       if (conflict) continue
 

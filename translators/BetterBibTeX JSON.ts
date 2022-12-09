@@ -191,6 +191,6 @@ export function doExport(): void {
 
   if (translation.preferences.testing) normalize(data)
 
-  Zotero.write(stringify(data, null, '  '))
+  Zotero.write(stringify(data, '  ', true))
   translation.erase()
 }

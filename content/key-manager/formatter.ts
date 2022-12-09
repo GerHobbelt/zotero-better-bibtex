@@ -276,8 +276,11 @@ class PatternFormatter {
   public folding: boolean
 
   public generate: () => string
-  public postfix: { start: number, format: string }
-
+  public postfix = {
+    offset: 0,
+    template: '%(a)s',
+    marker: '\x1A',
+  }
 
   private re = {
     unsafechars_allow_spaces: new RegExp(unsafechars.source.replace(/\\s/, ''), 'g'),
@@ -300,7 +303,6 @@ class PatternFormatter {
   private months = { 1: 'jan', 2: 'feb', 3: 'mar', 4: 'apr', 5: 'may', 6: 'jun', 7: 'jul', 8: 'aug', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'dec' }
 
   // eslint-disable-next-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
-  private DOMParser = new DOMParser
 
   private item: Item
 
@@ -387,7 +389,9 @@ class PatternFormatter {
     }
 
     this.$postfix()
-    return this.generate()
+    let citekey = this.generate()
+    if (!citekey.includes(this.postfix.marker)) citekey += this.postfix.marker
+    return citekey
   }
 
   /**
@@ -859,15 +863,32 @@ class PatternFormatter {
   }
 
   /**
+   * a pseudo-function that sets the citekey disambiguation infix using an <a href="https://www.npmjs.com/package/sprintf-js">sprintf-js</a> format spec
+   * for when a key is generated that already exists. The infix charachter appears at the place of this function of the formula instead of at the and (as postfix does).
+   * You *must* include *exactly one* of the placeholders `%(n)s` (number), `%(a)s` (alpha, lowercase) or `%(A)s` (alpha, uppercase).
+   * For the rest of the disambiguator you can use things like padding and extra text as sprintf-js allows. With start set to `1` the disambiguator is always included,
+   * even if there is no need for it when no duplicates exist. The default  format is `%(a)s`.
+   * @param format sprintf-style format template
+   * @param start start value for postfix
+   */
+  public $infix(format='%(a)s', start=0) {
+    this.postfix.template = format
+    this.postfix.offset = start
+    return this.$text(this.postfix.marker)
+  }
+
+  /**
    * a pseudo-function that sets the citekey disambiguation postfix using an <a href="https://www.npmjs.com/package/sprintf-js">sprintf-js</a> format spec
    * for when a key is generated that already exists. Does not add any text to the citekey otherwise.
    * You *must* include *exactly one* of the placeholders `%(n)s` (number), `%(a)s` (alpha, lowercase) or `%(A)s` (alpha, uppercase).
-   * For the rest of the disambiguator you can use things like padding and extra text as sprintf-js allows. With `+1` the disambiguator is always included,
+   * For the rest of the disambiguator you can use things like padding and extra text as sprintf-js allows. With start set to `1` the disambiguator is always included,
    * even if there is no need for it when no duplicates exist. The default  format is `%(a)s`.
    * @param format sprintf-style format template
+   * @param start start value for postfix
    */
   public $postfix(format='%(a)s', start=0) {
-    this.postfix = { format, start }
+    this.postfix.template = format
+    this.postfix.offset = start
     return this.$text('')
   }
 
@@ -1049,8 +1070,8 @@ class PatternFormatter {
   /**
    * Abbreviates the text. Only the first character and subsequent characters following white space will be included.
    */
-  public _abbr() {
-    return this.$text(this.chunk.split(/\s+/).map(word => word.substring(0, 1)).join(' '))
+  public _abbr(chars=1) {
+    return this.$text(this.chunk.split(/\s+/).map(word => word.substring(0, chars)).join(' '))
   }
 
   /**
@@ -1301,7 +1322,7 @@ class PatternFormatter {
 
   private innerText(str: string): string {
     if (!str) return ''
-    return this.DOMParser.parseFromString(`<span>${str}</span>`, 'text/html').documentElement.textContent
+    return innerText(parseFragment(`<span>${str}</span>`))
   }
 
   private stripQuotes(name: string): string {
