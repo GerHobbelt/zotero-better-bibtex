@@ -16,7 +16,7 @@ import { Preference } from './prefs'
 import * as memory from './memory'
 import { Deferred } from './deferred'
 
-const setatstart: string[] = ['worker', 'testing', 'cache'].filter(p => Preference[p] !== defaults[p])
+const setatstart: string[] = ['testing', 'cache'].filter(p => Preference[p] !== defaults[p])
 
 export class TestSupport {
   public timedMemoryLog: any
@@ -126,7 +126,7 @@ export class TestSupport {
     else {
       scope = null
     }
-    return await Translators.exportItems(translatorID, displayOptions, scope, path)
+    return await Translators.exportItems({translatorID, displayOptions: displayOptions as Record<string, boolean>, scope, path})
   }
 
   public async select(ids: number[]): Promise<boolean> {

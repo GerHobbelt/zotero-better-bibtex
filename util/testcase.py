@@ -11,7 +11,6 @@ from types import SimpleNamespace
 
 from subprocess import call
 
-#import subprocess
 import argparse
 #import shlex
 #import sys
@@ -20,6 +19,7 @@ from github import Github
 #import re
 #from pathlib import Path
 import shutil
+import subprocess
 #import string
 
 from pygit2 import Repository
@@ -110,14 +110,20 @@ if contents:
 
 # copy/create test fixtures
 fixture = os.path.join(root, f'test/fixtures/{args.mode}', args.title)
-shutil.copyfile(args.data, fixture + '.json')
+source = fixture + '.json'
+shutil.copyfile(args.data, source)
+subprocess.check_output(['git', 'add', source])
+
 if args.mode == 'import':
   ext = 'bib'
 else:
   ext = args.translator.lower().replace('-', '.').replace('yaml', 'yml')
-with open(fixture + '.' + ext, 'w') as f:
+
+target = fixture + '.' + ext
+with open(target, 'w') as f:
   if args.translator == 'CSL-JSON':
     f.write('{}')
+subprocess.check_output(['git', 'add', target])
 
 # reformat
 sys.argv.append(args.feature)

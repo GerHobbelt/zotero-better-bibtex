@@ -50,6 +50,7 @@ import { TeXstudio } from './tex-studio'
 import { $and } from './db/loki'
 import { cloneDeep } from 'lodash'
 import * as l10n from './l10n'
+import * as CSL from 'citeproc'
 
 // UNINSTALL
 AddonManager.addAddonListener({
@@ -366,11 +367,13 @@ $patch$(Zotero.Integration, 'getApplication', original => function Zotero_Integr
 
 /* bugger this, I don't want megabytes of shared code in the translators */
 import * as DateParser from './dateparser'
-// import CiteProc = require('./citeproc.ts')
 import { qualityReport } from './qr-check'
 import type { ParsedDate } from './dateparser'
 
 Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
+  clientName: Zotero.clientName,
+
+  CSL() { return CSL }, // eslint-disable-line @typescript-eslint/no-unsafe-return
   qrCheck(_sandbox: any, value: string, test: string, params = null) { return qualityReport(value, test, params) },
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -448,6 +451,8 @@ Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
 }
 
 Zotero.Translate.Import.prototype.Sandbox.BetterBibTeX = {
+  clientName: Zotero.clientName,
+
   parseHTML(_sandbox: any, text: { toString: () => any }, options: { html?: boolean, caseConversion?: boolean, exportBraceProtection: boolean, csquotes: string, exportTitleCase: boolean }) {
     options = {
       ...options,
@@ -590,28 +595,35 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
         })
       }
 
-      let disabled = ''
+      let noworker = ''
       if (this.noWait) { // noWait must be synchronous
-        disabled = 'noWait is active'
-      }
-      else if (!Preference.worker) {
-        disabled = 'user has disabled worker export'
+        noworker = 'noWait is active'
       }
       else if (!Translators.worker) {
         // there wasn't an error starting a worker earlier
-        disabled = 'failed to start a chromeworker, disabled until restart'
+        noworker = 'failed to start a chromeworker, disabled until restart'
+      }
+      else if (!translator.displayOptions.worker) {
+        noworker = `${translator.label} does not support background export`
+      }
+      else if (!displayOptions.worker) {
+        noworker = `user has chosen foreground export for ${translator.label}`
       }
       /*
       else if (this.location?.path.startsWith('\\\\')) {
         // check for SMB path for #1396
-        disabled = 'chrome workers fail on smb paths'
+        noworker = 'chrome workers fail on smb paths'
       }
       */
       else {
-        disabled = Object.keys(this._handlers).filter(handler => !['done', 'itemDone', 'error'].includes(handler)).join(', ')
-        if (disabled) disabled = `handlers: ${disabled}`
+        noworker = Object.keys(this._handlers).filter(handler => !['done', 'itemDone', 'error'].includes(handler)).join(', ')
+        if (noworker) noworker = `found async handlers: ${noworker}`
       }
-      if (!disabled) {
+
+      if (noworker) {
+        log.debug('worker export skipped,', noworker)
+      }
+      else {
         const path = this.location?.path
 
         // fake out the stuff that complete expects to be set by .translate
@@ -619,7 +631,7 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
         this.saveQueue = []
         this._savingAttachments = []
 
-        return Translators.exportItemsByWorker(translatorID, displayOptions, { translate: this, scope: { ...this._export, getter: this._itemGetter }, path })
+        return Translators.exportItemsByWorker({ translatorID, displayOptions, translate: this, scope: { ...this._export, getter: this._itemGetter }, path })
           .then(result => {
             // eslint-disable-next-line id-blacklist
             this.string = result
@@ -755,18 +767,12 @@ notify('collection-item', (_event: any, _type: any, collection_items: any) => {
   INIT
 */
 
-function setProgress(progress: number | false, msg: string) {
+function setProgress(progress: number, msg: string) {
   const progressbox = document.getElementById('better-bibtex-progress')
-  progressbox.hidden = progress === false ? true : false
-  if (progress === false) return
-
-  /*
-  const progressmeter: XUL.ProgressMeter = (document.getElementById('better-bibtex-progress-meter') as unknown as XUL.ProgressMeter)
-  if (typeof progress === 'number') progressmeter.value = progress
-  */
+  if (progressbox.hidden = (progress >= 100)) return
 
   const progressmeter: XUL.Element = (document.getElementById('better-bibtex-progress-meter') as unknown as XUL.Element)
-  progressmeter.style.backgroundPosition = `-${Math.min(Math.abs(progress), 100) * 20}px 0` // eslint-disable-line no-magic-numbers
+  progressmeter.style.backgroundPosition = `-${Math.min(progress, 100) * 20}px 0` // eslint-disable-line no-magic-numbers
 
   const label: XUL.Label = (document.getElementById('better-bibtex-progress-label') as unknown as XUL.Label)
   label.value = msg
@@ -840,6 +846,8 @@ class Progress {
 }
 
 export class BetterBibTeX {
+  // eslint-disable-next-line prefer-arrow/prefer-arrow-functions, @typescript-eslint/no-unsafe-return, @typescript-eslint/explicit-module-boundary-types
+  public CSL() { return CSL }
   public TestSupport = new TestSupport
   public KeyManager = new KeyManager
   public Text = { sentenceCase }
@@ -1016,10 +1024,13 @@ export class BetterBibTeX {
 
     Events.emit('loaded')
 
-    Events.on('export-progress', (percent: number, translator: string) => {
-      const preparing = percent < 0 ? l10n.localize('Preferences.auto-export.status.preparing') : ''
-      percent = Math.abs(percent)
-      setProgress(percent && percent < 100 && Math.abs(percent), `${preparing} ${translator}`) // eslint-disable-line no-magic-numbers
+    Events.on('export-progress', (percent: number, message: string) => {
+      /*
+      let status = `${percent < 0 ? l10n.localize('Preferences.auto-export.status.preparing') : ''} ${translator}`.trim()
+      if (Translators.queue.queued) status += ` +${Translators.queue.queued}`
+      setProgress(percent && percent < 100 && Math.abs(percent), status) // eslint-disable-line no-magic-numbers
+      */
+      setProgress(percent, message) // eslint-disable-line no-magic-numbers
     })
   }
 }

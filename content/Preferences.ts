@@ -7,13 +7,15 @@ import { patch as $patch$ } from './monkey-patch'
 import { DB as Cache } from './db/cache'
 
 import { Preference } from './prefs'
-import { options as preferenceOptions } from '../gen/preferences/meta'
+import { options as preferenceOptions, defaults as preferenceDefaults } from '../gen/preferences/meta'
 import { Formatter } from './key-manager/formatter'
 import { AutoExport } from './auto-export'
 import { Translators } from './translators'
 import { client } from './client'
 import * as l10n from './l10n'
 import { Events } from './events'
+import { pick } from './file-picker'
+import { flash } from './flash'
 
 const namespace = 'http://retorque.re/zotero-better-bibtex/'
 
@@ -32,8 +34,10 @@ class AutoExportPane {
 
     this.refresh()
 
-    Events.on('export-progress', (percent: number, _translator, ae: number) => {
-      if (percent >= 100) this.refreshCacheRate(ae).catch(err => log.error('failed to refresh cacherate for completed auto-export', ae, err))
+    Events.on('export-progress', (percent: number, _message: string, ae: number) => {
+      if (percent >= 100 && typeof ae === 'number') {
+        this.refreshCacheRate(ae).catch(err => log.error('failed to refresh cacherate for completed auto-export', ae, err))
+      }
     })
   }
 
@@ -112,7 +116,7 @@ class AutoExportPane {
             break
 
           case 'status':
-            if (ae.status === 'running' && Preference.worker && typeof progress === 'number') {
+            if (ae.status === 'running' && typeof progress === 'number') {
               (node as XUL.Textbox).value = progress < 0 ? `${this.label?.preparing || 'preparing'} ${-progress}%` : `${progress}%`
             }
             else {
@@ -266,6 +270,50 @@ export class PrefPane {
   private globals: Record<string, any>
   // private prefwindow: HTMLElement
 
+  public async importPrefs(): Promise<void> {
+    const preferences: { path: string, contents?: string, parsed?: any } = {
+      path: await pick(Zotero.getString('fileInterface.import'), 'open', [['BBT JSON file', '*.json']]),
+    }
+    if (!preferences.path) return
+
+    try {
+      preferences.contents = Zotero.File.getContents(preferences.path)
+    }
+    catch (err) {
+      flash(`could not read contents of ${preferences.path}`)
+      return
+    }
+
+    try {
+      preferences.parsed = JSON.parse(preferences.contents)
+    }
+    catch (err) {
+      flash(`could not parse contents of ${preferences.path}`)
+      return
+    }
+
+    if (typeof preferences.parsed?.config?.preferences !== 'object') {
+      flash(`no preferences in ${preferences.path}`)
+      return
+    }
+
+    try {
+      log.debug('importing', preferences.path)
+      for (const [pref, value] of Object.entries(preferences.parsed.config.preferences)) {
+        if (typeof value === 'undefined' || typeof value !== typeof preferenceDefaults[pref]) {
+          flash(`Invalid ${typeof value} value for ${pref}, expected ${preferenceDefaults[pref]}`)
+        }
+        else {
+          Preference[pref] = value
+          flash(`${pref} set to ${JSON.stringify(pref)}`)
+        }
+      }
+    }
+    catch (err) {
+      flash(err.message)
+    }
+  }
+
   public getCitekeyFormat(target = null): void {
     if (target) this.keyformat = target
     this.keyformat.value = Preference.citekeyFormat
@@ -275,13 +323,21 @@ export class PrefPane {
     if (target) this.keyformat = target
     if (!this.keyformat || Zotero.BetterBibTeX.ready.isPending()) return // itemTypes not available yet
 
-    let msg = '', color = ''
-    try {
-      Formatter.parsePattern(this.keyformat.value)
-      if (Formatter.warning) {
-        msg = Formatter.warning
+    let msg = '', color = '', pattern = (this.keyformat.value as string) || ''
+
+    if (pattern.startsWith('[')) {
+      try {
+        pattern = Zotero.BetterBibTeX.KeyManager.convertLegacy(pattern)
+        msg = 'legacy citekey formula format'
         color = 'yellow'
       }
+      catch (err) {
+        msg = err.message
+        color = 'orange'
+      }
+    }
+    try {
+      Formatter.parsePattern(pattern)
       if (this.keyformat.value) this.saveCitekeyFormat(target)
     }
     catch (err) {
@@ -291,7 +347,7 @@ export class PrefPane {
       log.error('prefs: key format error:', msg)
     }
 
-    if (!this.keyformat.value && !msg) msg = 'pattern is empty'
+    if (!pattern && !msg) msg = 'pattern is empty'
 
     this.keyformat.setAttribute('style', (msg ? `-moz-appearance: none !important; background-color: ${color}` : ''))
     this.keyformat.setAttribute('tooltiptext', msg)
@@ -300,8 +356,11 @@ export class PrefPane {
   public saveCitekeyFormat(target = null): void {
     if (target) this.keyformat = target
     try {
-      Formatter.parsePattern(this.keyformat.value)
-      Preference.citekeyFormat = this.keyformat.value
+      let pattern = this.keyformat.value as string
+      if (pattern.startsWith('[')) pattern = Zotero.BetterBibTeX.KeyManager.convertLegacy(pattern)
+
+      Formatter.parsePattern(pattern)
+      Preference.citekeyFormat = pattern
     }
     catch (error) {
       // restore previous value
@@ -541,12 +600,11 @@ export class PrefPane {
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     for (const state of (Array.from(this.globals.document.getElementsByClassName('better-bibtex-preferences-worker-state')) as XUL.Textbox[])) {
-      state.value = l10n.localize(`BetterBibTeX.workers.${Preference.worker ? 'status' : 'disabled'}`, {
+      state.value = l10n.localize('BetterBibTeX.workers.status', {
         total: Translators.workers.total,
-        workers: Preference.worker,
         running: Translators.workers.running.size,
       })
-      state.classList[Preference.worker ? 'remove' : 'add']('textbox-emph')
+      state.classList.remove('textbox-emph')
     }
 
     if (this.autoexport) this.autoexport.refresh()

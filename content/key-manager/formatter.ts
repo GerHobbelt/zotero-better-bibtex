@@ -6,7 +6,7 @@ import { log } from '../logger'
 import fold2ascii from 'fold-to-ascii'
 import ucs2decode = require('punycode2/ucs2/decode')
 import scripts = require('xregexp/tools/output/scripts')
-import { transliterate } from 'transliteration'
+import { transliterate } from 'transliteration/dist/node/src/node/index'
 
 import { flash } from '../flash'
 import { Preference } from '../prefs'
@@ -267,7 +267,6 @@ class PatternFormatter {
   public chunk = ''
   public citekey = ''
   public folding: boolean
-  public warning = ''
 
   public generate: () => string
   public postfix: { start: number, format: string }
@@ -351,10 +350,8 @@ class PatternFormatter {
 
   public parsePattern(pattern): string {
     log.debug('parsePattern.pattern:', pattern)
-    const { code, warning } = new formula.PatternParser(pattern)
-    this.warning = warning
-    if (Preference.testing) log.debug('parsePattern.compiled:', warning, code)
-
+    const code = formula.convert(pattern)
+    if (Preference.testing) log.debug('parsePattern.compiled:', code)
     return code
   }
 
@@ -619,7 +616,7 @@ class PatternFormatter {
     const firstAuthor = authors.shift()
 
     // eslint-disable-next-line no-magic-numbers
-    let author = [firstAuthor.substring(0, 5)].concat(authors.map(name => name.substring(0, 1)).join('.')).join(sep)
+    let author = [firstAuthor.substring(0, 5)].concat(authors.map(name => name.substring(0, 1)).join(sep)).join(sep)
     if (this.folding) author = this.clean(author, true)
     return this.$text(author)
   }

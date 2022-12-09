@@ -8,6 +8,7 @@ import type { Translators } from '../../typings/translators'
 import { valid } from '../../gen/items/items'
 
 import { DOMParser as XMLDOMParser } from '@xmldom/xmldom'
+import * as CSL from 'citeproc'
 
 declare var ZOTERO_TRANSLATOR_INFO: TranslatorHeader // eslint-disable-line no-var
 
@@ -146,15 +147,21 @@ import dateFormats from '../../schema/dateFormats.json'
 
 const ctx: DedicatedWorkerGlobalScope = self as any
 
-export const environment = {
+export const workerEnvironment = {
   version: '',
   platform: '',
   locale: '',
 }
 
+for(const [key, value] of (new URLSearchParams(ctx.location.search)).entries()) {
+  workerEnvironment[key] = value
+}
+
 export const workerJob: Partial<Translators.Worker.Job> = {}
 
 class WorkerZoteroBetterBibTeX {
+  public CSL() { return CSL }
+
   public cacheFetch(itemID: number) {
     return workerJob.data.cache[itemID]
   }
@@ -203,7 +210,7 @@ const WorkerZoteroUtilities = {
   ...ZU,
   Item: ZUI,
 
-  getVersion: () => environment.version,
+  getVersion: () => workerEnvironment.version,
 
   /*
   public getCreatorsForType(itemType) {
@@ -217,7 +224,7 @@ const WorkerZoteroUtilities = {
 }
 
 function isWinRoot(path) {
-  return environment.platform === 'win' && path.match(/^[a-z]:\\?$/i)
+  return workerEnvironment.platform === 'win' && path.match(/^[a-z]:\\?$/i)
 }
 function makeDirs(path) {
   if (isWinRoot(path)) return
@@ -350,7 +357,7 @@ class WorkerZotero {
   public init() {
     this.Date.init(dateFormats)
 
-    workerJob.preferences.platform = environment.platform
+    workerJob.preferences.platform = workerEnvironment.platform
     workerJob.preferences.client = client
     this.output = ''
     this.items = workerJob.data.items.length
@@ -394,7 +401,7 @@ class WorkerZotero {
   }
 
   public get locale() {
-    return environment.locale
+    return workerEnvironment.locale
   }
 
   public getHiddenPref(pref) {
@@ -454,10 +461,6 @@ ctx.onmessage = function(e: { isTrusted?: boolean, data?: Translators.Worker.Mes
 
   try {
     switch (e.data.kind) {
-      case 'configure':
-        Object.assign(environment, e.data.environment)
-        break
-
       case 'start':
         Object.assign(workerJob, JSON.parse(dec.decode(new Uint8Array(e.data.config))))
         importScripts(`resource://zotero-better-bibtex/${workerJob.translator}.js`)

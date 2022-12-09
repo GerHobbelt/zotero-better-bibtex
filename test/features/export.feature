@@ -13,6 +13,8 @@ Feature: Export
 
     Examples:
       | file                                                                                                                     | references |
+      | Apply Title Casing to tex.subtitle entry on export #2213                                                                 | 1          |
+      | Citation key format backward compatibility issue. #2204                                                                  | 1          |
       | inspireHep fetching broken #2201                                                                                         | 1          |
       | noclean                                                                                                                  | 1          |
       | date with fractional seconds                                                                                             | 1          |
@@ -249,7 +251,7 @@ Feature: Export
       | BibTeX export is incompatible with Zotero 6 Preprint item type. #2080 | 1 |
 
   @csl
-  Scenario Outline: Export <references> references for CSL JSON to <file>
+  Scenario Outline: Export <references> references for CSL-JSON to <file>
     When I import <references> references from "export/<file>.json"
     Then an export using "Better CSL JSON" should match "export/*.csl.json"
 
@@ -261,6 +263,10 @@ Feature: Export
       | CSL exporters; ignore [Fields to omit from export] setting #1179 | 26         |
       | Quotes around last names should be removed from citekeys #856    | 1          |
       | BBT CSL JSON; Do not use shortTitle and journalAbbreviation #372 | 1          |
+
+    @use.with_client=jurism
+    Examples:
+      | Export library to Better CSL JSONYAML failed when standard items included. #2212 | 1 |
 
   Scenario: Omit URL export when DOI present. #131
     When I import 3 references with 2 attachments from "export/*.json" into a new collection
@@ -433,6 +439,10 @@ Feature: Export
     And I import 1 reference with 1 attachment from "export/*.json"
     Then an export using "Better BibTeX" with useJournalAbbreviation on should match "export/*.bibtex"
 
+  Scenario: Auto Abbreviation of Proceedings Title #2245
+    When I import 2 references from "export/*.json"
+    Then an export using "Better BibTeX" with useJournalAbbreviation on should match "export/*.bibtex"
+
   @81 @bbt
   Scenario: Journal abbreviations exported in bibtex (81)
     Given I set preference .citekeyFormat to "[authors2][year][journal:nopunct]"
@@ -456,16 +466,16 @@ Feature: Export
   Scenario: Transforming exported file names (windows path conversion) #1939
     Given I import 1 reference from "export/*.json"
     And I set preference .postscript to "export/*.js"
-    And I set preference .worker to false
+    And I set export option worker to false
     Then an export using "Better BibTeX" should match "export/*.bibtex"
 
   # jurism doesn't have walknotedom
   @use.with_client=zotero
   Scenario: Make DOMParser available in background export #2094
     Given I import 4 references from "export/*.json"
-    And I set preference .worker to false
+    And I set export option worker to false
     Then an export using "Better BibLaTeX" should match "export/*.biblatex"
-    When I set preference .worker to true
+    When I set export option worker to false
     Then an export using "Better BibLaTeX" should match "export/*.biblatex"
 
   @postscript @1043
@@ -551,7 +561,7 @@ Feature: Export
   @1420
   Scenario: (non-)dropping particle handling #313
     When I import 53 references from "export/*.json"
-    And I set preference .worker to false
+    And I set export option worker to false
     Then an export using "Better BibLaTeX" should match "export/*.biblatex"
 
   @1270
@@ -584,7 +594,7 @@ Feature: Export
     Then an export using "Better BibTeX" should match "export/*.bibtex"
 
   # tests the cache for CSL
-  @use.with_client=zotero @use.with_slow=true @timeout=3000 @whopper
+  @use.with_client=zotero @use.with_slow=true @timeout=3000 @whopper @whopper-csl
   Scenario: Really Big whopping library
     When I restart Zotero with "1287" + "export/*.json"
     And I reset the cache

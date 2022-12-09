@@ -32,6 +32,7 @@ import tempfile
 import zipfile
 import fnmatch
 import sqlite3
+from pygit2 import Repository
 
 root = os.path.join(os.path.dirname(__file__), '..')
 
@@ -55,11 +56,12 @@ class fetch(object):
     self.schema = os.path.join(SCHEMA.root, f'{client}.json')
 
     if client == 'zotero':
-      releases = [
-        ref['ref'].split('/')[-1]
-        for ref in
-        json.loads(readurl('https://api.github.com/repos/zotero/zotero/git/refs/tags'))
-      ]
+      # releases = [
+      #   ref['ref'].split('/')[-1]
+      #   for ref in
+      #   json.loads(readurl('https://api.github.com/repos/zotero/zotero/git/refs/tags'))
+      # ]
+      releases = []
       releases += [
         rel['version']
         for rel in
@@ -118,14 +120,14 @@ class fetch(object):
 
     current = releases[-1]
     if current not in hashes[client]:
-      ood = f'{current} not in f{client}.json'
+      ood = f'{current} not in {client}.json'
     elif not os.path.exists(self.schema):
       ood = f'{self.schema} does not exist'
     elif not os.path.exists(itemtypes):
       ood = f'{itemtypes} does not exist'
     else:
       return
-    if 'CI' in os.environ:
+    if 'CI' in os.environ or Repository('.').head.shorthand != 'master':
       raise ValueError(f'{self.schema} out of date: {ood}')
 
     print('  updating', os.path.basename(self.schema))
@@ -525,8 +527,6 @@ with fetch('zotero') as z, fetch('jurism') as j:
         else:
           min_version[client] = rel
 
-    print('******** UGLY HACK FOR #2099 *********')
-    min_version={ client: '5.2.7182818284590452' if ver == '6.0' else ver for client, ver in min_version.items() }
     with open(os.path.join(root, 'schema', 'supported.json'), 'w') as f:
       json.dump(min_version, f)
 
@@ -552,7 +552,7 @@ with open(os.path.join(TYPINGS, 'serialized-item.d.ts'), 'w') as f:
   print(template('items/serialized-item.d.ts.mako').render(fields=fields, itemTypes=itemTypes).strip(), file=f)
 
 print('  writing field simplifier')
-with open(os.path.join(ITEMS, 'items.ts'), 'w') as f:
+with open(os.path.join(ITEMS, 'items.ts'), 'w') as items, open(os.path.join(ITEMS, 'simplify.ts'), 'w') as simplify:
   valid = Munch(type={}, field={})
   for itemType in jsonpath.parse('*.itemTypes.*.itemType').find(SCHEMA):
     client = str(itemType.full_path).split('.')[0]
@@ -731,7 +731,11 @@ with open(os.path.join(ITEMS, 'items.ts'), 'w') as f:
         assert labels[field][client] == label, (client, field, labels[field][client], label)
 
   try:
-    print(template('items/items.ts.mako').render(names=names, labels=labels, valid=valid, aliases=aliases, schemas=SCHEMA).strip(), file=f)
+    print(template('items/items.ts.mako').render(names=names, labels=labels, valid=valid, aliases=aliases, schemas=SCHEMA).strip(), file=items)
+  except:
+    print(exceptions.text_error_template().render())
+  try:
+    print(template('items/simplify.ts.mako').render(names=names, labels=labels, valid=valid, aliases=aliases, schemas=SCHEMA).strip(), file=simplify)
   except:
     print(exceptions.text_error_template().render())
   #stringizer = lambda x: DG.nodes[x]['name'] if x in DG.nodes else x
