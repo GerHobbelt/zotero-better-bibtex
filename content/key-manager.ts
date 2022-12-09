@@ -6,7 +6,7 @@ import { jieba } from './key-manager/chinese'
 import { Scheduler } from './scheduler'
 import { log } from './logger'
 import { flash } from './flash'
-import { Events, itemsChanged as notifyItemsChanged } from './events'
+import { Events } from './events'
 import { fetchAsync as fetchInspireHEP } from './inspire-hep'
 import * as Extra from './extra'
 import { $and, Query } from './db/loki'
@@ -160,7 +160,7 @@ export class KeyManager {
       }
     }
 
-    if (updates.length) notifyItemsChanged(updates)
+    if (updates.length) Events.itemsChanged(updates)
   }
 
   public async init(): Promise<void> {
@@ -406,13 +406,11 @@ export class KeyManager {
       if (!existing) {
         // if the extra doesn't have a citekey, insert marker, next phase will find & fix it
         this.keys.insert({ citekey: extra.extraFields.citationKey || marker, pinned: !!extra.extraFields.citationKey, itemID: item.itemID, libraryID: item.libraryID, itemKey: item.key })
-
       }
       else if (extra.extraFields.citationKey && ((extra.extraFields.citationKey !== existing.citekey) || !existing.pinned)) {
         // we have an existing key in the DB, extra says it should be pinned to the extra value, but it's not.
         // update the DB to have the itemkey if necessaru
         this.keys.update({ ...existing, citekey: extra.extraFields.citationKey, pinned: true, itemKey: item.key })
-
       }
       else if (!existing.itemKey) {
         this.keys.update({ ...existing, itemKey: item.key })

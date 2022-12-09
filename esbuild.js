@@ -26,7 +26,7 @@ async function bundle(config) {
   config = {
     bundle: true,
     format: 'iife',
-    define: { BigInt: 'Number' },
+    // define: { BigInt: 'Number' },
     target: ['firefox60'],
     inject: [],
     ...config,
@@ -48,7 +48,7 @@ async function bundle(config) {
     target = `${config.outdir} [${config.entryPoints.join(', ')}]`
   }
   console.log('* bundling', target)
-  console.log('  aliasing BigInt to Number for https://github.com/benjamn/ast-types/issues/750')
+  // console.log('  aliasing BigInt to Number for https://github.com/benjamn/ast-types/issues/750')
   const meta = (await esbuild.build(config)).metafile
   if (typeof metafile === 'string') await fs.promises.writeFile(metafile, JSON.stringify(meta, null, 2))
 }
@@ -63,7 +63,6 @@ async function rebuild() {
       // loader.bibertool,
       loader.peggy,
       loader.__dirname,
-      loader.ajv,
       shims
     ],
     outdir: 'build/content',
@@ -76,32 +75,26 @@ async function rebuild() {
   })
 
   // worker code
-  const vars = [ 'Zotero', 'workerContext' ]
+  const vars = [ 'Zotero', 'workerJob', 'environment', 'DOMParser' ]
   const globalName = vars.join('__')
   await bundle({
     entryPoints: [ 'content/worker/zotero.ts' ],
     globalName,
     plugins: [
       loader.trace('worker'),
+      loader.patcher('setup/patches'),
       // loader.bibertool,
       // loader.peggy,
       loader.__dirname,
       shims
     ],
     outdir: 'build/content/worker',
-    banner: { js: [
-        'importScripts("resource://gre/modules/osfile.jsm")',
-        'importScripts("resource://zotero/config.js") // import ZOTERO_CONFIG',
-      ].join('\n')
-    },
     footer: {
-      js: [
-        // make these var, not const, so they get hoisted and are available in the global scope. See logger.ts
-        `var { ${vars.join(', ')} } = ${globalName};`,
-        'importScripts(`resource://zotero-better-bibtex/${workerContext.translator}.js`);',
-      ].join('\n'),
+      // make these var, not const, so they get hoisted and are available in the global scope. See logger.ts
+      js: `var { ${vars.join(', ')} } = ${globalName};`,
     },
     metafile: 'gen/worker.json',
+    external: [ 'jsdom' ],
   })
 
   // translators
@@ -125,11 +118,13 @@ async function rebuild() {
         loader.bibertool,
         // loader.peggy,
         loader.__dirname,
-        loader.ajv,
         shims
       ],
       outfile,
-      banner: { js: `if (typeof ZOTERO_TRANSLATOR_INFO === 'undefined') var ZOTERO_TRANSLATOR_INFO = ${JSON.stringify(header)};` },
+      banner: { js: `
+        if (typeof ZOTERO_TRANSLATOR_INFO === 'undefined') var ZOTERO_TRANSLATOR_INFO = {}; // declare if not declared
+        Object.assign(ZOTERO_TRANSLATOR_INFO, ${JSON.stringify(header)}); // assign new data
+      `},
       // make these var, not const, so they get hoisted and are available in the global scope. See logger.ts
       footer: { js: `var { ${vars.join(', ')} } = ${globalName};` },
       metafile: `gen/${translator.name}.json`,

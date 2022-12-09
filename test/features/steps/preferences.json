@@ -429,6 +429,13 @@
     "var": "importJabRefStrings"
   },
   {
+    "name": "importNoteToExtra",
+    "type": "string",
+    "default": "",
+    "affects": [],
+    "var": "importNoteToExtra"
+  },
+  {
     "name": "importSentenceCase",
     "type": "string",
     "default": "on+guess",
@@ -511,6 +518,22 @@
     "affects": [],
     "var": "kuroshiro",
     "label": "Apply kuroshiro romajization in Japanese names/titles. Uses a lot of memory."
+  },
+  {
+    "name": "language",
+    "type": "string",
+    "default": "langid",
+    "affects": [
+      "Better BibLaTeX",
+      "Better BibTeX"
+    ],
+    "var": "language",
+    "label": "Export language as",
+    "options": {
+      "langid": "langid",
+      "language": "language",
+      "both": "both"
+    }
   },
   {
     "name": "mapMath",
@@ -795,7 +818,7 @@
   {
     "name": "verbatimFields",
     "type": "string",
-    "default": "url,doi,file,ids,eprint,verba,verbb,verbc,groups",
+    "default": "url,doi,file,ids,eprint,/^verb[a-z]$/,groups,/^citeulike-linkout-[0-9]+$/, /^bdsk-url-[0-9]+$/",
     "affects": [],
     "var": "verbatimFields"
   },
@@ -815,11 +838,10 @@
     "var": "warnTitleCased"
   },
   {
-    "name": "workers",
-    "type": "number",
-    "default": 1,
+    "name": "worker",
+    "type": "boolean",
+    "default": true,
     "affects": [],
-    "var": "workers",
-    "label": "Parallel background exports:"
+    "var": "worker"
   }
 ]

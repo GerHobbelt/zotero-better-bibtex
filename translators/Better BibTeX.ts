@@ -273,8 +273,10 @@ export function doExport(): void {
     ref.add({name: 'shorttitle', value: item.shortTitle})
     ref.add({name: 'abstract', value: item.abstractNote?.replace(/\n+/g, ' ')})
     ref.add({name: 'nationality', value: item.country})
-    ref.add({name: 'langid', value: babelLanguage(item.language) }) // help explain why bracing is weird on bibtex
     ref.add({name: 'assignee', value: item.assignee})
+
+    if (['langid', 'both'].includes(Translator.preferences.language)) ref.add({name: 'langid', value: babelLanguage(item.language) })
+    if (['language', 'both'].includes(Translator.preferences.language)) ref.add({name: 'language', value: item.language })
 
     // this needs to be order volume - number for #1475
     ref.add({name: 'volume', value: ref.normalizeDashes(item.volume) })
@@ -502,7 +504,7 @@ class ZoteroItem {
 
       if (Translator.preferences.testing) {
         const err = valid.test(JSON.parse(JSON.stringify(this.item)), true) // stringify/parse is a fast way to get rid of methods
-        if (err) this.error(`import error: ${this.type} ${this.bibtex.key}: ${err}`)
+        if (err) this.error(`import error: ${this.type} ${this.bibtex.key}: ${err}\n${JSON.stringify(this.item, null, 2)}`)
       }
     }
   }
@@ -900,15 +902,24 @@ class ZoteroItem {
     return true
   }
 
-  protected $annotation(value) {
+  protected $annotation(value, field) {
+    if (Translator.importToExtra[field]) {
+      let plaintext = value.replace(/<p>/g, '').replace(/<\/p>/g, '\n\n').trim()
+      if (Translator.importToExtra[field] === 'force') plaintext = plaintext.replace(/<[^>]+>/g, '')
+      if (!plaintext.includes('<')) {
+        this.addToExtra(plaintext)
+        return true
+      }
+    }
+
     this.item.notes.push(value)
     return true
   }
-  protected $comment(value) { return this.$annotation(value) }
-  protected $annote(value) { return this.$annotation(value) }
-  protected $review(value) { return this.$annotation(value) }
-  protected $notes(value) { return this.$annotation(value) }
-  protected $note(value) { return this.$annotation(value) }
+  protected $comment(value) { return this.$annotation(value, 'comment') }
+  protected $annote(value) { return this.$annotation(value, 'annote') }
+  protected $review(value) { return this.$annotation(value, 'review') }
+  protected $notes(value) { return this.$annotation(value, 'notes') }
+  protected $note(value) { return this.$annotation(value, 'note') }
 
   protected $series(value) { return this.set('series', value) }
 
@@ -921,11 +932,7 @@ class ZoteroItem {
   }
 
   protected $language(_value, _field) {
-    const language = (this.bibtex.fields.language || []).concat(this.bibtex.fields.langid || [])
-      .map(babelLanguage) // eslint-disable-line @typescript-eslint/no-unsafe-return
-      .join(' and ')
-
-    return this.set('language', language)
+    return this.set('language', this.bibtex.fields.language?.[0] || this.bibtex.fields.langid?.[0])
   }
   protected $langid(value, field) { return this.$language(value, field) }
 
@@ -1177,7 +1184,6 @@ class ZoteroItem {
     }
   }
 
-  /*
   private addToExtra(str) {
     if (this.item.extra && this.item.extra !== '') {
       this.item.extra += `\n${str}`
@@ -1186,7 +1192,6 @@ class ZoteroItem {
       this.item.extra = str
     }
   }
-  */
 
   private set(field, value, fallback = null) {
     if (!this.validFields[field]) return fallback && this.fallback(fallback, value)

@@ -331,7 +331,6 @@ def step_impl(context, expected, found):
     expected = os.path.join(context.tmpDir, expected[2:])
   else:
     expected = os.path.join(ROOT, 'test/fixtures', expected)
-    context.zotero.loaded(expected)
   with open(expected) as f:
     expected = f.read()
 
@@ -369,3 +368,7 @@ def step_impl(context, path):
 @step(u'I reset the cache')
 def step_impl(context):
   context.zotero.execute('Zotero.BetterBibTeX.TestSupport.resetCache()')
+
+@step(u'I copy date-added/date-modified for the selected items from the extra field')
+def step_impl(context):
+  context.zotero.execute('Zotero.BetterBibTeX.ZoteroPane.patchDates()')

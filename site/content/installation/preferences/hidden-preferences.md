@@ -84,6 +84,12 @@ default: `yes`
 
 On import, place all bib(la)tex field Zotero doesn't have an existing field for in the Zotero `extra` field of the item
 
+## importNoteToExtra
+
+default: `<not set>`
+
+On import, import note-like fields in this comma-separated list to the `extra` field, unless the note has rich text.
+
 ## importUnknownTexCommand
 
 default: `ignore`
@@ -198,7 +204,7 @@ A strings override will disable caching for that export.
 
 ## verbatimFields
 
-default: `url,doi,file,ids,eprint,verba,verbb,verbc,groups`
+default: `url,doi,file,ids,eprint,/^verb[a-z]$/,groups,/^citeulike-linkout-[0-9]+$/, /^bdsk-url-[0-9]+$/`
 
 list of fields to treat as verbatim during import. If you're importing e.g. Mendeley-generated BibTeX, which is out of spec in various ways, try removing `file` from this list before import.
 
@@ -207,6 +213,12 @@ list of fields to treat as verbatim during import. If you're importing e.g. Mend
 default: `no`
 
 Both Zotero and BBT expect titles to be in sentence-case, but a lot of sites offer import data that is Title Cased. When exporting these titles to bib(la)tex you're going to get a lot of extra unwanted braces, because all these Title Cased words will look like proper nouns to BBTs own title-casing mechanism. When this setting is on, you will be warned when you import/save items in Zotero with titles that look like they're Title Cased, so that you can inspect/correct them.
+
+## worker
+
+default: `yes`
+
+BBT can perform its exports in a separate thread, and should no longer block Zotero's UI pretty much regardless of how large your library is. It is possible to turn background exports off by setting this value to `false` in the hidden preferences; you will get the old (blocking) behavior back, but you can't complain about Zotero being laggy during auto-exports; all Zotero exports are blocking, and it's a minor miracle I got background exports to work at all.
 
 ## Abbreviation style:
 

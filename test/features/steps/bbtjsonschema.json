@@ -246,6 +246,9 @@
             "importJabRefStrings": {
               "type": "boolean"
             },
+            "importNoteToExtra": {
+              "type": "string"
+            },
             "importSentenceCase": {
               "enum": [
                 "on+guess",
@@ -279,6 +282,13 @@
             },
             "kuroshiro": {
               "type": "boolean"
+            },
+            "language": {
+              "enum": [
+                "langid",
+                "language",
+                "both"
+              ]
             },
             "mapMath": {
               "type": "string"
@@ -391,8 +401,8 @@
             "warnTitleCased": {
               "type": "boolean"
             },
-            "workers": {
-              "type": "number"
+            "worker": {
+              "type": "boolean"
             }
           },
           "type": "object"

@@ -13,6 +13,11 @@ Feature: Export
 
     Examples:
       | file                                                                                                                     | references |
+      | inspireHep fetching broken #2201                                                                                         | 1          |
+      | noclean                                                                                                                  | 1          |
+      | date with fractional seconds                                                                                             | 1          |
+      | Citation key add `_preprint` if URL contains `arxiv.org` #2163                                                           | 12         |
+      | Authors export looks like this prefix=von useprefix=true... #2138                                                        | 1          |
       | Zotero's Manuscript 'Type' is mapped to both biblatex's 'type' and 'howpublished' #2114                                  | 1          |
       | Configurable journal abbreviation for citekey #2097                                                                      | 1          |
       | BetterBibLaTeX exports articles as online #2058                                                                          | 3          |
@@ -451,8 +456,17 @@ Feature: Export
   Scenario: Transforming exported file names (windows path conversion) #1939
     Given I import 1 reference from "export/*.json"
     And I set preference .postscript to "export/*.js"
-    And I set preference .workers to 0
+    And I set preference .worker to false
     Then an export using "Better BibTeX" should match "export/*.bibtex"
+
+  # jurism doesn't have walknotedom
+  @use.with_client=zotero
+  Scenario: Make DOMParser available in background export #2094
+    Given I import 4 references from "export/*.json"
+    And I set preference .worker to false
+    Then an export using "Better BibLaTeX" should match "export/*.biblatex"
+    When I set preference .worker to true
+    Then an export using "Better BibLaTeX" should match "export/*.biblatex"
 
   @postscript @1043
   Scenario: Unbalanced vphantom escapes #1043
@@ -504,7 +518,7 @@ Feature: Export
     When I set preference .parseParticles to false
     Then an export using "Better BibLaTeX" should match "export/*.off.biblatex"
 
-  @ae
+  @retries=5
   Scenario: auto-export
     Given I import 3 references with 2 attachments from "export/*.json" into a new collection
     And I set preference .autoExport to "immediate"
@@ -513,7 +527,7 @@ Feature: Export
     And an auto-export of "/auto-export" to "~/autoexport.coll.bib" using "Better BibLaTeX" should match "export/*.before.coll.biblatex"
     When I select the item with a field that is "IEEE"
     And I remove the selected item
-    And I wait 10 seconds
+    And I wait 15 seconds
     Then "~/autoexport.bib" should match "export/*.after.biblatex"
     And "~/autoexport.coll.bib" should match "export/*.after.coll.biblatex"
 
@@ -537,7 +551,7 @@ Feature: Export
   @1420
   Scenario: (non-)dropping particle handling #313
     When I import 53 references from "export/*.json"
-    And I set preference .workers to 0
+    And I set preference .worker to false
     Then an export using "Better BibLaTeX" should match "export/*.biblatex"
 
   @1270
@@ -590,7 +604,6 @@ Feature: Export
   # And I wait 5 seconds
   # And I wait at most 100 seconds until all auto-exports are done
   # Then "/tmp/autoexport.bib" should match "export/*.bibtex"
-
   @1495
   Scenario: use author dash separation rather than camel casing in citekey #1495
     Given I import 1 reference from "export/*.json"

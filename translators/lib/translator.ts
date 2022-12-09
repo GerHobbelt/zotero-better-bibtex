@@ -1,11 +1,9 @@
 declare const Zotero: any
-declare const ZOTERO_TRANSLATOR_INFO: any
 declare const __estrace: any // eslint-disable-line no-underscore-dangle
 
 import { affects, names as preferences, defaults, PreferenceName, Preferences, schema } from '../../gen/preferences/meta'
 import { client } from '../../content/client'
 import { RegularItem, Item, Collection } from '../../gen/typings/serialized-item'
-import { environment } from '../../content/environment'
 import { Pinger } from '../../content/ping'
 
 type TranslatorMode = 'export' | 'import'
@@ -45,7 +43,7 @@ type NestedCollection = {
   parent?: NestedCollection
 }
 
-type TranslatorHeader = {
+export type TranslatorHeader = {
   translatorID: string
   translatorType: number
   label: string
@@ -78,6 +76,7 @@ type TranslatorHeader = {
     async: boolean
   }
 }
+declare var ZOTERO_TRANSLATOR_INFO: TranslatorHeader // eslint-disable-line no-var
 
 class Items {
   public list: CacheableItem[] = []
@@ -102,7 +101,7 @@ class Items {
 
     this.ping = new Pinger({
       total: this.list.length,
-      callback: pct => environment.worker ? Zotero.BetterBibTeX.setProgress(pct) : null, // eslint-disable-line @typescript-eslint/no-unsafe-return
+      callback: pct => Zotero.worker ? Zotero.BetterBibTeX.setProgress(pct) : null, // eslint-disable-line @typescript-eslint/no-unsafe-return
     })
   }
 
@@ -137,9 +136,10 @@ function escapeRegExp(text: string): string {
 
 export class ITranslator { // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
   public preferences: Preferences
+  public importToExtra: Record<string, 'plain' | 'force'>
   public skipFields: string[]
   public skipField: Record<string, boolean>
-  public verbatimFields?: string[]
+  public verbatimFields?: (string | RegExp)[]
   public csquotes: { open: string, close: string }
   public export: { dir: string, path: string } = {
     dir: undefined,
@@ -182,8 +182,6 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
     requests: number
   }
 
-  public header: TranslatorHeader
-
   public collections: Record<string, Collection>
 
   public isJurisM: boolean
@@ -202,13 +200,6 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
   public initialized = false
 
   constructor() {
-    this.header = (ZOTERO_TRANSLATOR_INFO as TranslatorHeader)
-
-    this[this.header.label.replace(/[^a-z]/ig, '')] = true
-    this.BetterTeX = this.BetterBibTeX || this.BetterBibLaTeX
-    this.BetterCSL = this.BetterCSLJSON || this.BetterCSLYAML
-    this.options = this.header.displayOptions || {}
-
     const collator = new Intl.Collator('en')
     this.stringCompare = (collator.compare.bind(collator) as (left: string, right: string) => number)
   }
@@ -231,6 +222,11 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
   }
 
   public init(mode: TranslatorMode): void {
+    this[ZOTERO_TRANSLATOR_INFO.label.replace(/[^a-z]/ig, '')] = true
+    this.BetterTeX = this.BetterBibTeX || this.BetterBibLaTeX
+    this.BetterCSL = this.BetterCSLJSON || this.BetterCSLYAML
+    this.options = ZOTERO_TRANSLATOR_INFO.displayOptions || {}
+
     this.platform = (Zotero.getHiddenPref('better-bibtex.platform') as string)
     this.isJurisM = client === 'jurism'
     this.isZotero = !this.isJurisM
@@ -277,10 +273,23 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
     }, {} as unknown as Preferences)
 
     // special handling
+    this.importToExtra = {}
+    this.preferences.importNoteToExtra
+      .toLowerCase()
+      .split(/\s*,\s*/)
+      .filter(field => field)
+      .forEach(field => {
+        this.importToExtra[field.replace(/\s*=.*/, '')] = field.match(/\s*=\s*force$/) ? 'force' : 'plain'
+      })
     this.skipFields = this.preferences.skipFields.toLowerCase().split(',').map(field => this.typefield(field)).filter((s: string) => s)
     this.skipField = this.skipFields.reduce((acc, field) => { acc[field] = true; return acc }, {})
 
-    this.verbatimFields = this.preferences.verbatimFields.toLowerCase().split(',').map(field => this.typefield(field)).filter((s: string) => s)
+    let m
+    this.verbatimFields = this.preferences.verbatimFields
+      .toLowerCase()
+      .split(',')
+      .map(field => (m = field.trim().match(/^[/](.+)[/]$/)) ? new RegExp(m[1], 'i') : this.typefield(field))
+      .filter((s: string | RegExp) => s)
 
     if (!this.verbatimFields.length) this.verbatimFields = null
     this.csquotes = this.preferences.csquotes ? { open: this.preferences.csquotes[0], close: this.preferences.csquotes[1] } : null
@@ -288,7 +297,7 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
     this.preferences.testing = (Zotero.getHiddenPref('better-bibtex.testing') as boolean)
 
     if (mode === 'export') {
-      this.unicode = !this.preferences[`ascii${this.header.label.replace(/Better /, '')}`]
+      this.unicode = !this.preferences[`ascii${ZOTERO_TRANSLATOR_INFO.label.replace(/Better /, '')}`]
 
       if (this.preferences.baseAttachmentPath && (this.export.dir === this.preferences.baseAttachmentPath || this.export.dir?.startsWith(this.preferences.baseAttachmentPath + this.paths.sep))) {
         this.preferences.relativeFilePaths = true
@@ -323,14 +332,14 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
     }
 
     this.collections = {}
-    if (mode === 'export' && this.header.configOptions?.getCollections && Zotero.nextCollection) {
+    if (mode === 'export' && ZOTERO_TRANSLATOR_INFO.configOptions?.getCollections && Zotero.nextCollection) {
       let collection: any
       while (collection = Zotero.nextCollection()) {
         this.registerCollection(collection, '')
       }
     }
 
-    if (!this.initialized && mode === 'export' && this.preferences.testing && typeof __estrace === 'undefined' && schema.translator[this.header.label]?.cached) {
+    if (!this.initialized && mode === 'export' && this.preferences.testing && typeof __estrace === 'undefined' && schema.translator[ZOTERO_TRANSLATOR_INFO.label]?.cache) {
       const ignored = ['testing']
       this.preferences = new Proxy(this.preferences, {
         set: (object, property, _value) => {
@@ -340,7 +349,7 @@ export class ITranslator { // eslint-disable-line @typescript-eslint/naming-conv
           // JSON.stringify will attempt to get this
           if (property as unknown as string === 'toJSON') return object[property]
           if (!preferences.includes(property)) throw new TypeError(`Unsupported preference ${property}`)
-          if (!ignored.includes(property) && !affects[property]?.includes(this.header.label)) throw new TypeError(`Preference ${property} claims not to affect ${this.header.label}`)
+          if (!ignored.includes(property) && !affects[property]?.includes(ZOTERO_TRANSLATOR_INFO.label)) throw new TypeError(`Preference ${property} claims not to affect ${ZOTERO_TRANSLATOR_INFO.label}`)
           return object[property] // eslint-disable-line @typescript-eslint/no-unsafe-return
         },
       })
