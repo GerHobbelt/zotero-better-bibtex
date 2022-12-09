@@ -8,6 +8,8 @@ import * as months from '../gen/dateparser-months.json'
 
 import { getLocaleDateOrder } from '../submodules/zotero-utilities/date'
 
+type SeasonID = 1 | 2 | 3 | 4 // eslint-disable-line no-magic-numbers
+
 export type ParsedDate = {
   type?: 'date' | 'open' | 'verbatim' | 'season' | 'interval' | 'list'
   year?: number
@@ -18,7 +20,7 @@ export type ParsedDate = {
   from?: ParsedDate
   to?: ParsedDate
   dates?: ParsedDate[]
-  season?: number
+  season?: SeasonID
   uncertain?: boolean
   approximate?: boolean
 }
@@ -31,9 +33,9 @@ const Season = new class {
     [ 21, 22, 23, 24 ], // eslint-disable-line no-magic-numbers
   ]
 
-  public fromMonth(month: number): number {
+  public fromMonth(month: number): SeasonID {
     for (const range of this.ranges) {
-      if (range.includes(month)) return (month - range[0]) + 1
+      if (range.includes(month)) return (month - range[0]) + 1 as SeasonID
     }
     return undefined
   }
@@ -164,6 +166,9 @@ function parseToDate(value: string, as_single_date: boolean): ParsedDate {
   }
 
   if (value === '') return { type: 'open' }
+
+  // https://github.com/retorquere/zotero-better-bibtex/issues/2275
+  if (m = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}/.exec(value)) value = m[1]
 
   // https://forums.zotero.org/discussion/73729/name-and-year-import-issues-with-new-nasa-ads#latest
   if (m = (/^(-?[0-9]+)-00-00$/.exec(value) || /^(-?[0-9]+)\/00\/00$/.exec(value) || /^(-?[0-9]+-[0-9]+)-00$/.exec(value))) return parseToDate(m[1], true)

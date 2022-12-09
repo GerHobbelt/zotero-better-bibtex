@@ -8,9 +8,15 @@ import time
 import os
 from hamcrest import assert_that, equal_to
 from steps.utils import assert_equal_diff, expand_scenario_variables
+from steps.citations import citations
 import steps.utils as utils
 import steps.zotero as zotero
 import glob
+import subprocess, shlex, shutil
+import io
+import zipfile
+import html, re
+import timeit
 
 from contextlib import contextmanager
 
@@ -133,6 +139,22 @@ def step_impl(context, references, source):
   context.imported = source
   assert_that(context.zotero.import_file(context, source, items=False), equal_to(references))
 
+@step(r'I compile "{source}" to "{target}" it should match "{baseline}"')
+def step_impl(context, source, target, baseline):
+  source = os.path.join('test/fixtures', expand_scenario_variables(context, source))
+  baseline = os.path.join('test/fixtures', expand_scenario_variables(context, baseline))
+
+  target = expand_scenario_variables(context, target)
+  assert target.startswith('~/'), target
+  target = os.path.join(context.tmpDir, target[2:])
+
+  lua = 'site/content/exporting/zotero.lua'
+  client = context.config.userdata.get('client', 'zotero')
+
+  subprocess.run(f'pandoc -s --metadata=zotero_client:{client} --lua-filter={shlex.quote(lua)} -o {shlex.quote(target)} {shlex.quote(source)}', shell=True, check=True)
+
+  assert_equal_diff(citations(baseline), citations(target))
+
 @step(r'I import {references:d} references from "{source}"')
 def step_impl(context, references, source):
   source = expand_scenario_variables(context, source)
@@ -175,8 +197,13 @@ def step_impl(context, references, attachments, source):
   context.imported = source
   assert_that(context.zotero.import_file(context, source), equal_to(references))
 
+@step(r'I export the library {n:d} times using "{translator}"')
+def step_impl(context, n, translator):
+  timeit.timeit(lambda: export_library(context, translator = translator), number=n)
+
 def export_library(context, translator='BetterBibTeX JSON', collection=None, expected=None, output=None, displayOption=None, timeout=None, resetCache=False):
-  expected = expand_scenario_variables(context, expected)
+  if expected is not None:
+    expected = expand_scenario_variables(context, expected)
   displayOptions = { **context.displayOptions }
   if displayOption: displayOptions[displayOption] = True
   if output:

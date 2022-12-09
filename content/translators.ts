@@ -7,13 +7,14 @@ declare class ChromeWorker extends Worker { }
 Components.utils.import('resource://zotero/config.js')
 declare const ZOTERO_CONFIG: any
 
+import { clone } from './clone'
 import { Deferred } from './deferred'
 import type { Translators as Translator } from '../typings/translators'
 import { Preference } from './prefs'
 import { schema } from '../gen/preferences/meta'
 import { Serializer } from './serializer'
 import { log } from './logger'
-import { DB as Cache, selector as cacheSelector } from './db/cache'
+import { DB as Cache } from './db/cache'
 import { DB } from './db/main'
 import { flash } from './flash'
 import { $and, Query } from './db/loki'
@@ -64,7 +65,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   }
 
   public async init() {
-    this.start()
+    await this.start()
 
     this.itemType = {
       note: Zotero.ItemTypes.getID('note'),
@@ -145,7 +146,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     return translation.newItems
   }
 
-  private start() {
+  private async start() { // eslint-disable-line @typescript-eslint/require-await
     if (this.worker) return
 
     try {
@@ -156,7 +157,24 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
         clientName: Zotero.clientName,
       }).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
 
+      log.debug('translate: getting worker')
       this.worker = new ChromeWorker(`chrome://zotero-better-bibtex/content/worker/zotero.js?${environment}`)
+      /*
+      const ping = new Promise((resolve, reject) => {
+        this.worker.onmessage = (e: { data: Translator.Worker.Message }) => {
+          if (e.data.kind === 'ping') {
+            resolve('')
+          }
+          else {
+            log.debug('translate: getting worker, ping response', e.data)
+            reject(e.data.kind)
+          }
+        }
+      })
+      this.worker.postMessage({ kind: 'ping' })
+      const timeout = await new Promise((resolve, reject) => setTimeout(reject, 2000)) // eslint-disable-line no-magic-numbers
+      await Promise.race([ping, timeout])
+      */
       log.debug('translate: worker acquired')
     }
     catch (err) {
@@ -173,7 +191,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   }
 
   public async exportItemsByWorker(job: ExportJob) {
-    this.start()
+    await this.start()
 
     if (!this.worker) {
       // this returns a promise for a new export, but for a foreground export
@@ -240,8 +258,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       job: id,
     }
 
-    const selector = schema.translator[translator.label]?.cache ? cacheSelector(translator.label, config.options, config.preferences) : null
-
     let items: any[] = []
     this.worker.onmessage = (e: { data: Translator.Worker.Message }) => {
       switch (e.data?.kind) {
@@ -270,27 +286,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
         case 'cache':
           let { itemID, entry, metadata } = e.data
           if (!metadata) metadata = {}
-
-          if (!cache) {
-            const msg = `worker.cacheStore: cache ${translator.label} not found`
-            log.error(msg)
-            deferred.reject(msg)
-            this.workers.running.delete(id)
-          }
-
-          const query = {...selector, itemID}
-          let cached = cache.findOne($and(query))
-
-          if (cached) {
-            // this should not happen?
-            log.error('unexpected cache store:', query)
-            cached.entry = entry
-            cached.metadata = metadata
-            cached = cache.update(cached)
-          }
-          else {
-            cache.insert({...query, entry, metadata})
-          }
+          Cache.store(translator.label, itemID, config.options, config.preferences, entry, metadata)
           break
 
         case 'progress':
@@ -312,8 +308,8 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       this.workers.running.delete(id)
     }
 
-    log.dump('eibqw: fetching scope')
     const scope = this.exportScope(job.scope)
+    log.dump('eibqw: fetching scope', scope)
     let collections: any[] = []
     switch (scope.type) {
       case 'library':
@@ -379,6 +375,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     log.dump('eibqw: loading export cache')
     // pre-fetch cache
     if (cache) {
+      const selector = schema.translator[translator.label]?.cache ? Cache.selector(translator.label, config.options, config.preferences) : null
       const query = {...selector, itemID: { $in: config.data.items.map(item => item.itemID) }}
 
       // not safe in async!
@@ -418,10 +415,8 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   }
 
   public displayOptions(translatorID: string, displayOptions: any): any {
-    if (!displayOptions) {
-      return this.byId[translatorID].displayOptions || {}
-    }
-    const defaults = this.byId[translatorID].displayOptions || {}
+    displayOptions = clone(displayOptions || this.byId[translatorID]?.displayOptions || {})
+    const defaults = this.byId[translatorID]?.displayOptions || {}
     for (const [k, v] of Object.entries(defaults)) {
       if (typeof displayOptions[k] === 'undefined') displayOptions[k] = v
     }
@@ -492,8 +487,8 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
         deferred.resolve(obj ? obj.string : undefined)
       }
       else {
-        log.error('Translators.exportItems failed in', { time: Date.now() - start, ...job, translate: undefined })
-        deferred.reject('translation failed')
+        log.error('error: Translators.exportItems failed in', { time: Date.now() - start, ...job, translate: undefined })
+        deferred.reject('error: translation failed')
       }
     })
 

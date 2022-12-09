@@ -1,7 +1,6 @@
 const fs = require('fs')
 const path = require('path')
 const diff = require('diff')
-const { bibertool } = require('./bibertool')
 const peggy = require('peggy')
 const shell = require('shelljs')
 const { filePathFilter } = require('file-path-filter')
@@ -46,13 +45,13 @@ module.exports.patcher = function(dir) {
   }
 }
 
-module.exports.bibertool = {
-  name: 'bibertool',
+module.exports.bib = {
+  name: 'bib',
   setup(build) {
-    build.onLoad({ filter: /\/biber-tool\.conf$/ }, async (args) => {
+    build.onLoad({ filter: /\.bib$/ }, async (args) => {
       return {
-        contents: bibertool(await fs.promises.readFile(args.path, 'utf-8')),
-        loader: 'js'
+        contents: await fs.promises.readFile(args.path, 'utf-8'),
+        loader: 'text'
       }
     })
   }

@@ -147,8 +147,6 @@ async function bundle(config) {
     ...config,
   }
 
-  config.inject.push('./setup/loaders/globals.js')
-
   let target
   if (config.outfile) {
     target = config.outfile
@@ -160,8 +158,9 @@ async function bundle(config) {
     target = `${config.outdir} [${config.entryPoints.map(js).join(', ')}]`
   }
 
-  if (config.exportGlobals) {
-    delete config.exportGlobals
+  const exportGlobals = config.exportGlobals
+  delete config.exportGlobals
+  if (exportGlobals) {
     const esm = await esbuild.build({ ...config, logLevel: 'silent', format: 'esm', metafile: true, write: false })
     if (process.env.GML) {
       console.log('  generating dependency graph', target + '.gml')
@@ -169,9 +168,9 @@ async function bundle(config) {
     }
     for (const output of Object.values(esm.metafile.outputs)) {
       if (output.entryPoint) {
-        config.globalName = output.exports.sort().join('___')
+        const sep = '$$'
+        config.globalName = escape(`{ ${output.exports.sort().join(', ')} }`).replace(/%/g, '$')
         // make these var, not const, so they get hoisted and are available in the global scope.
-        config.footer = { js: `var { ${output.exports.sort().join(', ')} } = ${config.globalName};` }
       }
     }
   }
@@ -183,6 +182,12 @@ async function bundle(config) {
   // console.log('  aliasing BigInt to Number for https://github.com/benjamn/ast-types/issues/750')
   const meta = (await esbuild.build(config)).metafile
   if (typeof metafile === 'string') await fs.promises.writeFile(metafile, JSON.stringify(meta, null, 2))
+  if (exportGlobals) {
+    await fs.promises.writeFile(
+      target,
+      (await fs.promises.readFile(target, 'utf-8')).replace(config.globalName, unescape(config.globalName.replace(/[$]/g, '%')))
+    )
+  }
 }
 
 async function rebuild() {
@@ -192,11 +197,12 @@ async function rebuild() {
     plugins: [
       loader.trace('plugin'),
       loader.patcher('setup/patches'),
-      // loader.bibertool,
+      loader.bib,
       loader.peggy,
       loader.__dirname,
       shims
     ],
+    inject: ['./setup/loaders/globals.js'],
     outdir: 'build/content',
     banner: { js: 'if (!Zotero.BetterBibTeX) {\n' },
     footer: { js: '\n}' },
@@ -212,15 +218,18 @@ async function rebuild() {
     plugins: [
       loader.trace('worker'),
       loader.patcher('setup/patches'),
-      // loader.bibertool,
+      loader.bib,
       // loader.peggy,
       loader.__dirname,
       shims
     ],
+    inject: ['./setup/loaders/globals.js'],
     outdir: 'build/content/worker',
     exportGlobals: true,
     metafile: 'gen/worker.json',
     external: [ 'jsdom' ],
+    banner: { js: '\ndump("\\nloading BBT chromeworker\\n")\ntry {\n' },
+    footer: { js: '} catch ($$err$$) { dump("\\nerror: failed loading BBT chromeworker: " + $$err$$.message  + "\\n" + $$err$$.stack + "\\n") }\ndump("\\nloaded BBT chromeworker\\n")\n' },
   })
 
   // translators
@@ -235,11 +244,11 @@ async function rebuild() {
       entryPoints: [path.join(translator.dir, translator.name + '.ts')],
       plugins: [
         // loader.trace('translators'),
-        loader.bibertool,
         // loader.peggy,
         loader.__dirname,
         shims
       ],
+      inject: ['./setup/loaders/globals.js'],
       outfile,
       banner: { js: `
         if (typeof ZOTERO_TRANSLATOR_INFO === 'undefined') var ZOTERO_TRANSLATOR_INFO = {}; // declare if not declared
@@ -264,7 +273,8 @@ async function rebuild() {
       platform: 'node',
       // target: ['node12'],
       // inject: [ './headless/inject.js' ],
-      plugins: [node_modules.plugin, loader.patcher('setup/patches'), loader.bibertool, loader.peggy ],
+      plugins: [node_modules.plugin, loader.patcher('setup/patches'), loader.peggy ],
+      inject: ['./setup/loaders/globals.js'],
       bundle: true,
       globalName: 'Headless',
       entryPoints: [ 'headless/zotero.ts' ],
@@ -282,7 +292,7 @@ async function rebuild() {
       platform: 'node',
       // target: ['node12'],
       // inject: [ './headless/inject.js' ],
-      plugins: [node_modules.plugin, loader.patcher('setup/patches'), loader.bibertool, loader.peggy ],
+      plugins: [node_modules.plugin, loader.patcher('setup/patches'), loader.peggy ],
       bundle: true,
       globalName: 'Headless',
       entryPoints: [ 'headless/index.ts' ],

@@ -30,7 +30,7 @@ require('./pull-export') // just require, initializes the pull-export end points
 require('./json-rpc') // just require, initializes the json-rpc end point
 import { AUXScanner } from './aux-scanner'
 import * as Extra from './extra'
-import { sentenceCase, titleCase, HTMLParser } from './text'
+import { sentenceCase, HTMLParser, HTMLParserOptions } from './text'
 
 Components.utils.import('resource://gre/modules/AddonManager.jsm')
 declare const AddonManager: any
@@ -40,7 +40,7 @@ import { Events } from './events'
 
 import { Translators } from './translators'
 import { DB } from './db/main'
-import { DB as Cache, selector as cacheSelector } from './db/cache'
+import { DB as Cache } from './db/cache'
 import { Serializer } from './serializer'
 import { JournalAbbrev } from './journal-abbrev'
 import { AutoExport } from './auto-export'
@@ -48,9 +48,14 @@ import { KeyManager } from './key-manager'
 import { TestSupport } from './test-support'
 import { TeXstudio } from './tex-studio'
 import { $and } from './db/loki'
-import { cloneDeep } from 'lodash'
 import * as l10n from './l10n'
 import * as CSL from 'citeproc'
+
+import { generateBibLaTeX } from '../translators/bibtex/biblatex'
+import { generateBibTeX, parseBibTeX } from '../translators/bibtex/bibtex'
+import { generateCSLYAML, parseCSLYAML } from '../translators/csl/yaml'
+import { generateCSLJSON } from '../translators/csl/json'
+import { Translation } from '../translators/lib/translator'
 
 // UNINSTALL
 AddonManager.addAddonListener({
@@ -219,6 +224,25 @@ function parseLibraryKeyFromCitekey(libraryKey) {
   return null
 }
 
+$patch$(Zotero.API, 'getResultsFromParams', original => function Zotero_API_getResultsFromParams(params: Record<string, any>) {
+  try {
+    if (params.itemKey) {
+      const libraryID = params.libraryID || Zotero.Libraries.userLibraryID
+      params.itemKey = params.itemKey.map((itemKey: string) => {
+        const m = itemKey.match(/^(bbt:|@)(.+)/)
+        const citekey: { itemKey: string } = m ? Zotero.BetterBibTeX.KeyManager.keys.findOne($and({ libraryID, citekey: m[2] })) : {}
+        return citekey.itemKey || itemKey
+      })
+    }
+  }
+  catch (err) {
+    log.debug('getResultsFromParams', params, err)
+  }
+  log.debug('getResultsFromParams modified', params)
+
+  return original.apply(this, arguments) as Record<string, any>
+})
+
 if (typeof Zotero.DataObjects.prototype.parseLibraryKeyHash === 'function') {
   log.debug('monkey-patching parseLibraryKeyHash')
   $patch$(Zotero.DataObjects.prototype, 'parseLibraryKeyHash', original => function Zotero_DataObjects_prototype_parseLibraryKeyHash(libraryKey: string) {
@@ -367,23 +391,14 @@ $patch$(Zotero.Integration, 'getApplication', original => function Zotero_Integr
 
 /* bugger this, I don't want megabytes of shared code in the translators */
 import * as DateParser from './dateparser'
-import { qualityReport } from './qr-check'
 import type { ParsedDate } from './dateparser'
 
 Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
   clientName: Zotero.clientName,
 
-  CSL() { return CSL }, // eslint-disable-line @typescript-eslint/no-unsafe-return
-  qrCheck(_sandbox: any, value: string, test: string, params = null) { return qualityReport(value, test, params) },
-
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  parseDate(_sandbox: any, date: string): ParsedDate { return DateParser.parse(date) },
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-
-  isEDTF(_sandbox: any, date: string, minuteLevelPrecision = false) { return DateParser.isEDTF(date, minuteLevelPrecision) },
-
+  /*
   titleCase(_sandbox: any, text: string): string { return titleCase(text) },
-  parseHTML(_sandbox: any, text: { toString: () => any }, options: { html?: boolean, caseConversion?: boolean, exportBraceProtection: boolean, csquotes: string, exportTitleCase: boolean }) {
+  parseHTML(_sandbox: any, text: { toString: () => any }, options: HTMLParserOptions) {
     options = {
       ...options,
       exportBraceProtection: Preference.exportBraceProtection,
@@ -392,68 +407,31 @@ Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
     }
     return HTMLParser.parse(text.toString(), options)
   },
+  */
   // extractFields(_sandbox, item) { return Extra.get(item.extra) },
 
+  strToISO(_sandbox: any, str: string) { return DateParser.strToISO(str) },
+
+  generateBibLaTeX(_sandbox: any, translation: Translation) { generateBibLaTeX(translation) },
+  generateBibTeX(_sandbox: any, translation: Translation) { generateBibTeX(translation) },
+  generateCSLYAML(_sandbox: any, translation: Translation) { generateCSLYAML(translation) },
+  generateCSLJSON(_sandbox: any, translation: Translation) { generateCSLJSON(translation) },
+
   cacheFetch(sandbox: { translator: { label: string }[] }, itemID: number, options: { exportNotes: boolean, useJournalAbbreviation: boolean }, prefs: any) {
-    if (!Preference.cache) return false
-
-    const collection = Cache.getCollection(sandbox.translator[0].label)
-    if (!collection) return false
-
-    // not safe in async!
-    const cloneObjects = collection.cloneObjects
-    collection.cloneObjects = false
-    const cached = collection.findOne($and({...cacheSelector(sandbox.translator[0].label, options, prefs), itemID}))
-    collection.cloneObjects = cloneObjects
-
-    if (!cached) return false
-
-    // collection.update(cached) // touches the cache object so it isn't reaped too early
-
-    // direct-DB access for speed...
-    cached.meta.updated = (new Date).getTime() // touches the cache object so it isn't reaped too early
-    collection.dirty = true
-
-    // isolate object, because it was not fetched using clone
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return cloneDeep(cached)
+    return Cache.fetch(sandbox.translator[0].label, itemID, options, prefs)
   },
 
   cacheStore(sandbox: { translator: { label: string }[] }, itemID: number, options: { exportNotes: boolean, useJournalAbbreviation: boolean }, prefs: any, entry: any, metadata: any) {
-    if (!Preference.cache) return false
-
-    if (!metadata) metadata = {}
-
-    const collection = Cache.getCollection(sandbox.translator[0].label)
-    if (!collection) {
-      log.error('cacheStore: cache', sandbox.translator[0].label, 'not found')
-      return false
-    }
-
-    const selector = {...cacheSelector(sandbox.translator[0].label, options, prefs), itemID}
-    let cached = collection.findOne($and(selector))
-
-    if (cached) {
-      cached.entry = entry
-      cached.metadata = metadata
-      cached = collection.update(cached)
-
-    }
-    else {
-      cached = collection.insert({...selector, entry, metadata})
-
-    }
-
-    return true
+    return Cache.store(sandbox.translator[0].label, itemID, options, prefs, entry, metadata)
   },
-
-  strToISO(_sandbox: any, str: string) { return DateParser.strToISO(str) },
+  parseDate(_sandbox: any, date: string): ParsedDate { return DateParser.parse(date) },
 }
 
 Zotero.Translate.Import.prototype.Sandbox.BetterBibTeX = {
   clientName: Zotero.clientName,
 
-  parseHTML(_sandbox: any, text: { toString: () => any }, options: { html?: boolean, caseConversion?: boolean, exportBraceProtection: boolean, csquotes: string, exportTitleCase: boolean }) {
+  parseHTML(_sandbox: any, text: { toString: () => any }, options: HTMLParserOptions) {
     options = {
       ...options,
       exportBraceProtection: Preference.exportBraceProtection,
@@ -462,8 +440,12 @@ Zotero.Translate.Import.prototype.Sandbox.BetterBibTeX = {
     }
     return HTMLParser.parse(text.toString(), options)
   },
+
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   parseDate(_sandbox: any, date: string): ParsedDate { return DateParser.parse(date) },
+
+  async parseBibTeX(_sandbox: any, input: string, translation: Translation) { return parseBibTeX(input, translation) },
+  parseCSLYAML(_sandbox: any, input: string): any { return parseCSLYAML(input) },
 }
 
 $patch$(Zotero.Utilities.Internal, 'itemToExportFormat', original => function Zotero_Utilities_Internal_itemToExportFormat(zoteroItem: any, _legacy: any, _skipChildItems: any) {
@@ -846,6 +828,8 @@ class Progress {
 }
 
 export class BetterBibTeX {
+  public Cache = Cache
+
   // eslint-disable-next-line prefer-arrow/prefer-arrow-functions, @typescript-eslint/no-unsafe-return, @typescript-eslint/explicit-module-boundary-types
   public CSL() { return CSL }
   public TestSupport = new TestSupport
@@ -1033,5 +1017,8 @@ export class BetterBibTeX {
       setProgress(percent, message) // eslint-disable-line no-magic-numbers
     })
   }
+
+  public parseDate(date: string): ParsedDate { return DateParser.parse(date) }
 }
+
 Zotero.BetterBibTeX = Zotero.BetterBibTeX || new BetterBibTeX

@@ -9,16 +9,15 @@ on:
 _anchors:
   get_version: &get_version
     name: get package version
-    run: echo "::set-output name=version::"`jq -r .version package.json`
-    id: version
+    run: echo "version="`jq -r .version package.json` >> $GITHUB_ENV
   install_python: &install_python
     name: install python
-    uses: actions/setup-python@v2
+    uses: actions/setup-python@v4
     with:
       python-version: '3.10'
   install_node: &install_node
     name: install node
-    uses: actions/setup-node@v2
+    uses: actions/setup-node@v3
     with:
       node-version: 16.x
   cache: &cache
@@ -44,7 +43,7 @@ _anchors:
     run: npm install
   upload_build_artifacts: &upload_build_artifacts
     name: store build artifacts
-    uses: actions/upload-artifact@v2
+    uses: actions/upload-artifact@v3
     with:
       name: build-artifacts
       path: |
@@ -52,13 +51,13 @@ _anchors:
         gen/
   download_build_artifacts: &download_build_artifacts
     name: fetch build artifacts
-    uses: actions/download-artifact@v2
+    uses: actions/download-artifact@v3
     with:
       name: build-artifacts
   # dummy directory minitests because otherwise dir structure is not maintained?!
   upload_test_artifacts: &upload_test_artifacts
     name: store test artifacts
-    uses: actions/upload-artifact@v2
+    uses: actions/upload-artifact@v3
     with:
       name: test-artifacts
       path: |
@@ -66,7 +65,7 @@ _anchors:
         minitests/
   download_test_artifacts: &download_test_artifacts
     name: fetch test artifacts
-    uses: actions/download-artifact@v2
+    uses: actions/download-artifact@v3
     with:
       name: test-artifacts
 
@@ -75,14 +74,14 @@ env:
   BINS: logs/stats/bins.json
 
 jobs:
-  jobs:
+  balance:
     outputs:
-      bins: ${{ steps.balance.outputs.bins }}
-      clients: ${{ steps.balance.outputs.clients }}
-      slow: ${{ steps.slow.outputs.slow }}
+      bins: ${{ env.test_bins }}
+      clients: ${{ env.test_clients }}
+      slow: ${{ env.test_slow }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - *install_python
     - run: pip install munch ortools
     - *get_version
@@ -92,23 +91,23 @@ jobs:
     - name: enable slow tests for master, scheduled builds, or tagged builds
       id: slow
       if:
-        (github.event.head_commit.message == steps.version.outputs.version && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'schedule' || github.ref == 'refs/heads/master'
-      run: echo "::set-output name=slow::--slow"
+        (github.event.head_commit.message == env.version && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'schedule' || github.ref == 'refs/heads/master'
+      run: echo "slow=--slow" >> $GITHUB_ENV
 
     - name: enable beta for tagged builds and scheduled builds
       id: beta
-      if: (github.event.head_commit.message == steps.version.outputs.version && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'schedule'
-      run: echo "::set-output name=beta::--beta"
+      if: (github.event.head_commit.message == env.version && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'schedule'
+      run: echo "beta=--beta" >> $GITHUB_ENV
 
     - name: balance tests
       id: balance
-      run: ./util/balance.py --durations $DURATIONS --bins $BINS --minutes 10 ${{ steps.slow.outputs.slow }} ${{ steps.beta.outputs.beta }}
+      run: ./util/balance.py --durations $DURATIONS --bins $BINS --minutes 10 ${{ env.slow }} ${{ env.beta }}
     - *upload_test_artifacts
 
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         persist-credentials: false
         submodules: true  # Fetch Hugo themes (true OR recursive)
@@ -116,7 +115,7 @@ jobs:
     - *get_version
     - name: cancel spurious build on tagged version
       uses: andymckay/cancel-action@master
-      if: github.event.head_commit.message == steps.version.outputs.version && !startsWith(github.ref, 'refs/tags/')
+      if: github.event.head_commit.message == env.version && !startsWith(github.ref, 'refs/tags/')
 
     - *install_python
     - *install_node
@@ -142,15 +141,16 @@ jobs:
   test:
     needs:
     - build
-    - jobs
+    - balance
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        bin: ${{ fromJSON(needs.jobs.outputs.bins) }}
-        client: ${{ fromJSON(needs.jobs.outputs.clients) }}
+        bin: ${{ fromJSON(needs.balance.outputs.bins) }}
+        client: ${{ fromJSON(needs.balance.outputs.clients) }}
+        worker: ['--worker', '--no-worker']
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - *download_build_artifacts
     - *download_test_artifacts
     - *install_python
@@ -162,20 +162,19 @@ jobs:
         curl -sL https://raw.githubusercontent.com/retorquere/zotero-deb/master/install.sh | sudo bash
         sudo apt-get update
         sudo apt-get install ${{ matrix.client }}
-
-    # fast test
-    - if: contains(github.event.commits[0].message, '[fast-test]')
-      run: echo "##[set-output name=this;]--test-this"
-      id: test
+        curl -LO https://github.com/jgm/pandoc/releases/download/2.19.2/pandoc-2.19.2-linux-amd64.tar.gz
+        tar xvzf pandoc-2.19.2-linux-amd64.tar.gz
+        sudo mv pandoc-2.19.2/bin/pandoc /usr/bin
+        pandoc -v
 
     # needs logs/logs to have them show up as logs in the artifact... no idea why
     - name: Run tests
       # continue-on-error: ${{ matrix.client == 'jurism' }}
-      run: xvfb-run --auto-servernum ./test/behave --client ${{ matrix.client }} --format ci --bin ${{ matrix.bin }} --bins $BINS ${{ steps.test.outputs.this }} --durations logs/stats/durations-${{ matrix.client }}-${{ matrix.bin }}.json ${{ needs.jobs.outputs.slow }}
+      run: xvfb-run --auto-servernum ./test/behave --client ${{ matrix.client }} ${{ matrix.worker }} --format ci --bin ${{ matrix.bin }} --bins $BINS --durations logs/stats/durations-${{ matrix.client }}-${{ matrix.bin }}${{ matrix.worker }}.json ${{ needs.balance.outputs.slow }}
       env:
         PYTHONUNBUFFERED: true
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       if: ${{ failure() || cancelled() }}
       with:
         name: debug log ${{ matrix.client }} ${{ matrix.bin }}
@@ -194,7 +193,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - *download_build_artifacts
     - *install_python
@@ -212,11 +211,11 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - *install_python
     - *download_test_artifacts
     - name: rebalance tests
-      run: ./util/merge-durations.py -o $DURATIONS `ls logs/stats/durations-zotero-*.json | grep -v beta`
+      run: ./util/merge-durations.py -o $DURATIONS `ls logs/stats/durations-zotero-*--no-worker.json | grep -v beta`
     - name: Store build stats
       uses: svenstaro/upload-release-action@v2
       with:
