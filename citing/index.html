@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="generator" content="Hugo 0.108.0">
+    <meta name="generator" content="Hugo 0.109.0">
     <meta name="description" content="Make Zotero more useful for us LaTeX holdouts">
 <meta name="author" content="Emiliano Heyns">
 
@@ -1902,7 +1902,7 @@ that yields a non-empty string. If all return a empty string, a random key will 
             <thead><tr><th>parameter</th><th>type</th><th>description</th><th>default</th></tr></thead>
             <tbody>
               <tr><td><code>n</code></td><td><i>number</i></td><td><p>number of words to select</p></td><td><code>3</code> </td></tr>
-<tr><td><code>m</code></td><td><i>number</i></td><td><p>number of words to capitalize. <code>0</code> means no capitalization</p></td><td><code>+0</code> </td></tr>
+<tr><td><code>m</code></td><td><i>number</i></td><td><p>number of words to capitalize. <code>0</code> means no words will be capitalized. Mind that existing capitals are not removed.</p></td><td><code>+0</code> </td></tr>
             </tbody>
           </table>
           </details>
@@ -1929,7 +1929,7 @@ that yields a non-empty string. If all return a empty string, a random key will 
             <thead><tr><th>parameter</th><th>type</th><th>description</th><th>default</th></tr></thead>
             <tbody>
               <tr><td><code>n</code></td><td><i>number</i></td><td><p>number of words to select</p></td><td><code>1</code> </td></tr>
-<tr><td><code>m</code></td><td><i>number</i></td><td><p>number of words to capitalize. <code>0</code> means no capitalization</p></td><td><code>+0</code> </td></tr>
+<tr><td><code>m</code></td><td><i>number</i></td><td><p>number of words to capitalize. <code>0</code> means no words will be capitalized. Mind that existing capitals are not removed.</p></td><td><code>+0</code> </td></tr>
             </tbody>
           </table>
           </details>
@@ -2451,6 +2451,8 @@ that yields a non-empty string. If all return a empty string, a random key will 
           </details>
         <p>formats date as by replacing y, m and d in the format </p></dd>
   
+    <dt><code>ideographs</code></dt></dd><p>Treat ideaographs as individual words </p></dd>
+  
     <dt><code>jieba</code></dt></dd><p>word segmentation for Chinese items. Uses substantial memory; must be enabled under Preferences -&gt; Better BibTeX -&gt; Advanced -&gt; Citekeys </p></dd>
   
     <dt><code>kuromoji</code></dt></dd><p>word segmentation for Japanese items. Uses substantial memory; must be enabled under Preferences -&gt; Better BibTeX -&gt; Advanced -&gt; Citekeys </p></dd>
@@ -2497,6 +2499,8 @@ that yields a non-empty string. If all return a empty string, a random key will 
     <dt><code>nopunctordash</code></dt></dd><p>Removes punctuation and word-connecting dashes. alias for <code>nopunct(dash='')</code> </p></dd>
   
     <dt><code>numeric</code></dt></dd><p>returns the value if it's an integer </p></dd>
+  
+    <dt><code>pinyin</code></dt></dd><p>transliterates the citation key to pinyin </p></dd>
   
     <dt><code>postfix</code></dt></dd>
           <details class="details"><summary class="summary">parameters:</summary>
