@@ -1548,6 +1548,7 @@ Better BibTeX for Zotero
     <li><a href="#string-definitions">@string definitions</a>
       <ul>
         <li><a href="#expand-the-string-vars-below-during-imports">Expand the @string vars below during imports</a></li>
+        <li><a href="#if-a-field-could-be-a-string-reference-export-it-as-an-unbraced-string-reference">If a field could be a @string reference, export it as an unbraced @string reference</a></li>
       </ul>
     </li>
   </ul>
@@ -1589,9 +1590,6 @@ only have hidden preferences). The defaults should just work, but here&rsquo;s a
 really large library, but you can read about what is involved <a href="/zotero-better-bibtex/support/performance/">here</a>.</p>
 <h2 id="fields">Fields</h2>
 <h3 id="when-merging-items-also-merge">When merging items, also merge:</h3>
-<h4 id="their-citation-keys-into-an-biblatex-ids-field">their citation keys into an bib(la)tex <code>ids</code> field</h4>
-<p>default: <code>no</code></p>
-<p>When merging items, also merge their citation keys into an bib(la)tex <code>ids</code> field.</p>
 <h4 id="fields-that-are-understood-to-be-csl-fields-by-zotero">fields that are understood to be CSL fields by Zotero</h4>
 <p>default: <code>no</code></p>
 <p>When merging items, also merge fields that are understood to be CSL fields by Zotero.</p>
@@ -1602,6 +1600,17 @@ really large library, but you can read about what is involved <a href="/zotero-b
 <h3 id="expand-the-string-vars-below-during-imports">Expand the @string vars below during imports</h3>
 <p>default: <code>yes</code></p>
 <p>When enabled, BBT will prepend the @strings section below to all Bib(La)TeX imports and will expand the strings during export.</p>
+<h3 id="if-a-field-could-be-a-string-reference-export-it-as-an-unbraced-string-reference">If a field could be a @string reference, export it as an unbraced @string reference</h3>
+<p>default: <code>No</code></p>
+<p>When enabled, BBT will try to retain @string vars its exports unsurrounded by braces; when set to &lsquo;detect&rsquo;, single-word strings will be assumed to be externally-defined @string vars,
+when set to &lsquo;match&rsquo;, only @strings declared in the @strings section of the preferences will be preserved. If you don&rsquo;t know what this means, leave it off.</p>
+<p>Options:</p>
+<ul>
+<li>No</li>
+<li>Assume single-word fields to be @string vars</li>
+<li>Match against the @string declarations below</li>
+<li>Match against the @string declarations and their values below</li>
+</ul>
 
 
 <footer class="footline">
