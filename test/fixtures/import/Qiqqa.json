@@ -1,0 +1,65 @@
+{
+  "config": {
+    "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
+    "label": "BetterBibTeX JSON",
+    "options": {
+      "exportNotes": true
+    },
+    "preferences": {
+      "citekeyFormat": "auth + year",
+      "citekeyFormatBackup": "auth + year"
+    }
+  },
+  "items": [
+    {
+      "citationKey": "godel1933present",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Kurt",
+          "lastName": "G\u00f6del"
+        }
+      ],
+      "date": "1933",
+      "extra": [
+        "Citation Key: godel1933present"
+      ],
+      "itemID": 1,
+      "itemType": "bookSection",
+      "pages": "45\u201353",
+      "publicationTitle": "Collected works",
+      "title": "The present situation in the foundations of mathematics",
+      "volume": "3"
+    },
+    {
+      "citationKey": "kuhne2006matters",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "Thomas",
+          "lastName": "K\u00fchne"
+        }
+      ],
+      "date": "2006",
+      "extra": [
+        "Citation Key: kuhne2006matters",
+        "Publisher: Springer"
+      ],
+      "issue": "4",
+      "itemID": 2,
+      "itemType": "journalArticle",
+      "pages": "369\u2013385",
+      "publicationTitle": "Software and Systems Modeling",
+      "tags": [
+        {
+          "tag": "MLM"
+        },
+        {
+          "tag": "ontological versus linguistic"
+        }
+      ],
+      "title": "Matters of (meta-) modeling",
+      "volume": "5"
+    }
+  ]
+}

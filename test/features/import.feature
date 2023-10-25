@@ -52,6 +52,13 @@ Feature: Import
     And I import 1 reference from "import/*.2.aux"
     Then the library should match "import/*-post.json"
 
+  Scenario: Copy date-addeddate-modified menu option not working #2378
+    When I import 2 references from "import/*.bib"
+    And I select 2 items with a field that contains "formal"
+    And I copy date-added/date-modified for the selected items from the extra field
+    And I wait 2 seconds
+    Then the library should match "import/*.json"
+
   Scenario: Copy date-addeddate-modified from extra field regenerates citation key #2142
     When I import 1 reference from "import/*.bib"
     And I select the item with a field that contains "Bargaining"
@@ -64,6 +71,7 @@ Feature: Import
 
     Examples:
       | file                                                                                   | references |
+      | Qiqqa                                                                                  | 2          |
       | Import from Clipboard stopped working #2377                                            | 1          |
       | Child items that use the crossref field do not have their parent fields imported #2373 | 3          |
       | accessDate must be ISO date #2376                                                      | 2          |
