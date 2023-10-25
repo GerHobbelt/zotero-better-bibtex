@@ -491,7 +491,13 @@ class PatternFormatter {
    * Fetches the key from inspire-hep based on DOI or arXiv ID
    */
   public $inspireHep() {
-    return this.$text(fetchInspireHEP(this.item) || '')
+    try {
+      return this.$text(fetchInspireHEP(this.item) || '')
+    }
+    catch (err) {
+      log.debug('inspire-hep returned an error:', err)
+      throw { next: true } // eslint-disable-line no-throw-literal
+    }
   }
 
   /**
@@ -1278,7 +1284,7 @@ class PatternFormatter {
   }
 
   private transliterate(str: string, mode?: 'minimal' | 'de' | 'german' | 'ja' | 'japanese' | 'zh' | 'chinese' | 'tw' | 'zh-hant' | 'chinese-traditional'): string {
-    mode = mode || this.item.transliterateMode || 'japanese'
+    mode = mode || this.item.transliterateMode || 'minimal'
 
     let replace: Record<string, string> = {}
     switch (mode) {

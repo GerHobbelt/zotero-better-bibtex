@@ -61,6 +61,7 @@ const fieldOrder = [
   'number',
   'eprint',
   'eprinttype',
+  'eprintclass',
   'primaryclass',
   'pages',
   'publisher',
@@ -204,11 +205,11 @@ export class Entry {
     let entrytype: any
 
     // workaround for preprints, https://forums.zotero.org/discussion/comment/385524#Comment_385524
-    const isPrePrint = this.translation.BetterBibTeX && this.item.itemType === 'report' && this.item.extraFields.kv.type?.toLowerCase() === 'article'
+    const pseudoPrePrint = this.translation.BetterBibTeX && this.item.itemType === 'report' && this.item.extraFields.kv.type?.toLowerCase() === 'article'
 
     // preserve for thesis type etc
     let csl_type = this.item.extraFields.kv.type
-    if (!isPrePrint && config.typeMap.csl[csl_type]) {
+    if (!pseudoPrePrint && config.typeMap.csl[csl_type]) {
       delete this.item.extraFields.kv.type
     }
     else {
@@ -232,7 +233,7 @@ export class Entry {
       entrytype = config.typeMap.csl[csl_type]
       this.entrytype_source = `csl.${csl_type}`
     }
-    else if (isPrePrint) {
+    else if (pseudoPrePrint) {
       entrytype = 'misc'
       delete this.item.extraFields.kv.type
       this.entrytype_source = `zotero.${this.item.itemType}`
@@ -253,7 +254,7 @@ export class Entry {
     // TODO: maybe just use item.extraFields.var || item.var instead of deleting them here
     for (const [name, value] of Object.entries(item.extraFields.kv)) {
       const ef = ExtraFields[name]
-      if (ef.zotero) {
+      if (ef?.zotero) {
         if (!item[name] || ef.type === 'date') {
           item[name] = value
         }
@@ -568,7 +569,7 @@ export class Entry {
     if (this.translation.BetterBibLaTeX) this.add({ name: 'pubstate', value: this.item.status })
 
     for (const [key, value] of Object.entries(this.item.extraFields.kv)) {
-      const type = ExtraFields[key].type
+      const type = ExtraFields[key]?.type || 'string'
       let enc = {name: 'creator', text: 'latex'}[type] || type
       const replace = type === 'date'
       // these are handled just like 'arxiv' and 'lccn', respectively
