@@ -6,7 +6,10 @@ import * as items from '../../gen/items/items'
 import { methods } from '../../gen/api/key-formatter'
 import { validator, noncoercing } from '../ajv'
 import _ from 'lodash'
-import { inspect } from 'loupe'
+
+import { stringify } from '../stringify'
+
+import alias = require('./alias.json')
 
 const object_or_null = { oneOf: [ { type: 'object' }, { type: 'null' } ] }
 const basics = {
@@ -280,7 +283,7 @@ function resolveArguments(method, args, node) {
   }
 
   let err: string
-  if (err = method.validate(parameters)) error(`${method.name.slice(1)}: ${err} ${inspect(parameters)}`, node)
+  if (err = method.validate(parameters)) error(`${method.name.slice(1)}: ${err} ${stringify(parameters)}`, node)
 
   args = method.parameters.map((param: string, i: number) => parameters[param] || (typeof method.defaults[i] === 'undefined' ? b.identifier('undefined') : b.literal(method.defaults[i])))
   let end: number
@@ -329,7 +332,7 @@ function print(ast): string {
 
 export function convert(formulas: string): string {
   let ast = parse(formulas).program
-  if (ast.body.length !== 1 || ast.body[0].type !== 'ExpressionStatement') throw new Error(`${JSON.stringify(formulas)}: expected 1 expression statement`)
+  if (ast.body.length !== 1 || ast.body[0].type !== 'ExpressionStatement') throw new Error(`${stringify(formulas)}: expected 1 expression statement`)
   ast = ast.body[0].expression
 
   const asts = split(ast, '|').map(formula => {
@@ -361,12 +364,7 @@ export function convert(formulas: string): string {
             }
             else {
               let name = `${namespace}${path.node.name.toLowerCase()}`
-              // deprecated aliases
-              switch (name) {
-                case '_fold':
-                  name = '_transliterate'
-                  break
-              }
+              name = alias[name] || name
               const method = api[name]
               if (!method) {
                 const me = `${namespace === '$' ? 'function' : 'filter'} ${JSON.stringify(path.node.name)}`
