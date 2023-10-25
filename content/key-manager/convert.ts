@@ -23,7 +23,7 @@ function upgrade(type) {
         type: 'object',
         properties: {
           type: { const: 'Literal' },
-          value: { type: type.type },
+          value: type,
           raw: { type: 'string' },
           ...basics,
         },
@@ -128,8 +128,8 @@ for (const meta of Object.values(api)) {
     }
   }
 }
-for (const method of Object.values(api)) {
-  (method  as any).validate = validator((method  as any).schema, noncoercing)
+for (const method of Object.values(api) as any[]) {
+  method.validate = validator(method.schema, noncoercing)
 }
 
 function assign(node: any, meta: any) {
@@ -360,7 +360,14 @@ export function convert(formulas: string): string {
               return b.callExpression(b.memberExpression(b.thisExpression(), b.identifier('$getField')), [b.literal(name)])
             }
             else {
-              const method = api[`${namespace}${path.node.name.toLowerCase()}`]
+              let name = `${namespace}${path.node.name.toLowerCase()}`
+              // deprecated aliases
+              switch (name) {
+                case '_fold':
+                  name = '_transliterate'
+                  break
+              }
+              const method = api[name]
               if (!method) {
                 const me = `${namespace === '$' ? 'function' : 'filter'} ${JSON.stringify(path.node.name)}`
                 error(`No such ${me}`, path.node)
