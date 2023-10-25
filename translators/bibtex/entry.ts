@@ -95,7 +95,7 @@ function property_sort(a: [string, string], b: [string, string]): number {
 }
 
 const enc_creators_marker = {
-  initials: '\u0097', // end of guarded area
+  initials: /[\u2063\u0097]/, // invisible separator, end of guarded area
   relax: '\u200C', // zero-width non-joiner
 }
 const isBibString = /^[a-z][-a-z0-9_]*$/i
@@ -394,7 +394,7 @@ export class Entry {
       return null
     }
 
-    if (this.translation.skipField[field.name]) return null
+    if (this.translation.skipField?.exec(`${this.translation.BetterBibTeX ? 'bibtex' : 'biblatex'}.${this.entrytype}.${field.name}`)) return null
 
     field.enc = field.enc || this.config.fieldEncoding[field.name] || 'latex'
 
@@ -814,8 +814,11 @@ export class Entry {
     }
     this.item.$cacheable = this.item.$cacheable && allow.cache
 
-    for (const name of this.translation.skipFields) {
-      this.remove(name)
+    if (this.translation.skipField) {
+      for (const name of Object.keys(this.has)) {
+        const fullname = `${this.translation.BetterBibTeX ? 'bibtex' : 'biblatex'}.${this.entrytype}.${name}`
+        if (fullname.match(this.translation.skipField)) this.remove(name)
+      }
     }
 
     if (this.has.url && this.has.doi) {
@@ -1187,11 +1190,24 @@ export class Entry {
       ({ family } = name)
     }
 
-    const initials_marker_pos: number = (name.given || '').indexOf(enc_creators_marker.initials) // end of guarded area
+    const initials_marker_pos: number = name.given?.match(enc_creators_marker.initials)?.index
     let initials: string | String
 
-    if (this.translation.preferences.biblatexExtendedNameFormat && (name['dropping-particle'] || name['non-dropping-particle'] || name['comma-suffix'])) {
-      if (initials_marker_pos >= 0) {
+    const extendedNameformat = (
+      this.translation.preferences.biblatexExtendedNameFormat
+      && (
+        (typeof initials_marker_pos === 'number' && initials_marker_pos > 1)
+        ||
+        name['dropping-particle']
+        ||
+        name['non-dropping-particle']
+        ||
+        name['comma-suffix']
+      )
+    )
+
+    if (extendedNameformat) {
+      if (typeof initials_marker_pos === 'number') {
         initials = name.given.substring(0, initials_marker_pos)
         if (initials.length > 1) initials = new String(initials) // eslint-disable-line no-new-wrappers
         name.given = name.given.replace(enc_creators_marker.initials, '')
@@ -1217,7 +1233,7 @@ export class Entry {
 
     if (family) family = this._enc_creator_part(family)
 
-    if (initials_marker_pos >= 0) name.given = `<span relax="true">${name.given.replace(enc_creators_marker.initials, '</span>')}`
+    if (typeof initials_marker_pos === 'number') name.given = `<span relax="true">${name.given.replace(enc_creators_marker.initials, '</span>')}`
 
     let latex = ''
     if (name['dropping-particle']) latex += this._enc_creator_part(this._enc_creators_pad_particle(name['dropping-particle']))
@@ -1238,7 +1254,7 @@ export class Entry {
       family = name.family
     }
 
-    if (name.given && (name.given.indexOf(enc_creators_marker.initials) >= 0)) {
+    if (name.given?.match(enc_creators_marker.initials)) {
       name.given = `<span relax="true">${name.given.replace(enc_creators_marker.initials, '</span>')}`
     }
 

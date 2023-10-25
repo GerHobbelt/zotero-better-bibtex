@@ -13,6 +13,7 @@ Feature: Export
 
     Examples:
       | file                                                                                                                     | references |
+      | Author multi-character initial gets shortened #2419                                                                      | 1          |
       | relativePaths overwritten by absolute after automatic export #2405                                                       | 1          |
       | Unable to process Russian  ь symbol while transliteration #2413                                                          | 1          |
       | Arabic script letters in citation keys #2403                                                                             | 1          |
@@ -371,13 +372,19 @@ Feature: Export
     Then an export using "Better BibLaTeX" should match "export/*.biblatex"
     And an export using "Better BibTeX" should match "export/*.bibtex"
 
-  @110 @111
   Scenario: two ISSN number are freezing browser #110 + Generating keys and export broken #111
     When I import 1 reference from "export/*.json"
     Then an export using "Better BibLaTeX" should match "export/*.pinned.biblatex"
     When I select the item with a field that contains "Genetics"
     And I unpin the citation key
     And I refresh the citation key
+    Then an export using "Better BibLaTeX" should match "export/*.biblatex"
+
+  Scenario: Refresh BibTeX key doesn't work (after removing a related entry) #2401
+    When I import 2 references from "export/*.json"
+    When I select the item with a field that is "IlligS.etal:2018"
+    And I remove the selected item
+    And I refresh all citation keys
     Then an export using "Better BibLaTeX" should match "export/*.biblatex"
 
   Scenario: Postfixed keys different between computers #1788
