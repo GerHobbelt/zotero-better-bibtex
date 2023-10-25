@@ -16,7 +16,7 @@ import argparse
 #import sys
 from github import Github
 #import os
-#import re
+import re
 #from pathlib import Path
 import shutil
 import subprocess
@@ -69,7 +69,8 @@ assert os.path.exists(args.data),  f'{args.data} does not exist'
 g = Github(os.environ['GITHUB_TOKEN'])
 repo = g.get_repo('retorquere/zotero-better-bibtex')
 issue = repo.get_issue(int(args.issue))
-args.title = sanitize_filename(f'{issue.title} #{issue.number}'.strip())
+args.title = re.sub(r'^\[[^\]]+\]\s*:', '', issue.title).strip()
+args.title = sanitize_filename(f'{args.title} #{issue.number}'.strip())
 
 # clean lib before putting it in place
 assert call(["./util/clean-lib.ts", args.data, '--save'], cwd=root) == 0, 'clean failed'

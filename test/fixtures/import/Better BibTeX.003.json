@@ -2,16 +2,49 @@
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
     "label": "BetterBibTeX JSON",
-    "localeDateOrder": "ymd",
     "options": {
       "exportNotes": true
     },
     "preferences": {
-      "citekeyFormat": "[auth][year]",
-      "itemObserverDelay": 100
+      "citekeyFormat": "auth + year",
+      "citekeyFormatBackup": "auth + year"
     }
   },
   "items": [
+    {
+      "citationKey": "author:06",
+      "creators": [
+        {
+          "creatorType": "author",
+          "firstName": "First",
+          "lastName": "Author"
+        },
+        {
+          "creatorType": "author",
+          "firstName": "Second",
+          "lastName": "Author"
+        },
+        {
+          "creatorType": "editor",
+          "firstName": "First",
+          "lastName": "Editor"
+        },
+        {
+          "creatorType": "editor",
+          "firstName": "Second",
+          "lastName": "Editor"
+        }
+      ],
+      "date": "2006-10",
+      "extra": [
+        "Citation Key: author:06"
+      ],
+      "itemID": 1,
+      "itemType": "conferencePaper",
+      "pages": "330\u2014331",
+      "publicationTitle": "Proceedings of the xth conference on XYZ",
+      "title": "Some publication title"
+    },
     {
       "citationKey": "conference:06",
       "creators": [
@@ -34,30 +67,6 @@
       "itemType": "bookSection",
       "publicationTitle": "Proceedings of the xth conference on XYZ (book)",
       "title": "Proceedings of the xth conference on XYZ"
-    },
-    {
-      "citationKey": "author:06",
-      "creators": [
-        {
-          "creatorType": "author",
-          "firstName": "First",
-          "lastName": "Author"
-        },
-        {
-          "creatorType": "author",
-          "firstName": "Second",
-          "lastName": "Author"
-        }
-      ],
-      "extra": [
-        "Citation Key: author:06",
-        "tex.crossref: conference:06"
-      ],
-      "itemID": 1,
-      "itemType": "conferencePaper",
-      "pages": "330\u2014331",
-      "publicationTitle": "Proceedings of the xth conference on XYZ",
-      "title": "Some publication title"
     }
   ]
 }

@@ -6,8 +6,8 @@ import { arXiv } from '../../content/arXiv'
 import { validItem } from '../../content/ajv'
 import { valid, label } from '../../gen/items/items'
 import wordsToNumbers from 'words-to-numbers'
+import { parse as parseDate, strToISO as strToISODate } from '../../content/dateparser'
 
-import { toByteArray as unbase64 } from 'base64-js'
 import { parseBuffer as parsePList } from 'bplist-parser'
 
 const toWordsOrdinal = require('number-to-words/src/toWordsOrdinal')
@@ -541,8 +541,18 @@ export class ZoteroItem {
       this.errors.push({ message: `Don't know what Zotero type to make of '${this.bibtex.type}' for ${this.bibtex.key ? `@${this.bibtex.key}` : 'unnamed item'}, importing as ${this.type = 'document'}` })
       this.hackyFields.push(`tex.entrytype: ${this.bibtex.type}`)
     }
-    if (this.type === 'book' && (this.bibtex.fields.title || []).length && (this.bibtex.fields.booktitle || []).length) this.type = 'bookSection'
-    if (this.type === 'journalArticle' && (this.bibtex.fields.booktitle || []).length && this.bibtex.fields.booktitle[0].match(/proceeding/i)) this.type = 'conferencePaper'
+
+    log.debug('crossref:', this.bibtex)
+    if (
+      this.type === 'book'
+      && this.bibtex.fields.title?.length
+      && this.bibtex.fields.booktitle?.length
+      && !this.bibtex.crossref.donated.includes('booktitle')) this.type = 'bookSection'
+
+    if (
+      this.type === 'journalArticle'
+      && this.bibtex.fields.booktitle?.length
+      && this.bibtex.fields.booktitle.join('\n').match(/proceeding/i)) this.type = 'conferencePaper'
 
     if (!valid.type[this.type]) this.error(`import error: unexpected item ${this.bibtex.key} of type ${this.type}`)
     this.validFields = valid.field[this.type]
@@ -637,6 +647,7 @@ export class ZoteroItem {
 
       case 'book':
         if ((this.bibtex.fields.title || []).includes(value)) return true
+        if (this.bibtex.fields.title && this.bibtex.crossref.donated.includes('booktitle')) return true
         if (!this.item.title) return this.set('title', value)
         break
     }
@@ -741,6 +752,9 @@ export class ZoteroItem {
     for (const mesh of this.bibtex.fields.mesh || []) {
       tags = tags.concat((mesh || '').trim().split(/\s*;\s*/).filter(tag => tag)) // eslint-disable-line @typescript-eslint/no-unsafe-return
     }
+    for (const tag of this.bibtex.fields.tags || []) {
+      tags = tags.concat((tag || '').trim().split(/\s*;\s*/).filter(tag => tag)) // eslint-disable-line @typescript-eslint/no-unsafe-return
+    }
     tags = tags.sort()
     tags = tags.filter((item, pos, ary) => !pos || (item !== ary[pos - 1]))
 
@@ -748,6 +762,7 @@ export class ZoteroItem {
     return true
   }
   protected $keyword(): boolean { return this.$keywords() }
+  protected $tags(): boolean { return this.$keywords() }
   protected $mesh(): boolean { return this.$keywords() } // bibdesk
 
   protected $date(): boolean {
@@ -805,9 +820,9 @@ export class ZoteroItem {
     if (overwrite || !this.attachments[att.path]) this.attachments[att.path] = att
   }
 
-  // "files" will import the same as "file" but won't be treated as verbatim by the bibtex parser. Needed because the people at Mendeley can't be bothered
-  // to read the manual apparently.
+  // "files (Mendeley)/filename(Qiqqa)" will import the same as "file" but won't be treated as verbatim by the bibtex parser. Needed because the people at Mendeley/Qiqqa can't be bothered to read the manual apparently.
   protected $files(value: string): boolean { return this.$file(value) }
+  protected $filename(value: string): boolean { return this.$file(value) }
   protected $file(value: string): boolean {
     this.addAttachment({ path: value }) // fixes #2295
 
@@ -887,7 +902,14 @@ export class ZoteroItem {
   protected $timestamp(value: string | number): boolean { return this.item.dateAdded = this.unparse(value) }
   */
 
-  protected $urldate(value: string | number): boolean { return this.set('accessDate', value) }
+  protected $urldate(value: string | number): boolean {
+    if (typeof value !== 'string') return false
+    const date = value.replace(/^accessed\s*:?\s*/i, '')
+    const parsed = parseDate(date)
+    if (parsed.type !== 'date' || !parsed.day) return false
+
+    return this.set('accessDate', strToISODate(date))
+  }
   protected $lastchecked(value: string | number): boolean { return this.$urldate(value) }
 
   protected $number(value: string | number, field: string): boolean {
@@ -1118,7 +1140,7 @@ export class ZoteroItem {
     }
     for (const [field, values] of Object.entries(this.bibtex.fields)) {
       for (const value of values) {
-        if (field.match(/^(local-zo-url-[0-9]+)|(file-[0-9]+)$/)) {
+        if (field.match(/^(local-zo-url-[0-9]+|file-[0-9]+)$/)) {
           if (this.$file(value)) continue
         }
         else if (field.match(/^bdsk-url-[0-9]+$/)) {
@@ -1127,7 +1149,7 @@ export class ZoteroItem {
         else if (field.match(/^bdsk-file-[0-9]+$/)) {
           let imported = false
           try {
-            for (const att of parsePList(Buffer.from(unbase64(value)))) {
+            for (const att of parsePList(new Buffer(value, 'base64'))) {
               if (att.relativePath && this.$file(att.relativePath)) imported = true
             }
           }
@@ -1159,7 +1181,7 @@ export class ZoteroItem {
             this.hackyFields.push(`PMID: ${value}`)
             break
 
-          case 'subject': // otherwise it's picked up by the sibject -> title mapper, and I don't think that's right
+          case 'subject': // otherwise it's picked up by the subject -> title mapper, and I don't think that's right
             this.hackyFields.push(`tex.${field}: ${value}`)
             break
 
