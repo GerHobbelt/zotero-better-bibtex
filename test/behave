@@ -13,6 +13,7 @@ from pygit2 import Repository
 import glob
 from munch import Munch
 import configparser
+import platform
 
 import pathlib
 for d in pathlib.Path(__file__).resolve().parents:
@@ -68,6 +69,7 @@ parser.add_argument('--inspire-hep', '--no-inspire-hep', dest='inspireHEP', acti
 parser.add_argument('--worker', '--no-worker', dest='worker', action=BooleanAction, default=False)
 parser.add_argument('--logging', '--no-logging', dest='logging', action=BooleanAction, default=False)
 parser.add_argument('--caching', '--no-caching', dest='caching', action=BooleanAction, default=True)
+parser.add_argument('--headless', '--no-headless', dest='headless', action=BooleanAction, default=platform.system() == 'Linux')
 parser.add_argument('--this', action='store_true')
 parser.add_argument('--test-this', action='store_true')
 parser.add_argument('--slow', action='store_true',
@@ -89,6 +91,8 @@ sys.argv = sys.argv[:1] + unknownargs
 if args.start:
   args.keep = True
   sys.argv += ['--tags', '@none']
+if args.keep:
+  args.headless = False
 
 if args.client.endswith('-beta'):
   args.client = args.client.split('-')[0]
@@ -138,6 +142,30 @@ if args.log_memory_every: sys.argv.extend(['--define', f'log_memory_every={args.
 print('prepped with', args)
 print('starting with', ' '.join(sys.argv))
 
-#https://stackoverflow.com/questions/28829350/run-python-behave-from-python-instead-of-command-line
-from behave.__main__ import Configuration, run_behave
-sys.exit(run_behave(Configuration(None)))
+# https://stackoverflow.com/questions/28829350/run-python-behave-from-python-instead-of-command-line
+from behave.__main__ import Configuration, run_behave, Runner
+
+# https://stackoverflow.com/questions/64855049/behave-run-features-in-random-order
+class InstallLastRunner(Runner):
+  def feature_locations(self):
+    install = None
+    locations = []
+    for feature in super().feature_locations():
+      if os.path.basename(feature.filename) == 'install.feature':
+        install = feature
+      else:
+        locations.append(feature)
+    if install: locations.append(install)
+    return locations
+
+def main():
+  config = Configuration()
+  sys.exit(run_behave(config, runner_class=InstallLastRunner))
+
+if args.headless:
+  from xvfbwrapper import Xvfb
+  with Xvfb() as xvfb:
+    main()
+else:
+  main()
+
