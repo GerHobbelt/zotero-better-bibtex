@@ -1,6 +1,10 @@
 /* eslint-disable prefer-rest-params */
 import type BluebirdPromise from 'bluebird'
 
+if (Zotero.platformMajorVersion < 102) { // eslint-disable-line no-magic-numbers
+  Components.utils.importGlobalProperties(['fetch', 'TextEncoder', 'TextDecoder'])
+}
+
 declare var window: Window // eslint-disable-line no-var, @typescript-eslint/no-unused-vars
 declare var document: Document // eslint-disable-line no-var
 
@@ -10,7 +14,6 @@ declare const FileUtils: any
 declare const __estrace: any // eslint-disable-line no-underscore-dangle
 
 import type { XUL } from '../typings/xul'
-import { started } from './startup' // disable monkey patching is unsupported environment
 
 import { Elements } from './create-element'
 import { ZoteroPane } from './ZoteroPane'
@@ -57,7 +60,7 @@ import { Translation } from '../translators/lib/translator'
 // need coroutine here because Zotero calls '.done()' on the nonexistent! result, added automagically by bluebird
 $patch$(Zotero, 'shutdown', original => Zotero.Promise.coroutine(function* () { // eslint-disable-line @typescript-eslint/no-unsafe-return
   try {
-    yield orchestrator.shutdown('shutdown')
+    yield orchestrator.shutdown(Zotero.BetterBibTeX.uninstalled ? 'uninstall' : 'shutdown')
   }
   catch (err) {
     log.error('BBT shutdown: shutdown failed', err)
@@ -69,26 +72,25 @@ $patch$(Zotero, 'shutdown', original => Zotero.Promise.coroutine(function* () { 
 // UNINSTALL
 AddonManager.addAddonListener({
   // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
-  async onUninstalling(addon: { id: string }, _needsRestart: any) {
-    if (addon.id === 'better-bibtex@iris-advies.com') await orchestrator.shutdown('uninstall')
+  onUninstalling(addon: { id: string }) {
+    if (addon.id === 'better-bibtex@iris-advies.com') Zotero.BetterBibTeX.uninstalled = true
   },
 
-  async onDisabling(addon: any, needsRestart: any) { await this.onUninstalling(addon, needsRestart) },
+  // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
+  onDisabling(addon: { id: string }) {
+    if (addon.id === 'better-bibtex@iris-advies.com') Zotero.BetterBibTeX.uninstalled = true
+  },
 
   // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
-  onOperationCancelled(addon: { id: string, pendingOperations: number }, _needsRestart: any) {
+  onOperationCancelled(addon: { id: string, pendingOperations: number }) {
     if (addon.id !== 'better-bibtex@iris-advies.com') return null
 
     // eslint-disable-next-line no-bitwise
-    if (addon.pendingOperations & (AddonManager.PENDING_UNINSTALL | AddonManager.PENDING_DISABLE)) return null
-
-    flash('please restart Zotero to reactivate Better BibTeX')
+    if (addon.pendingOperations & (AddonManager.PENDING_UNINSTALL | AddonManager.PENDING_DISABLE)) Zotero.BetterBibTeX.uninstalled = false
   },
 })
 
-/*
-  MONKEY PATCHES
-*/
+// MONKEY PATCHES
 
 // zotero moved itemToCSLJSON to Zotero.Utilities.Item, jurism for the moment keeps it on ZU
 $patch$(Zotero.Utilities.Item?.itemToCSLJSON ? Zotero.Utilities.Item : Zotero.Utilities, 'itemToCSLJSON', original => function itemToCSLJSON(zoteroItem: { itemID: any }) {
@@ -347,25 +349,11 @@ $patch$(Zotero.Integration, 'getApplication', original => function Zotero_Integr
   return original.apply(this, arguments)
 })
 
-/* bugger this, I don't want megabytes of shared code in the translators */
 import * as DateParser from './dateparser'
 import type { ParsedDate } from './dateparser'
 
 Zotero.Translate.Export.prototype.Sandbox.BetterBibTeX = {
   clientName: Zotero.clientName,
-  /*
-  titleCase(_sandbox: any, text: string): string { return titleCase(text) },
-  parseHTML(_sandbox: any, text: { toString: () => any }, options: HTMLParserOptions) {
-    options = {
-      ...options,
-      exportBraceProtection: Preference.exportBraceProtection,
-      csquotes: Preference.csquotes,
-      exportTitleCase: Preference.exportTitleCase,
-    }
-    return HTMLParser.parse(text.toString(), options)
-  },
-  */
-  // extractFields(_sandbox, item) { return Extra.get(item.extra) },
 
   strToISO(_sandbox: any, str: string) { return DateParser.strToISO(str) },
   getContents(_sandbox: any, path: string): string { return Zotero.BetterBibTeX.getContents(path) },
@@ -898,7 +886,6 @@ export class BetterBibTeX {
   }
 
   public async load(doc: Document): Promise<void> {
-    Zotero.debug(`{better-bibtex-startup} waiting for Zotero @ ${Date.now() - started}`)
     // progress.start(l10n.localize('BetterBibTeX.startup.waitingForZotero'))
 
     // the zero-width-space is a marker to re-save the current default so it doesn't get replaced when the default changes later, which would change new keys suddenly
@@ -952,8 +939,6 @@ export class BetterBibTeX {
 
     // progress.update(l10n.localize('BetterBibTeX.startup.autoExport'), 90) // eslint-disable-line no-magic-numbers
     // AutoExport.start()
-
-    Zotero.debug(`{better-bibtex-startup} startup ready @ ${Date.now() - started}`)
 
     new ZoteroPane(doc)
     await newZoteroItemPane(doc)

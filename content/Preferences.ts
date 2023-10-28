@@ -17,18 +17,25 @@ import { pick } from './file-picker'
 import { flash } from './flash'
 
 // safe to keep "global" since only one pref pane will be loaded at any one time
-var window: Window & { sizeToContent(): void } = null // eslint-disable-line no-var
+var window: Window & { sizeToContent(): void } // eslint-disable-line no-var
 Events.on('window-loaded', ({ win, href }: {win: Window, href: string}) => {
-  Zotero.debug('window-loaded', href)
-  if (href === 'chrome://zotero-better-bibtex/content/Preferences.xul') {
-    window = win as any
-    window.addEventListener('unload', () => {
-      Zotero.BetterBibTeX.PrefPane.unload()
-      window = null
-    })
-    Zotero.BetterBibTeX.PrefPane.load().catch(err => log.error(err))
+  switch (href) {
+    case 'chrome://zotero/content/preferences/preferences.xul':
+      new ZoteroPreferences(win)
+      break
+
+    case 'chrome://zotero-better-bibtex/content/Preferences.xul':
+      window = win as any;
+      (window as any).Zotero = Zotero
+      window.addEventListener('unload', () => {
+        Zotero.BetterBibTeX.PrefPane.unload()
+        window = null
+      })
+      Zotero.BetterBibTeX.PrefPane.load().catch(err => log.error(err))
+      break
   }
 })
+
 Events.on('preference-changed', (pref: string) => {
   switch (pref) {
     case 'citekeyFormatEditing':
@@ -39,6 +46,61 @@ Events.on('preference-changed', (pref: string) => {
       break
   }
 })
+
+function setQuickCopy(node: XUL.Menuitem): void {
+  if (!node) return
+
+  let mode = ''
+  let cmd = ''
+  switch (Preference.quickCopyMode) {
+    case 'latex':
+      cmd = `${Preference.citeCommand}`.trim()
+      mode = (cmd === '') ? 'citation keys' : `\\${cmd}{citation keys}`
+      break
+
+    case 'pandoc':
+      mode = Preference.quickCopyPandocBrackets ? '[@citekeys]' : '@citekeys'
+      break
+
+    default:
+      mode = preferenceOptions.quickCopyMode[Preference.quickCopyMode] || Preference.quickCopyMode
+  }
+
+  node.label = `Better BibTeX Quick Copy: ${mode}`
+}
+
+class ZoteroPreferences {
+  private observer: MutationObserver
+  private observed: XUL.Element
+
+  constructor(win: Window) {
+    this.observer = new MutationObserver(this.mutated.bind(this))
+    this.observed = win.document.getElementById('zotero-prefpane-export') as unknown as XUL.Element
+    this.observer.observe(this.observed, { childList: true, subtree: true })
+    win.addEventListener('unload', () => {
+      this.observer.disconnect()
+    })
+  }
+
+  mutated(mutations: MutationRecord[], observer: MutationObserver): void {
+    let node
+    for (const mutation of mutations) {
+      if (!mutation.addedNodes) continue
+
+      if (this.observed?.id === 'zotero-prefpane-export' && (node = [...mutation.addedNodes].find((added: XUL.Element) => added.id === 'zotero-prefpane-export-groupbox'))) {
+        observer.disconnect()
+        this.observer = new MutationObserver(this.mutated.bind(this))
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+        this.observed = [...node.getElementsByTagNameNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'menulist')].find(added => added.id === 'zotero-quickCopy-menu')
+        this.observer.observe(this.observed, { childList: true, subtree: true })
+      }
+      else if (this.observed?.tagName === 'menulist' && (node = [...mutation.addedNodes].find((added: XUL.Menuitem) => added.tagName === 'menuitem' && added.label?.match(/Better BibTeX.*Quick Copy/)))) {
+        node.id = 'translator-bbt-quick-copy'
+        setQuickCopy(node)
+      }
+    }
+  }
+}
 
 class AutoExportPane {
   private label: { [key: string]: string }
@@ -179,7 +241,7 @@ class AutoExportPane {
             break
 
           default:
-            throw new Error(`Unexpected field in refresh: ${field}`)
+            throw new Error(`Unexpected field in auto-export refresh: ${field}`)
         }
       }
     }
@@ -278,8 +340,6 @@ class AutoExportPane {
 export class PrefPane {
   public autoexport = new AutoExportPane
   private timer: number
-  private observer: MutationObserver
-  private observed: XUL.Element
   // private prefwindow: HTMLElement
 
   public async exportPrefs(): Promise<void> {
@@ -357,7 +417,7 @@ export class PrefPane {
 
   public checkPostscript(): void {
     if (!window) {
-      log.debug('Preferences.checkPostscript: window is null')
+      log.debug('Preferences.checkPostscript: window not loaded yet?')
       return
     }
 
@@ -385,52 +445,7 @@ export class PrefPane {
     Cache.reset('user-initiated')
   }
 
-  public setQuickCopy(node: XUL.Menuitem): void {
-    if (node) {
-      let mode = ''
-      let cmd = ''
-      switch (Preference.quickCopyMode) {
-        case 'latex':
-          cmd = `${Preference.citeCommand}`.trim()
-          mode = (cmd === '') ? 'citation keys' : `\\${cmd}{citation keys}`
-          break
-
-        case 'pandoc':
-          mode = Preference.quickCopyPandocBrackets ? '[@citekeys]' : '@citekeys'
-          break
-
-        default:
-          mode = preferenceOptions.quickCopyMode[Preference.quickCopyMode] || Preference.quickCopyMode
-      }
-
-      node.label = `Better BibTeX Quick Copy: ${mode}`
-    }
-  }
-
-  mutated(mutations: MutationRecord[], observer: MutationObserver): void {
-    let node
-    for (const mutation of mutations) {
-      if (!mutation.addedNodes) continue
-
-      if (this.observed?.id === 'zotero-prefpane-export' && (node = [...mutation.addedNodes].find((added: XUL.Element) => added.id === 'zotero-prefpane-export-groupbox'))) {
-        observer.disconnect()
-        this.observer = new MutationObserver(this.mutated.bind(this))
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        this.observed = [...node.getElementsByTagNameNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'menulist')].find(added => added.id === 'zotero-quickCopy-menu')
-        this.observer.observe(this.observed, { childList: true, subtree: true })
-      }
-      else if (this.observed?.tagName === 'menulist' && (node = [...mutation.addedNodes].find((added: XUL.Menuitem) => added.tagName === 'menuitem' && added.label?.match(/Better BibTeX.*Quick Copy/)))) {
-        node.id = 'translator-bbt-quick-copy'
-        this.setQuickCopy(node)
-      }
-    }
-  }
-
   public async load(): Promise<void> {
-    this.observer = new MutationObserver(this.mutated.bind(this))
-    this.observed = window.document.getElementById('zotero-prefpane-export') as unknown as XUL.Element
-    if (this.observed) this.observer.observe(this.observed, { childList: true, subtree: true })
-
     const deck = window.document.getElementById('better-bibtex-prefs-deck') as unknown as XUL.Deck
     deck.selectedIndex = 0
 
@@ -454,9 +469,9 @@ export class PrefPane {
   }
 
   public unload(): void {
-    if (typeof this.timer === 'number') {
+    if (typeof this.timer !== 'undefined') {
       window.clearInterval(this.timer)
-      this.timer = null
+      this.timer = undefined
     }
   }
 
@@ -470,7 +485,9 @@ export class PrefPane {
       return
     }
 
-    this.setQuickCopy(window.document.getElementById('translator-bbt-quick-copy') as unknown as XUL.Menuitem)
+    const quickCopyDetails: XUL.Deck = window.document.getElementById('quickCopyDetails') as unknown as XUL.Deck
+    const quickCopyId = `better-bibtex-preferences-quickcopy-${Preference.quickCopyMode}`
+    quickCopyDetails.selectedIndex = Array.from(quickCopyDetails.children).findIndex(details => details.id === quickCopyId)
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     for (const node of (Array.from(window.document.getElementsByClassName('jurism')) as unknown[] as XUL.Element[])) {
@@ -504,15 +521,6 @@ export class PrefPane {
       })
     }
 
-    /*
-    const quickCopy = window.document.getElementById('id-better-bibtex-preferences-quickCopyMode') as HTMLSelectElement
-    const quickCopyMode = quickCopy.options[quickCopy.selectedIndex]?.value
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-    for (const node of (Array.from(window.document.getElementsByClassName('better-bibtex-preferences-quickcopy-details')) as unknown[] as XUL.Element[])) {
-      node.hidden = (node.id !== `better-bibtex-preferences-quickcopy-${quickCopyMode}`)
-    }
-    */
-
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     for (const state of (Array.from(window.document.getElementsByClassName('better-bibtex-preferences-worker-state')) as unknown[] as XUL.Textbox[])) {
       state.value = l10n.localize('BetterBibTeX.workers.status', {
@@ -523,7 +531,6 @@ export class PrefPane {
     }
 
     if (this.autoexport) this.autoexport.refresh()
-    // this.resize()
   }
 
   private styleChanged(index) {

@@ -10,7 +10,6 @@ const version = require('../gen/version.js')
 type Source = 'MarkDown' | 'BibTeX AUX'
 
 export const AUXScanner = new class { // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
-  private decoder = new TextDecoder
   private pandoc: string
 
   public async pick(): Promise<string> { // eslint-disable-line @typescript-eslint/no-unsafe-return
@@ -78,7 +77,8 @@ export const AUXScanner = new class { // eslint-disable-line @typescript-eslint/
   }
 
   private async read(path) {
-    return this.decoder.decode(await OS.File.read(path) as BufferSource)
+    const decoder: TextDecoder = new TextDecoder
+    return decoder.decode(await OS.File.read(path) as BufferSource)
   }
 
   private async parse(path: string, citekeys: string[], bibfiles: Record<string, string>): Promise<Source> {
@@ -122,7 +122,7 @@ export const AUXScanner = new class { // eslint-disable-line @typescript-eslint/
 
     const filter = OS.Path.join(Zotero.BetterBibTeX.dir, lua)
     if (!(await OS.File.exists(filter))) {
-      const url = 'resource://zotero-better-bibtex/list-citekeys.lua'
+      const url = 'chrome://zotero-better-bibtex/content/resource/list-citekeys.lua'
       const file = Zotero.File.pathToFile(filter)
       const contents = Zotero.File.getContentsFromURL(url)
       Zotero.File.putContents(file, contents)
