@@ -47,7 +47,11 @@ function setDefaultPrefs(rootURI) {
       }
     },
   }
-  Services.scriptloader.loadSubScript(`${rootURI}prefs.js`, obj, 'utf-8')
+  Services.scriptloader.loadSubScriptWithOptions(`${rootURI}prefs.js`, {
+    target: obj,
+    charset: 'utf-8',
+    // ignoreCache: true
+  })
 }
 
 export function install(_data: any, _reason: ReasonId) {
@@ -66,25 +70,28 @@ export async function startup({ resourceURI, rootURI = resourceURI.spec }, reaso
 
   setDefaultPrefs(rootURI)
 
-  Services.scriptloader.loadSubScript(`${rootURI}content/better-bibtex.js`, {
-    Zotero,
+  Services.scriptloader.loadSubScriptWithOptions(`${rootURI}content/better-bibtex.js`, {
+    charset: 'utf=8',
+    // ignoreCache: true,
+    target: {
+      Zotero,
 
-    // to pacify libraries that do env-detection
-    window: Zotero.getMainWindow(),
-    document: Zotero.getMainWindow().document,
+      // to pacify libraries that do env-detection
+      window: Zotero.getMainWindow(),
+      document: Zotero.getMainWindow().document,
 
-    setTimeout,
-    clearTimeout,
-    setInterval,
-    clearInterval,
-  }, 'utf-8')
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+    },
+  })
 
   await Zotero.BetterBibTeX.startup(BOOTSTRAP_REASONS[reason])
   Zotero.PreferencePanes.register({
     pluginID: 'better-bibtex@iris-advies.com',
     src: `${rootURI}content/preferences.xhtml`,
     label: 'Better BibTeX',
-    // scripts: [`${rootURI}content/preferences.js`],
     defaultXUL: true,
   })
   log('startup done')
@@ -98,8 +105,11 @@ export async function shutdown(data: any, reason: ReasonId) {
     chromeHandle = undefined
   }
   if (Zotero.BetterBibTeX) {
+    log('shutdown started')
     await Zotero.BetterBibTeX.shutdown(BOOTSTRAP_REASONS[reason])
+    log('shutdown completed')
     delete Zotero.BetterBibTeX
+    log('BBT deleted')
   }
   log('shutdown done')
 }

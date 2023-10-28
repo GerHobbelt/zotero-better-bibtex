@@ -12,11 +12,11 @@ import { chinese } from './key-manager/chinese'
 import { Scheduler } from './scheduler'
 import { log } from './logger'
 import { flash } from './flash'
-import { Events, itemsChanged } from './events'
+import { Events } from './events'
 import { fetchAsync as fetchInspireHEP } from './inspire-hep'
 import * as Extra from './extra'
 import { $and, Query } from './db/loki'
-import { excelColumn } from './text'
+import { excelColumn, sentenceCase } from './text'
 
 import * as ZoteroDB from './db/zotero'
 
@@ -145,7 +145,7 @@ export const KeyManager = new class _KeyManager {
       }
     }
 
-    const updates = []
+    const updates: ZoteroItem[] = []
     for (const item of await getItemsAsync(ids)) {
       if (item.isFeedItem || !item.isRegularItem()) continue
 
@@ -154,7 +154,8 @@ export const KeyManager = new class _KeyManager {
       let citekey = Extra.get(extra, 'zotero', { citationKey: true }).extraFields.citationKey
       if (citekey) continue // pinned, leave it alone
 
-      this.update(item)
+      citekey = this.get(item.id).citekey
+      if (this.update(item) === citekey) continue
 
       // remove the new citekey from the aliases if present
       citekey = this.get(item.id).citekey
@@ -175,7 +176,7 @@ export const KeyManager = new class _KeyManager {
       }
     }
 
-    if (updates.length) itemsChanged(updates)
+    if (updates.length) void Events.emit('items-changed', { items: updates, action: 'modify', reason: 'refresh' })
   }
 
   constructor() {
@@ -310,6 +311,34 @@ export const KeyManager = new class _KeyManager {
     Events.on('preference-changed', pref => {
       if (['autoAbbrevStyle', 'citekeyFormat', 'citekeyFold', 'citekeyUnsafeChars', 'skipWords'].includes(pref)) {
         Formatter.update([Preference.citekeyFormat])
+      }
+    })
+    Events.on('items-changed-prep', ({ ids, action }) => {
+      log.debug('keymanager.emit:', ids, action)
+      let warn_titlecase = 0
+      switch (action) {
+        case 'delete':
+          this.remove(ids)
+          break
+
+        case 'add':
+        case 'modify':
+          for (const item of Zotero.Items.get(ids).filter(i => i.isRegularItem() && !i.isFeedItem)) {
+            this.update(item)
+            if (Preference.warnTitleCased) {
+              const title = item.getField('title')
+              if (title !== sentenceCase(title)) warn_titlecase += 1
+            }
+          }
+
+          if (warn_titlecase) {
+            const actioned = action === 'add' ? 'added' : 'saved'
+            const msg = warn_titlecase === 1
+              ? `${warn_titlecase} item ${actioned} which looks like it has a title-cased title`
+              : `${warn_titlecase} items ${actioned} which look like they have title-cased titles`
+            flash(`Possibly title-cased title${warn_titlecase > 1 ? 's' : ''} ${actioned}`, msg, 3) // eslint-disable-line no-magic-numbers
+          }
+          break
       }
     })
 

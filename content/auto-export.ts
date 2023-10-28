@@ -1,8 +1,6 @@
 Components.utils.import('resource://gre/modules/FileUtils.jsm')
 declare const FileUtils: any
 
-import { is7 } from './client'
-
 import { log } from './logger'
 
 import { Events } from './events'
@@ -175,9 +173,6 @@ if (Preference.autoExportIdleWait < 1) Preference.autoExportIdleWait = 1
 const queue = new class TaskQueue {
   private scheduler = new Scheduler('autoExportDelay', 1000)
   private autoexports: any
-  private idleService = is7
-    ? Components.classes['@mozilla.org/widget/useridleservice;1'].getService(Components.interfaces.nsIUserIdleService)
-    : Components.classes['@mozilla.org/widget/idleservice;1'].getService(Components.interfaces.nsIIdleService)
 
   constructor() {
     this.pause('startup')
@@ -186,8 +181,24 @@ const queue = new class TaskQueue {
   public start() {
     if (Preference.autoExport === 'immediate') this.resume('startup')
 
-    // really dumb but the idle service deals with msecs wverywhere -- except add, which is in seconds
-    this.idleService.addIdleObserver(this, Preference.autoExportIdleWait)
+    Events.on('idle-autoexport', async state => { // eslint-disable-line @typescript-eslint/require-await
+      if (Preference.autoExport !== 'idle') return
+
+      switch (state) {
+        case 'back':
+        case 'active':
+          this.pause('end-of-idle')
+          break
+
+        case 'idle':
+          this.resume('start-of-idle')
+          break
+
+        default:
+          log.error('Unexpected idle state', state)
+          break
+      }
+    })
   }
 
   public init(autoexports) {
@@ -199,7 +210,7 @@ const queue = new class TaskQueue {
   }
 
   public resume(_reason: 'startup' | 'start-of-idle' | 'preference-change') {
-    const is_idle = this.idleService.idleTime >= Preference.autoExportIdleWait * 1000
+    const is_idle = Events.idleService.idleTime >= Preference.autoExportIdleWait * 1000
     switch (Preference.autoExport) {
       case 'off':
         this.scheduler.paused = true
@@ -327,26 +338,6 @@ const queue = new class TaskQueue {
     if (coll.parentID && coll.parentID !== root) path = this.getCollectionPath(Zotero.Collections.get(coll.parentID), root).concat(path)
     return path
   }
-
-  // idle observer
-  protected observe(_subject, topic, _data) {
-    if (Preference.autoExport === 'idle') {
-      switch (topic) {
-        case 'back':
-        case 'active':
-          this.pause('end-of-idle')
-          break
-
-        case 'idle':
-          this.resume('start-of-idle')
-          break
-
-        default:
-          log.error('Unexpected idle state', topic)
-          break
-      }
-    }
-  }
 }
 
 // export singleton: https://k94n.com/es6-modules-single-instance-pattern
@@ -407,6 +398,7 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
 
   public schedule(type, ids) {
     for (const ae of this.db.find({$and: [{ type: {$eq: type} }, {id: { $in: ids } }] })) {
+      log.debug('emit: schedule', ae)
       queue.add(ae)
     }
   }
