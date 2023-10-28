@@ -1,13 +1,11 @@
 export type Actor = 'start' | 'done' | 'auto-export' | 'translators' | 'TeXstudio' | 'abbreviator' | 'keymanager' | 'serializer' | 'cache' | 'maindb' | 'databases'
-
 export type Phase = 'startup' | 'shutdown'
-
-export type Reason = 'disable' | 'uninstall' | 'replace' | 'shutdown'
+import type { Reason } from './bootstrap'
 
 export type Task = {
   id: Actor
   description: string
-  startup?: (reason?: Reason) => void | string | Promise<void | string>
+  startup?: (reason: Reason) => void | string | Promise<void | string>
   shutdown?: (reason: Reason) => void | string | Promise<void | string>
   needs?: Actor[]
   dependencies?: Record<Phase, Set<Actor>>
@@ -46,12 +44,14 @@ export class Orchestrator {
       this.promises[phase][name] = circular
       return this.promises[phase][name] = Promise
         .all(Array.from(dependencies).map(run))
-        .then(() => { if (phase === 'startup') progress?.(phase, name, ran, total, `starting ${description}`) })
+        .then(() => { if (phase === 'startup') progress?.(phase, name, ran++, total, `starting ${description}`) })
         .then(() => action(reason) as Promise<void | string>)
+        /*
         .then(result => {
           result = result ? `: ${result}` : ''
           progress?.(phase, name, ++ran, total, `${description} started${result}`)
         })
+        */
         .catch(err => {
           Zotero.debug(`${name}.${phase} ${reason || ''} error: ${err}`)
           throw err
@@ -90,6 +90,7 @@ export class Orchestrator {
     }
 
     await this.run('startup', undefined, progress)
+    progress?.('startup', 'ready', 100, 100, 'ready')
   }
 
   public async shutdown(reason: Reason, progress?: Progress): Promise<void> {

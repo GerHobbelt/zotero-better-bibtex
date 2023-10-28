@@ -15,6 +15,7 @@ declare const __estrace: any // eslint-disable-line no-underscore-dangle
 
 import type { XUL } from '../typings/xul'
 
+import { is7 } from './client'
 import { Elements } from './create-element'
 import { ZoteroPane } from './ZoteroPane'
 import { newZoteroItemPane } from './ZoteroItemPane'
@@ -34,9 +35,6 @@ require('./json-rpc') // just require, initializes the json-rpc end point
 import { AUXScanner } from './aux-scanner'
 import * as Extra from './extra'
 import { sentenceCase, HTMLParser, HTMLParserOptions } from './text'
-
-Components.utils.import('resource://gre/modules/AddonManager.jsm')
-declare const AddonManager: any
 
 import { log } from './logger'
 import { Events, itemsChanged } from './events'
@@ -60,7 +58,7 @@ import { Translation } from '../translators/lib/translator'
 // need coroutine here because Zotero calls '.done()' on the nonexistent! result, added automagically by bluebird
 $patch$(Zotero, 'shutdown', original => Zotero.Promise.coroutine(function* () { // eslint-disable-line @typescript-eslint/no-unsafe-return
   try {
-    yield orchestrator.shutdown(Zotero.BetterBibTeX.uninstalled ? 'uninstall' : 'shutdown')
+    yield orchestrator.shutdown(Zotero.BetterBibTeX.uninstalled ? 'ADDON_UNINSTALL' : 'APP_SHUTDOWN')
   }
   catch (err) {
     log.error('BBT shutdown: shutdown failed', err)
@@ -69,26 +67,29 @@ $patch$(Zotero, 'shutdown', original => Zotero.Promise.coroutine(function* () { 
   yield original.apply(this, arguments)
 }))
 
-// UNINSTALL
-AddonManager.addAddonListener({
-  // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
-  onUninstalling(addon: { id: string }) {
-    if (addon.id === 'better-bibtex@iris-advies.com') Zotero.BetterBibTeX.uninstalled = true
-  },
+declare const AddonManager: any
+if (!is7) {
+  Components.utils.import('resource://gre/modules/AddonManager.jsm')
+  AddonManager.addAddonListener({
+    // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
+    onUninstalling(addon: { id: string }) {
+      if (addon.id === 'better-bibtex@iris-advies.com') Zotero.BetterBibTeX.uninstalled = true
+    },
 
-  // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
-  onDisabling(addon: { id: string }) {
-    if (addon.id === 'better-bibtex@iris-advies.com') Zotero.BetterBibTeX.uninstalled = true
-  },
+    // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
+    onDisabling(addon: { id: string }) {
+      if (addon.id === 'better-bibtex@iris-advies.com') Zotero.BetterBibTeX.uninstalled = true
+    },
 
-  // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
-  onOperationCancelled(addon: { id: string, pendingOperations: number }) {
-    if (addon.id !== 'better-bibtex@iris-advies.com') return null
+    // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
+    onOperationCancelled(addon: { id: string, pendingOperations: number }) {
+      if (addon.id !== 'better-bibtex@iris-advies.com') return null
 
-    // eslint-disable-next-line no-bitwise
-    if (addon.pendingOperations & (AddonManager.PENDING_UNINSTALL | AddonManager.PENDING_DISABLE)) Zotero.BetterBibTeX.uninstalled = false
-  },
-})
+      // eslint-disable-next-line no-bitwise
+      if (addon.pendingOperations & (AddonManager.PENDING_UNINSTALL | AddonManager.PENDING_DISABLE)) Zotero.BetterBibTeX.uninstalled = false
+    },
+  })
+}
 
 // MONKEY PATCHES
 
@@ -302,7 +303,7 @@ $patch$(Zotero.Item.prototype, 'clone', original => function Zotero_Item_prototy
   return item
 })
 
-
+if (is7) Services.scriptloader.loadSubScript('resource://zotero/require.js', this)
 const itemTree = require('zotero/itemTree')
 
 $patch$(itemTree.prototype, 'getColumns', original => function Zotero_ItemTree_prototype_getColumns() {
@@ -721,7 +722,6 @@ export class BetterBibTeX {
   public TestSupport = new TestSupport
   public KeyManager = KeyManager
   public Text = { sentenceCase }
-  public elements: Elements
 
   // panes
   public ExportOptions: ExportOptions = new ExportOptions
@@ -833,8 +833,6 @@ export class BetterBibTeX {
   public async startup(): Promise<void> {
     if (typeof this.ready.isPending !== 'function') throw new Error('Zotero.Promise is not using Bluebird')
 
-    this.elements = new Elements(document)
-
     log.debug('Loading Better BibTeX: starting...')
 
     orchestrator.add({
@@ -847,12 +845,16 @@ export class BetterBibTeX {
 
         this.dir = OS.Path.join(Zotero.DataDirectory.dir, 'better-bibtex')
         await OS.File.makeDir(this.dir, { ignoreExisting: true })
-        await Preference.initAsync(this.dir)
+        await Preference.init(this.dir)
       },
       shutdown: async () => { // eslint-disable-line @typescript-eslint/require-await
         Elements.removeAll()
         $unpatch$()
         clean_pane_persist()
+        Preference.shutdown()
+        for (const endpoint of Object.keys(Zotero.Server.Endpoints)) {
+          if (endpoint.startsWith('/better-bibtex/')) delete Zotero.Server.Endpoints[endpoint]
+        }
       },
     })
 
@@ -876,6 +878,9 @@ export class BetterBibTeX {
       startup: async () => {
         this.deferred.resolve(true)
         await this.load(document)
+      },
+      shutdown: async () => { // eslint-disable-line @typescript-eslint/require-await
+        Events.clearListeners()
       },
     })
 
