@@ -43,8 +43,8 @@ for client, version in min_version.items():
 
   if 'CI' in os.environ:
     branch = subprocess.run('git branch --show-current'.split(' '), stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
-    if branch != 'gh-2522':
-      supported = '8.0'
+    if branch != 'master' and branch != 'gh-2522':
+       supported = '8.0'
 
   if supported == listed:
     print('minimum bootstrapped', client, 'version', supported)

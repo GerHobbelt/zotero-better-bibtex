@@ -29,10 +29,12 @@ async function title_sentenceCase(label) {
 }
 */
 
-export async function newZoteroItemPane(doc: Document): Promise<void> {
+export async function newZoteroItemPane(win: Window, doc: Document): Promise<void> {
   let itemBoxInstance: HTMLElement
   if (client.is7) {
-    itemBoxInstance = (new (doc.defaultView.customElements.get('item-box')) as any)()
+    const ItemBox = win.customElements.get('item-box')
+    log.debug('customElements:', typeof win.customElements, 'ItemBox:', ItemBox)
+    itemBoxInstance = new ItemBox
   }
   else {
     const wait = 5000 // eslint-disable-line no-magic-numbers
@@ -44,7 +46,7 @@ export async function newZoteroItemPane(doc: Document): Promise<void> {
     }
   }
   if (!itemBoxInstance) throw new Error('could not find item-box')
-  new ZoteroItemPane(doc, itemBoxInstance)
+  new ZoteroItemPane(win, doc, itemBoxInstance)
 }
 
 export class ZoteroItemPane {
@@ -53,15 +55,12 @@ export class ZoteroItemPane {
   elements: Elements
 
   public refresh(): void {
-    // eslint disagrees with the typescript compiler on the return type of querySelector
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-    (this.document.querySelector('#zotero-editpane-item-box') as any).refresh()
+    this.itemBoxInstance.refresh()
   }
 
-  constructor(doc: Document, itemBoxInstance: any) { // eslint-disable-line @typescript-eslint/explicit-module-boundary-types
+  constructor(win: Window, doc: Document, private itemBoxInstance: any) { // eslint-disable-line @typescript-eslint/explicit-module-boundary-types
     this.document = doc
     const elements = this.elements = new Elements(doc)
-    const win = doc.defaultView
     const itemPane = (win as any).ZoteroItemPane
     itemPane.BetterBibTeX = this
 
