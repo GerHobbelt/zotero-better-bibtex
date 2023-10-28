@@ -6,13 +6,12 @@ import { log } from '../logger'
 import fold2ascii from 'fold-to-ascii'
 import rescape from '@stdlib/utils-escape-regexp-string'
 import ucs2decode = require('punycode2/ucs2/decode')
-import scripts = require('xregexp/tools/output/scripts')
 
 import { Preference } from '../prefs'
 import { JournalAbbrev } from '../journal-abbrev'
 import * as Extra from '../extra'
 import { buildCiteKey as zotero_buildCiteKey } from './formatter-zotero'
-import { babelLanguage } from '../text'
+import { babelLanguage, CJK } from '../text'
 import { fetchSync as fetchInspireHEP } from '../inspire-hep'
 
 const legacyparser = require('./legacy.peggy')
@@ -131,19 +130,6 @@ function parseDate(v): PartialDate {
   }
 
   return res
-}
-
-const script = {
-  cjk: new RegExp('([' + scripts.map((s: { name: string, bmp: string }): string => { // eslint-disable-line @typescript-eslint/restrict-plus-operands, prefer-template
-    switch (s.name) {
-      case 'Katakana':
-      case 'Hiragana':
-      case 'Han':
-        return s.bmp
-      default:
-        return ''
-    }
-  }).join('') + '])', 'g'), // eslint-disable-line @typescript-eslint/restrict-plus-operands,prefer-template
 }
 
 type PartialDate = {
@@ -570,7 +556,7 @@ class PatternFormatter {
   public $auth(n=0, m=1, creator: Creator = '*', initials=false) {
     const family = n ? `%(f).${n}s` : '%(f)s'
     const name = initials ? `${family}%(I)s` : family
-    return this.$authors([m, m], creator, name, undefined, undefined)
+    return this.$authors([m, m], creator, name)
   }
 
   /**
@@ -796,7 +782,7 @@ class PatternFormatter {
    * @param m number of words to capitalize. `0` means no words will be capitalized. Mind that existing capitals are not removed.
    */
   public $shorttitle(n: number = 3, m: number = 0) { // eslint-disable-line no-magic-numbers, @typescript-eslint/no-inferrable-types
-    const words = this.titleWords(this.item.title, { skipWords: true, transliterate: true})
+    const words = this.titleWords(this.item.title, { skipWords: true, nopunct: true, transliterate: true})
     if (!words) return this.$text('')
 
     return this.$text(words.slice(0, n).map((word, i) => i < m ? word.charAt(0).toUpperCase() + word.slice(1) : word).join(' '))
@@ -872,7 +858,7 @@ class PatternFormatter {
 
   /** Capitalize all the significant words of the title, and concatenate them. For example, `An awesome paper on JabRef` will become `AnAwesomePaperJabref` */
   public $title() {
-    return this.$text((this.titleWords(this.item.title, { skipWords: true }) || []).join(' '))
+    return this.$text((this.titleWords(this.item.title, { skipWords: true, nopunct: true }) || []).join(' '))
   }
 
   /**
@@ -943,18 +929,11 @@ class PatternFormatter {
   public _match(match: RegExp | string, clean=false) {
     if (!match) return this
 
-    if (typeof match === 'string') {
-      const chunk = (clean ? this.clean(this.chunk, true) : this.chunk).toLowerCase()
-      match = (clean ? this.clean(match, true) : match).toLowerCase()
-      if (chunk.includes(match)) return this
-    }
-    else if ((clean ? this.clean(this.chunk, true) : this.chunk).match(match)) {
-      return this
-    }
-    else {
-      this.next = true
-      return this.$text('')
-    }
+    const cleaned = (t: string) => clean ? this.clean(t, true) : t
+
+    if (typeof match === 'string') match = new RegExp(rescape(cleaned(match)), 'i')
+    if (!cleaned(this.chunk).match(match)) this.next = true
+    return this
   }
 
   private len(value: string, relation: '<' | '<=' | '=' | '!=' | '>=' | '>', n: number) {
@@ -999,6 +978,14 @@ class PatternFormatter {
     const date = new Date(`${this.chunk}Z`)
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
     return this.$text(date.toISOString().replace('.000Z', '').replace('T', ' '))
+  }
+
+  /** extracts the family-name from Chinese names written in single-field mode
+   * @param lang language table to take family names from
+   */
+  public _cjk_familyname(lang: 'zh-hans' | 'zh-hant' = 'zh-hans') {
+    log.debug('cjk_familyname:', { chunk: this.chunk, names: this.chunk.split(' '), capped: this.chunk.split(' ').map(name => chinese.familyName(name, lang)) })
+    return this.$text(this.chunk.split(' ').map(name => chinese.familyName(name, lang)).join(''))
   }
 
   /**
@@ -1055,7 +1042,7 @@ class PatternFormatter {
    */
   public _replace(find: string | RegExp, replace: string) {
     if (!find) return this
-    if (typeof find === 'string') find = new RegExp(find.replace(/[[\](){}*+?|^$.\\]/g, '\\$&'), 'ig')
+    if (typeof find === 'string') find = new RegExp(rescape(find), 'ig')
     return this.$text(this.chunk.replace(find, replace))
   }
 
@@ -1144,27 +1131,11 @@ class PatternFormatter {
    *
    * If you want to strip words like 'Jr.' from names, you could use something like `Auth.nopunct.skipwords.fold`
    * after adding `jr` to the skipWords list.
-   * Note that this filter is always applied if you use `title` (which is different from `Title`) or `shorttitle`.
+   * Note that this filter is always applied with `nopunct` on if you use `title` (which is different from `Title`) or `shorttitle`.
+   * @param nopunct remove punctuation from words
    */
-  public _skipwords(/* ...words: string[] */) {
-    /*
-    let skipWords: Set<string> = new Set([...this.skipWords])
-
-    for (const word of words) {
-      if (!word) continue
-
-      if (word === '_') {
-        skipWords = new Set
-      }
-      else if (word[0] === '_') {
-        skipWords.delete(word.substr(1))
-      }
-      else {
-        skipWords.add(word)
-      }
-    }
-    */
-    const words = this.titleWords(this.chunk, { skipWords: true })
+  public _skipwords(nopunct: boolean = false) { // eslint-disable-line @typescript-eslint/no-inferrable-types
+    const words = this.titleWords(this.chunk, { skipWords: true, nopunct })
     return this.$text(words ? words.join(' ') : '')
   }
 
@@ -1223,11 +1194,15 @@ class PatternFormatter {
     return this.$text(this.chunk.replace(/((^|\s)[a-z])/g, m => m.toUpperCase()))
   }
 
+  private nopunct(text: string, dash='-') {
+    text = Zotero.Utilities.XRegExp.replace(text, this.re.dash, dash, 'all')
+    text = Zotero.Utilities.XRegExp.replace(text, this.re.punct, '', 'all')
+    return text
+  }
+
   /** Removes punctuation */
   public _nopunct(dash='-') {
-    let value = Zotero.Utilities.XRegExp.replace(this.chunk, this.re.dash, dash, 'all')
-    value = Zotero.Utilities.XRegExp.replace(value, this.re.punct, '', 'all')
-    return this.$text(value)
+    return this.$text(this.nopunct(this.chunk, dash))
   }
 
   /** Removes punctuation and word-connecting dashes. alias for `nopunct(dash='')` */
@@ -1237,7 +1212,7 @@ class PatternFormatter {
 
   /** Treat ideaographs as individual words */
   public _ideographs() {
-    return this.$text(this.chunk.replace(script.cjk, ' $1 ').trim())
+    return this.$text(this.chunk.replace(CJK, ' $1 ').trim())
   }
 
   /** word segmentation for Chinese items. Uses substantial memory, and adds about 7 seconds to BBTs startup time; must be enabled under Preferences -> Better BibTeX -> Advanced -> Citekeys */
@@ -1346,13 +1321,13 @@ class PatternFormatter {
     return this.transliterate(str).replace(allow_spaces ? this.re.unsafechars_allow_spaces : this.re.unsafechars, '').trim()
   }
 
-  private titleWords(title, options: { transliterate?: boolean, skipWords?: boolean} = {}): string[] {
+  private titleWords(title, options: { transliterate?: boolean, skipWords?: boolean, nopunct?: boolean } = {}): string[] {
     if (!title) return null
 
     // 551
     let words: string[] = Zotero.Utilities.XRegExp.matchChain(title, [this.re.word])
-      .map((word: string) => word.replace(/-/g, ''))
-      .filter((word: string) => word && !(options.skipWords && ucs2decode(word).length === 1 && !word.match(script.cjk)))
+      .map((word: string) => options.nopunct ? this.nopunct(word, '') : word)
+      .filter((word: string) => word && !(options.skipWords && ucs2decode(word).length === 1 && !word.match(CJK)))
 
     // apply jieba.cut and flatten.
     if (chinese.load(Preference.jieba) && options.skipWords && this.item.transliterateMode.startsWith('chinese')) {
