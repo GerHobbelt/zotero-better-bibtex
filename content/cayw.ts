@@ -292,31 +292,31 @@ export const Application = new class { // eslint-disable-line @typescript-eslint
   public secondaryFieldType = 'Bookmark'
   public fields: any[] = []
 
-  private docs: { [key: number]: Document } = {}
-  private docId = 0
+  private docs: Record<string, Document> = {}
+  private active: string
 
   /**
    * Gets the active document.
    *
    * @returns {Document}
    */
-  public getActiveDocument() { return this.docs[this.docId] }
+  public getActiveDocument() { return this.docs[this.active] }
 
   /**
    * Gets the document by some app-specific identifier.
    *
    * @param {String|Number} id
    */
-  public getDocument(id) {
+  public async getDocument(id) { // eslint-disable-line @typescript-eslint/require-await
     return this.docs[id]
   }
 
   public QueryInterface() { return this }
 
   public createDocument(options) {
-    this.docId += 1
-    this.docs[this.docId] = new Document(this.docId, options)
-    return this.docs[this.docId]
+    this.active = `better-bibtex-cayw-${Zotero.Utilities.generateObjectKey()}`
+    this.docs[this.active] = new Document(this.active, options)
+    return this.docs[this.active]
   }
 
   public closeDocument(doc) {
@@ -335,7 +335,6 @@ export async function pick(options: any): Promise<string> {
     await Zotero.Integration.execCommand('BetterBibTeX', 'addEditCitation', doc.id)
 
     const picked = doc.citation()
-    Zotero.debug(`picking ${JSON.stringify(options)}`)
     const citation: string = picked.length ? await Formatter[formatter](picked, options) : ''
     Application.closeDocument(doc)
 
@@ -348,7 +347,7 @@ export async function pick(options: any): Promise<string> {
     return citation
   }
   catch (err) {
-    log.error('CAYW error:', err)
+    log.error('CAYW error:', err, `${err}`, err.stack, options)
     flash('CAYW Failed', stringify(err))
   }
 }
