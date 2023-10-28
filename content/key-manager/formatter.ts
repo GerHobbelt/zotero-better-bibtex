@@ -33,7 +33,7 @@ import { transliterate as arabic } from './arabic'
 import { transliterate } from 'transliteration/dist/node/src/node/index'
 import { ukranian, mongolian, russian } from './cyrillic'
 
-import { dictsync as csv2dict } from '../load-csv'
+import { listsync as csv2list } from '../load-csv'
 
 import BabelTag from '../../gen/babel/tag.json'
 type ValueOf<T> = T[keyof T]
@@ -1021,7 +1021,7 @@ class PatternFormatter {
 
   /**
    * replaces spaces in the value passed in. You can specify what to replace it with by adding it as a
-   * parameter, e.g `.condense(_)` will replace spaces with underscores. Equivalent to `.replace(/\s+/g, sep)`.
+   * parameter, e.g `.condense('\_')` will replace spaces with underscores. Equivalent to `.replace(/\s+/g, sep)`.
    * @param sep replacement character
    */
   public _condense(sep: string = '') { // eslint-disable-line @typescript-eslint/no-inferrable-types
@@ -1029,7 +1029,7 @@ class PatternFormatter {
   }
 
   /**
-   * prefixes with its parameter, so `.prefix(_)` will add an underscore to the front if, and only if, the value
+   * prefixes with its parameter, so `.prefix('\_')` will add an underscore to the front if, and only if, the value
    * it is supposed to prefix isn't empty.
    * @param prefix prefix string
    */
@@ -1039,7 +1039,7 @@ class PatternFormatter {
   }
 
   /**
-   * postfixes with its parameter, so `postfix(_)` will add an underscore to the end if, and only if, the value
+   * postfixes with its parameter, so `postfix('\_')` will add an underscore to the end if, and only if, the value
    * it is supposed to postfix isn't empty
    * @param postfix postfix string
    */
@@ -1057,31 +1057,39 @@ class PatternFormatter {
 
   /**
    * Does an acronym lookup for the text.
-   * @param list lookup list. The list must be a CSV file and live in the `Zotero/better-bibtex` directory in your Zotero profile, and must use commas as the delimiter.
+   * @param list lookup list. The list must be a CSV file and live in the `Zotero/better-bibtex` directory in your Zotero profile, and must use commas as the delimiter. Changes to this list are detected at BBT start; you must either restart Zotero (Zotero 6) or disable/enable BBT (Zotero 7) to pick them up.
    */
   public _acronym(list='acronyms') {
     list = list.replace(/\.csv$/i, '')
 
-    try {
-      if (!this.acronyms[list]) {
-        this.acronyms[list] = csv2dict(OS.Path.join(Zotero.BetterBibTeX.dir, `${list}.csv`))
-          .reduce((acc: Record<string, string>, row: Record<string, string>) => {
-            row.full = (row.full || '').trim().toLowerCase()
-            row.acronym = (row.acronym || '').trim()
-            if (row.full && row.acronym) {
-              if (acc[row.full]) log.error('acronyms: parsing', list, row, 'duplicate')
-              acc[row.full] = row.acronym
-            }
-            else {
-              log.error('acronyms: parsing', list, row, 'incomplete')
-            }
-            return acc
-          }, {} as Record<string, string>)
+    if (!this.acronyms[list]) {
+      const acronyms: Record<string, string> = {}
+
+      try {
+        for (const row of csv2list(OS.Path.join(Zotero.BetterBibTeX.dir, `${list}.csv`))) {
+          if (row.length !== 2) {
+            log.error('unexpected row in', `${list}.csv`, ':', row)
+            continue
+          }
+          if (row[0] === 'full' && row[1] === 'acronym') continue
+
+          let [full, acronym] = row
+          full = full.trim().toLowerCase()
+          acronym = acronym.trim()
+          if (full && acronym) {
+            if (acronyms[full]) log.error('acronyms: parsing', list, row, 'duplicate')
+            acronyms[full] = acronym
+          }
+          else {
+            log.error('acronyms: parsing', list, row, 'incomplete')
+          }
+        }
       }
-    }
-    catch (err) {
-      log.error('error parsing acronym list', list)
-      this.acronyms[list] = {}
+      catch (err) {
+        log.error('error parsing acronym list', list)
+      }
+
+      this.acronyms[list] = acronyms
     }
 
     return this.$text(this.acronyms[list][this.chunk.toLowerCase()] || this.chunk)

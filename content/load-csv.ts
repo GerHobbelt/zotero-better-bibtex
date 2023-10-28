@@ -11,20 +11,10 @@ async function read(path: string): Promise<string> {
   }
 }
 
-function readsync(path: string): string {
-  try {
-    return Zotero.File.getContents(path) as string
-  }
-  catch (err) {
-    log.error('csv.readsync', path, 'error:', err)
-    return ''
-  }
-}
-
 function string2dict(path: string, data: string): Record<string, any>[] {
   if (!data) return []
 
-  const parsed: any = csv.parse(data, { skipEmptyLines: true, header: true })
+  const parsed: any = csv.parse(data, { skipEmptyLines: 'greedy', header: true })
   if (parsed.errors.length) log.error('parsing', path, parsed.errors)
   return parsed.data as Record<string, any>[]
 }
@@ -32,7 +22,7 @@ function string2dict(path: string, data: string): Record<string, any>[] {
 function string2list(path: string, data: string): string[][] {
   if (!data) return []
 
-  const parsed: any = csv.parse(data, { skipEmptyLines: true }) as string[][]
+  const parsed: any = csv.parse(data, { skipEmptyLines: 'greedy' }) as string[][]
   if (parsed.errors.length) log.error('parsing', path, parsed.errors)
   return parsed.data as string[][]
 }
@@ -46,9 +36,9 @@ export async function dict(path: string): Promise<Record<string, any>[]> {
 }
 
 export function listsync(path: string): string[][] {
-  return string2list(path, readsync(path))
+  return string2list(path, Zotero.BetterBibTeX.getContents(path))
 }
 
 export function dictsync(path: string): Record<string, any>[] {
-  return string2dict(path, readsync(path))
+  return string2dict(path, Zotero.BetterBibTeX.getContents(path))
 }

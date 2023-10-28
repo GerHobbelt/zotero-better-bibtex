@@ -815,11 +815,23 @@ export class BetterBibTeX {
   public parseDate(date: string): ParsedDate { return DateParser.parse(date) }
 
   getContents(path: string): string {
-    // cannot use await OS.File.exists here because we may be invoked in noWait mod
-    if (path && (new FileUtils.File(path)).exists()) {
-      return Zotero.File.getContents(path) as string
+    if (!path) {
+      log.error('BetterBibTeX.getContents: no path')
+      return null
     }
-    else {
+
+    const file = new FileUtils.File(path)
+    // cannot use await OS.File.exists here because we may be invoked in noWait mod
+    if (!file.exists()) {
+      log.error('BetterBibTeX.getContents:', path, 'does not exist')
+      return null
+    }
+
+    try {
+      return Zotero.File.getContents(file) as string
+    }
+    catch (err) {
+      log.error('BetterBibTeX.getContents:', path, `${err}`)
       return null
     }
   }
