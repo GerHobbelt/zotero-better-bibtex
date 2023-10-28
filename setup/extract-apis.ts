@@ -77,6 +77,13 @@ class FormatterAPI {
     if (type.instanceof) return `<i>${type.instanceof}</i>`
     if (type.type === 'array' && type.prefixItems) return `[${type.prefixItems.map(t => this.typedoc(t)).join(', ')}]`
     if (type.type === 'array' && typeof type.items !== 'boolean') return `${this.typedoc(type.items)}`
+    if (type.type === 'template') {
+      const vars: string[] = []
+      for (const [v, desc] of Object.entries(type.variables)) {
+        vars.push(`<code>${v}</code> (${desc})`) // eslint-disable-line @typescript-eslint/no-base-to-string
+      }
+      return `a ${type.kind} sprintf template with one or more of the variables ${vars.join(' / ')}`
+    }
     throw new Error(`no rule for ${JSON.stringify(type)}`)
   }
 }
@@ -87,7 +94,7 @@ const formatters = new FormatterAPI('content/key-manager/formatter.ts')
 fs.writeFileSync('site/data/citekeyformatters/functions.json', stringify.stable(formatters.doc.function, null, 2))
 fs.writeFileSync('site/data/citekeyformatters/filters.json', stringify.stable(formatters.doc.filter, null, 2))
 
-fs.writeFileSync('gen/api/key-formatter.ts', `/* eslint-disable quote-props, comma-dangle, no-magic-numbers */
+fs.writeFileSync('gen/api/key-formatter.ts', `/* eslint-disable quote-props, comma-dangle */
 export const methods = ${jsesc(formatters.signature, { compact: false, indent: '  ' })} as const
 `)
 

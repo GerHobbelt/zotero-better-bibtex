@@ -45,7 +45,7 @@ export const KeyManager = new class _KeyManager {
       annotation?: number
     }
   }
-  public autopin: Scheduler = new Scheduler('autoPinDelay', 1000) // eslint-disable-line no-magic-numbers
+  public autopin: Scheduler = new Scheduler('autoPinDelay', 1000)
 
   private regenerate: number[]
   private started = false
@@ -336,7 +336,7 @@ export const KeyManager = new class _KeyManager {
             const msg = warn_titlecase === 1
               ? `${warn_titlecase} item ${actioned} which looks like it has a title-cased title`
               : `${warn_titlecase} items ${actioned} which look like they have title-cased titles`
-            flash(`Possibly title-cased title${warn_titlecase > 1 ? 's' : ''} ${actioned}`, msg, 3) // eslint-disable-line no-magic-numbers
+            flash(`Possibly title-cased title${warn_titlecase > 1 ? 's' : ''} ${actioned}`, msg, 3)
           }
           break
       }
@@ -357,18 +357,20 @@ export const KeyManager = new class _KeyManager {
         item = await Zotero.Items.getAsync(citekey.itemID)
       }
       catch (err) {
+        item = undefined
+      }
+      if (!item) {
         // assume item has been deleted before we could get to it -- did I mention I hate async? I hate async
-        log.error('could not load', citekey.itemID, err)
+        log.error('could not load', citekey.itemID)
+        return
+      }
+      if (item.isFeedItem || !item.isRegularItem()) {
+        log.error('citekey registered for item of type', item.isFeedItem ? 'feedItem' : Zotero.ItemTypes.getName(item.itemTypeID))
         return
       }
 
-      if (item.isFeedItem || !item.isRegularItem()) {
-        log.error('citekey registered for item of type', item.isFeedItem ? 'feedItem' : Zotero.ItemTypes.getName(item.itemTypeID))
-      }
-      else {
-        // update display panes by issuing a fake item-update notification
-        Zotero.Notifier.trigger('modify', 'item', [citekey.itemID], { [citekey.itemID]: { bbtCitekeyUpdate: true } })
-      }
+      // update display panes by issuing a fake item-update notification
+      Zotero.Notifier.trigger('modify', 'item', [citekey.itemID], { [citekey.itemID]: { bbtCitekeyUpdate: true } })
 
       if (!citekey.pinned && this.autopin.enabled) {
         this.autopin.schedule(citekey.itemID, () => {
@@ -507,18 +509,15 @@ export const KeyManager = new class _KeyManager {
 
         eta.iterate()
 
-        if ((eta.done % 10) === 1) { // eslint-disable-line no-magic-numbers
+        if ((eta.done % 10) === 1) {
           log.debug('keymanager.rescan: regenerated', eta.done)
-          // eslint-disable-next-line no-magic-numbers
           progress.setProgress((eta.done * 100) / eta.count)
           progress.setText(eta.format(`${eta.done} / ${eta.count}, {{etah}} remaining`))
         }
       }
 
-      // eslint-disable-next-line no-magic-numbers
       progress.setProgress(100)
       progress.setText('Ready')
-      // eslint-disable-next-line no-magic-numbers
       progressWin.startCloseTimer(500)
     }
 
@@ -567,6 +566,7 @@ export const KeyManager = new class _KeyManager {
     if (citekey) return { citekey, pinned: true }
 
     citekey = Formatter.format(item)
+    log.debug('formatter.propose:', Preference.citekeyFormat, Preference.citekeyFormatEditing, citekey)
 
     const conflictQuery: Query = { $and: [ { citekey: { $eq: '' } }, { itemID: { $ne: item.id } } ] }
     if (Preference.keyScope !== 'global') conflictQuery.$and.push({ libraryID: { $eq: item.libraryID } })
