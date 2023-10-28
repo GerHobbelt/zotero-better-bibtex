@@ -27,7 +27,7 @@ export class ASTWalker {
   Conditional(node, history) {
     let keep = true
     if (!(node.consequent = this.walk(node.consequent, history))) keep = false
-    if (!(node.alternate = this.walk(node.alternate, history))) keep = false
+    if (node.alternate && !(node.alternate = this.walk(node.alternate, history))) keep = false
     if (keep) return node
   }
 
@@ -54,3 +54,16 @@ export class ASTWalker {
   }
 }
 
+export class SelfClosing extends ASTWalker {
+  Tag(tag) {
+    this.walk(tag.block)
+    if (!tag.block.nodes.length) tag.selfClosing = true
+    return tag
+  }
+}
+
+export function walk(cls, ast) {
+  const walker = new cls
+  walker.walk(ast, [])
+  return walker
+}

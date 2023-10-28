@@ -4,13 +4,13 @@
 
 import * as pug from 'pug'
 import * as fs from 'fs'
-import { ASTWalker } from './pug-ast-walker'
+import { walk, SelfClosing, ASTWalker } from './pug-ast-walker'
 import fast_safe_stringify from 'fast-safe-stringify'
 
 const pugs = [
   'content/ErrorReport.pug',
-  'content/FirstRun.pug',
-  'content/Preferences.pug',
+  'content/Preferences/xul.pug',
+  'content/Preferences/xhtml.pug',
   'content/ServerURL.pug',
   'content/ZoteroPane.pug',
   'content/bulk-keys-confirm.pug',
@@ -42,7 +42,7 @@ class Z7Detector extends ASTWalker {
   public is7 = false
 
   Conditional(node) {
-    if (node.test === 'is7') this.is7 = true
+    if (node.test === 'is7' || node.test === '!is7') this.is7 = true
 
     this.walk(node.consequent)
     this.walk(node.alternate)
@@ -89,7 +89,12 @@ function render(src, options) {
 
 for (const src of pugs) {
   console.log(' ', src)
-  const tgt = `build/${src.replace(/pug$/, 'xul')}`
+  let tgt = `build/${src.replace(/pug$/, 'xul')}`
+  switch (src) {
+    case 'content/Preferences/xul.pug':
+    case 'content/Preferences/xhtml.pug':
+      tgt = '/dev/null'
+  }
 
   const detector = new Z7Detector
   fs.writeFileSync(tgt, render(src, {
@@ -97,6 +102,7 @@ for (const src of pugs) {
     plugins: [{
       preCodeGen(ast) {
         detector.walk(ast)
+        walk(SelfClosing, ast)
         return ast
       },
     }],

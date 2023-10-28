@@ -15,26 +15,18 @@ import * as l10n from './l10n'
 import { Events } from './events'
 import { pick } from './file-picker'
 import { flash } from './flash'
+import { is7 } from './client'
 
 // safe to keep "global" since only one pref pane will be loaded at any one time
 var window: Window & { sizeToContent(): void } // eslint-disable-line no-var
 Events.on('window-loaded', ({ win, href }: {win: Window, href: string}) => {
   switch (href) {
-    case 'chrome://zotero/content/preferences/preferences.xul': // Z6
+    case 'chrome://zotero/content/preferences/preferences.xul': // Zotero's own preferences on Z6
       new ZoteroPreferences(win)
       break
 
-    case 'chrome://zotero/content/preferences/preferences.xhtml': // Z7
-      break
-
-    case 'chrome://zotero-better-bibtex/content/Preferences.xul':
-      window = win as any;
-      (window as any).Zotero = Zotero
-      window.addEventListener('unload', () => {
-        Zotero.BetterBibTeX.PrefPane.unload()
-        window = null
-      })
-      Zotero.BetterBibTeX.PrefPane.load().catch(err => log.error(err))
+    case 'chrome://zotero-better-bibtex/content/preferences.xul': // BBT's own Z6 preferences
+      Zotero.BetterBibTeX.PrefPane.load(win).catch(err => log.error(err))
       break
   }
 })
@@ -131,7 +123,7 @@ class AutoExportPane {
 
     const ui = {
       data: AutoExport.db.find(),
-      select: window.document.getElementById('better-bibtex-prefs-auto-export-select'),
+      menupopup: window.document.querySelector('#better-bibtex-prefs-auto-export-select menupopup'),
       deck: window.document.getElementById('better-bibtex-prefs-auto-export-deck'),
     }
 
@@ -139,7 +131,7 @@ class AutoExportPane {
     if (!ui.data.length) return null
 
     const rebuild = {
-      tabs: Array.from(ui.select.children).map((node: Element) => ({ updated: parseInt(node.getAttribute('data-ae-updated')), id: parseInt(node.getAttribute('data-ae-id')) })),
+      tabs: Array.from(ui.menupopup.children).map((node: Element) => ({ updated: parseInt(node.getAttribute('data-ae-updated')), id: parseInt(node.getAttribute('data-ae-id')) })),
       exports: ui.data.map(ae => ({ updated: ae.meta.updated || ae.meta.created, id: ae.$loki })),
       rebuild: false,
       refresh: false,
@@ -148,18 +140,18 @@ class AutoExportPane {
     rebuild.refresh = rebuild.rebuild || (rebuild.tabs.length !== rebuild.exports.length) || (typeof rebuild.tabs.find((tab, index) => rebuild.exports[index].updated !== tab.updated) !== 'undefined')
 
     if (rebuild.rebuild) {
-      while (ui.select.children.length) ui.select.removeChild(ui.select.firstChild)
+      while (ui.menupopup.children.length) ui.menupopup.removeChild(ui.menupopup.firstChild)
       while (ui.deck.children.length > 1) ui.deck.removeChild(ui.deck.firstChild)
     }
 
     for (const [index, ae] of ui.data.entries()) {
-      let option, pane
+      let menuitem, pane
 
       if (rebuild.rebuild) {
-        option = ui.select.appendChild(window.document.createElementNS('http://www.w3.org/1999/xhtml', 'option'))
-        option.setAttribute('value', `${ae.$loki}`)
-        option.setAttribute('data-ae-id', `${ae.$loki}`)
-        option.setAttribute('data-ae-updated', `${ae.meta.updated || ae.meta.created}`)
+        menuitem = ui.menupopup.appendChild(window.document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'menuitem'))
+        menuitem.setAttribute('value', `${ae.$loki}`)
+        menuitem.setAttribute('data-ae-id', `${ae.$loki}`)
+        menuitem.setAttribute('data-ae-updated', `${ae.meta.updated || ae.meta.created}`)
 
         pane = (index === 0 ? ui.deck.firstChild : ui.deck.appendChild(ui.deck.firstChild.cloneNode(true)))
 
@@ -176,12 +168,12 @@ class AutoExportPane {
         }
       }
       else {
-        option = ui.select.children[index]
+        menuitem = ui.menupopup.children[index]
         pane = ui.deck.children[index]
       }
 
       const path = ae.path.startsWith(OS.Constants.Path.homeDir) ? ae.path.replace(OS.Constants.Path.homeDir, '~') : ae.path
-      option.textContent = `${{ library: '\ud83d\udcbb', collection: '\ud83d\udcc2' }[ae.type]} ${this.name(ae, 'short')} (${Translators.byId[ae.translatorID].label}) ${path}`
+      menuitem.label = `${{ library: '\ud83d\udcbb', collection: '\ud83d\udcc2' }[ae.type]} ${this.name(ae, 'short')} (${Translators.byId[ae.translatorID].label}) ${path}`
 
       const progress = AutoExport.progress.get(ae.$loki)
       for (const node of Array.from(pane.querySelectorAll('*[data-ae-field]'))) {
@@ -411,11 +403,11 @@ export class PrefPane {
     const msg = window.document.getElementById('better-bibtex-citekeyFormat-error') as HTMLInputElement
     msg.value = error
     msg.setAttribute('style', style)
-    msg.style.visibility = error ? 'visible' : 'hidden'
+    msg.style.display = error ? 'block' : 'none'
 
     const active = window.document.getElementById('id-better-bibtex-preferences-citekeyFormat')
     const label = window.document.getElementById('id-better-bibtex-label-citekeyFormat')
-    active.style.visibility = label.style.visibility = Preference.citekeyFormat === Preference.citekeyFormatEditing ? 'hidden' : 'visible'
+    active.style.display = label.style.display = Preference.citekeyFormat === Preference.citekeyFormatEditing ? 'none' : 'block'
   }
 
   public checkPostscript(): void {
@@ -448,27 +440,42 @@ export class PrefPane {
     Cache.reset('user-initiated')
   }
 
-  public async load(): Promise<void> {
-    const deck = window.document.getElementById('better-bibtex-prefs-deck') as unknown as XUL.Deck
-    deck.selectedIndex = 0
+  public async load(win: Window): Promise<void> {
+    try {
+      window = win as any;
+      (window as any).Zotero = Zotero
+      window.addEventListener('unload', () => {
+        Zotero.BetterBibTeX.PrefPane.unload()
+        window = null
+      })
 
-    await Zotero.BetterBibTeX.ready
+      if (!is7) {
+        const deck = window.document.getElementById('better-bibtex-prefs-deck') as unknown as XUL.Deck
+        deck.selectedIndex = 0
 
-    // bloody *@*&^@# html controls only sorta work for prefs
-    for (const node of Array.from(window.document.querySelectorAll("select[preference], input[preference][type='range']"))) {
-      (node as HTMLInputElement).value = Preference[node.getAttribute('preference').replace('extensions.zotero.translators.better-bibtex.', '')]
+        await Zotero.BetterBibTeX.ready
+
+        // bloody *@*&^@# html controls only sorta work for prefs
+        for (const node of Array.from(window.document.querySelectorAll("input[preference][type='range']"))) {
+          (node as HTMLInputElement).value = Preference[node.getAttribute('preference').replace('extensions.zotero.translators.better-bibtex.', '')]
+        }
+
+        deck.selectedIndex = 1
+      }
+
+      window.document.getElementById('rescan-citekeys').hidden = !Zotero.Debug.enabled
+
+
+      this.autoexport.load()
+
+      this.checkCitekeyFormat()
+      this.checkPostscript()
+      this.refresh()
+      this.timer = typeof this.timer === 'number' ? this.timer : window.setInterval(this.refresh.bind(this), 500)  // eslint-disable-line no-magic-numbers
     }
-
-    window.document.getElementById('rescan-citekeys').hidden = !Zotero.Debug.enabled
-
-    deck.selectedIndex = 1
-
-    this.autoexport.load()
-
-    this.checkCitekeyFormat()
-    this.checkPostscript()
-    this.refresh()
-    this.timer = typeof this.timer === 'number' ? this.timer : window.setInterval(this.refresh.bind(this), 500)  // eslint-disable-line no-magic-numbers
+    catch (err) {
+      log.debug('error loading preferences:', err)
+    }
   }
 
   public unload(): void {
