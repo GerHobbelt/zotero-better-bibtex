@@ -7,15 +7,14 @@ declare class ChromeWorker extends Worker { }
 Components.utils.import('resource://zotero/config.js')
 declare const ZOTERO_CONFIG: any
 
-import { clone } from './clone'
+import { clone } from './object'
 import { Deferred } from './deferred'
 import type { Translators as Translator } from '../typings/translators'
 import { Preference } from './prefs'
-import { schema, Preferences } from '../gen/preferences/meta'
+import { Preferences } from '../gen/preferences/meta'
 import { Serializer } from './serializer'
 import { log } from './logger'
 import { DB as Cache } from './db/cache'
-import { DB } from './db/main'
 import { flash } from './flash'
 import { $and } from './db/loki'
 import { Events } from './events'
@@ -24,14 +23,13 @@ import Puqeue from 'puqeue'
 import { is7 } from './client'
 import { orchestrator } from './orchestrator'
 import type { Reason } from './bootstrap'
+import { headers as Headers, byLabel, byId, bySlug } from '../gen/translators'
 
 class Queue extends Puqeue {
   get queued() {
     return this._queue.length
   }
 }
-
-import * as translatorMetadata from '../gen/translators.json'
 
 import * as l10n from './l10n'
 
@@ -51,8 +49,8 @@ export type ExportJob = {
 // export singleton: https://k94n.com/es6-modules-single-instance-pattern
 export const Translators = new class { // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
   public byId: Record<string, Translator.Header> = {}
-  public byName: Record<string, Translator.Header> = {}
   public byLabel: Record<string, Translator.Header> = {}
+  public bySlug: Record<string, Translator.Header> = {}
   public itemType: { note: number, attachment: number, annotation: number }
   public queue = new Queue
   public worker: ChromeWorker
@@ -60,11 +58,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   public ready = new Deferred<boolean>()
 
   constructor() {
-    for (const header of translatorMetadata) {
-      this.byId[header.translatorID] = header
-      this.byName[header.label] = header
-      this.byLabel[header.label.replace(/[^A-Z]/i, '')] = header
-    }
+    Object.assign(this, { byLabel, byId, bySlug })
 
     orchestrator.add('translators', {
       description: 'translators',
@@ -97,11 +91,11 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
         }
 
         const quickCopy = Zotero.Prefs.get('export.quickCopy.setting')
-        for (const [label, metadata] of (Object.entries(Translators.byName) )) {
-          if (quickCopy === `export=${metadata.translatorID}`) Zotero.Prefs.clear('export.quickCopy.setting')
+        for (const header of Headers) {
+          if (quickCopy === `export=${header.translatorID}`) Zotero.Prefs.clear('export.quickCopy.setting')
 
           try {
-            Translators.uninstall(label)
+            Translators.uninstall(header.label)
           }
           catch (error) {}
         }
@@ -115,21 +109,20 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     await Zotero.Translators.init()
 
     const reinit: { header: Translator.Header, code: string }[] = []
-    let header: Translator.Header
-    let code: string
     // fetch from resource because that has the hash
-    const headers: Translator.Header[] = Object.keys(this.byName)
-      .map(name => JSON.parse(Zotero.File.getContentsFromURL(`chrome://zotero-better-bibtex/content/resource/${name}.json`)))
-    for (header of headers) {
+    const headers: Translator.Header[] = Headers
+      .map(header => JSON.parse(Zotero.File.getContentsFromURL(`chrome://zotero-better-bibtex/content/resource/${header.label}.json`)))
+    for (const header of headers) {
       // workaround for mem limitations on Windows
       if (!is7 && typeof header.displayOptions?.worker === 'boolean') header.displayOptions.worker = !!Zotero.isWin
+      let code
       if (code = await this.install(header)) reinit.push({ header, code })
     }
 
     if (reinit.length) {
       await Zotero.Translators.reinit()
 
-      for ({ header, code } of reinit) {
+      for (const { header, code } of reinit) {
         if (Zotero.Translators.getCodeForTranslator) {
           const translator = Zotero.Translators.get(header.translatorID)
           translator.cacheCode = true
@@ -151,16 +144,16 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     // shortcuts
     switch (name_lc) {
       case 'json':
-        return Translators.byLabel.BetterCSLJSON.translatorID
+        return Translators.bySlug.BetterCSLJSON.translatorID
       case 'yaml':
-        return Translators.byLabel.BetterCSLYAML.translatorID
+        return Translators.bySlug.BetterCSLYAML.translatorID
       case 'jzon':
-        return Translators.byLabel.BetterBibTeXJSON.translatorID
+        return Translators.bySlug.BetterBibTeXJSON.translatorID
       case 'bib':
       case 'biblatex':
-        return Translators.byLabel.BetterBibLaTeX.translatorID
+        return Translators.bySlug.BetterBibLaTeX.translatorID
       case 'bibtex':
-        return Translators.byLabel.BetterBibTeX.translatorID
+        return Translators.bySlug.BetterBibTeX.translatorID
     }
 
     for (const [id, translator] of (Object.entries(this.byId))) {
@@ -394,7 +387,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
 
     // pre-fetch cache
     if (cache) {
-      const selector = schema.translator[translator.label]?.cache ? Cache.selector(translator.label, config.options, config.preferences) : null
+      const selector = translator.configOptions?.cached ? Cache.selector(translator.label, config.options, config.preferences) : null
       const query = {...selector, itemID: { $in: config.data.items.map(item => item.itemID) }}
 
       // not safe in async!
@@ -533,24 +526,10 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       Zotero.File.getContentsFromURL(`chrome://zotero-better-bibtex/content/resource/${header.label}.js`),
     ].join('\n')
 
-    if (schema.translator[header.label]?.cache) Cache.getCollection(header.label).removeDataOnly()
+    if (header.configOptions?.cached) Cache.getCollection(header.label).removeDataOnly()
 
-    // importing AutoExports would be circular, so access DB directly
-    const autoexports = DB.getCollection('autoexport')
-    if (autoexports) {
-      for (const ae of autoexports.find({ $and: [ { translatorID: { $eq: header.translatorID } }, { status: { $ne: 'scheduled' } } ] })) {
-        ae.status = 'scheduled'
-        autoexports.update(ae)
-      }
-    }
-    else { // THIS SHOULD NOT BE POSSIBLE! HOW DOES THIS KEEP HAPPENING?
-      log.error('translator upgrade error: could not get autoexport collection while installing', header.label)
-      flash(
-        'Failed to schedule auto-export',
-        `Failed to schedule auto-exports after ${installed ? 'upgrade' : 'installation'} of ${header.label}, please report this on the Better BibTeX github project`,
-        15
-      )
-    }
+    // will be started later by the scheduler
+    await Zotero.DB.queryTx("UPDATE betterbibtex.autoExport SET status = 'scheduled' WHERE translatorID = ?", [ header.translatorID ])
 
     try {
       await Zotero.Translators.save(header, code)

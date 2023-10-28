@@ -7,9 +7,9 @@ import { Events } from './events'
 import { DB as Cache } from './db/cache'
 import { $and } from './db/loki'
 import { Translators, ExportJob } from './translators'
-import * as translatorHeaders from '../gen/translators.json'
 import { Preference } from './prefs'
-import { Preferences, schema, affects, affectedBy } from '../gen/preferences/meta'
+import { Preferences, autoExport, affectedBy, PreferenceName } from '../gen/preferences/meta'
+import { byId } from '../gen/translators'
 import * as ini from 'ini'
 import fold2ascii from 'fold-to-ascii'
 import { findBinary } from './path-search'
@@ -17,7 +17,94 @@ import { Scheduler } from './scheduler'
 import { flash } from './flash'
 import * as l10n from './l10n'
 import { orchestrator } from './orchestrator'
-import { fromPairs } from 'lodash'
+import { pick, fromPairs } from './object'
+
+const NoParse = { noParseParams: true }
+
+const SQL = new class {
+  public columns: { job: JobSetting[], editable: JobSetting[] } = {
+    job: [ 'type', 'id', 'translatorID', 'path' ],
+    editable: [ 'enabled', 'recursive', 'status', 'error', 'updated' ],
+  }
+  public sql = {
+    create: 'INSERT INTO betterbibtex.autoexport',
+    setting: 'REPLACE INTO betterbibtex.autoexport_setting (path, setting, value) VALUES (:path, :setting, :value)',
+  }
+
+  constructor() {
+    this.columns.job = this.columns.job.concat(this.columns.editable)
+    this.sql.create = `INSERT INTO betterbibtex.autoexport (${this.columns.job.join(',')}) VALUES (${this.columns.job.map(col => `:${col}`)})`
+  }
+
+  public async get(path: string): Promise<Job> {
+    const job: Partial<Job> = {}
+
+    for (const meta of await Zotero.DB.queryAsync('SELECT * FROM betterbibtex.autoexport WHERE PATH = ?', [ path ])) {
+      Object.assign(job, pick(meta, this.columns.job))
+    }
+
+    const settings = autoExport[job.translatorID]
+    const displayOptions = byId[job.translatorID]?.displayOptions || {}
+    Object.assign(job, pick(Preference, settings.preferences))
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    Object.assign(job, fromPairs(settings.options.map((option: PreferenceName) => [ option, job[option] ?? displayOptions[option] ?? false ])))
+
+    for (const { setting, value } of await Zotero.DB.queryAsync('SELECT setting, value FROM betterbibtex.autoexport_setting WHERE PATH = ?', [ path ])) {
+      job[setting] = value
+    }
+
+    log.debug('ae.get:', job)
+    return job as Job
+  }
+
+  public async edit(path: string, setting: JobSetting, value: boolean | number | string): Promise<void> {
+    log.debug('ae.edit: pre', await this.get(path))
+    if (this.columns.editable.includes(setting)) {
+      await Zotero.DB.queryTx(`UPDATE betterbibtex.autoexport SET ${setting} = ? WHERE path = ?`, [ value, path ])
+    }
+    else {
+      await Zotero.DB.queryTx(this.sql.setting, { setting, path, value }, NoParse)
+    }
+    log.debug('ae.edit: post', await this.get(path))
+    queue.add(path)
+  }
+
+  public async create(job: Job) {
+    job.error = job.error || ''
+    job.recursive = job.recursive ?? false
+    job.updated = job.updated || Date.now()
+    job.enabled = true
+
+    await Zotero.DB.executeTransaction(async () => {
+      await Zotero.DB.queryAsync(this.sql.create, pick(job, this.columns.job), NoParse)
+
+      const settings = autoExport[job.translatorID]
+      const displayOptions = byId[job.translatorID]?.displayOptions || {}
+
+      const preferences = settings.preferences.map(setting => ({ path: job.path, setting, value: job[setting] ?? Preference[setting] }))
+      const options = settings.options.map(setting => ({ path: job.path, setting, value: job[setting] ?? displayOptions[setting] ?? false }))
+
+      // await Promise.all(options.concat(preferences).map(setting => ZoteroDB.queryAsync(this.sql.setting, setting, NoParse) as Promise<void>))
+      for (const setting of options.concat(preferences)) {
+        await Zotero.DB.queryAsync(this.sql.setting, setting, NoParse)
+      }
+    })
+  }
+
+  public async delete(path: string): Promise<void> {
+    await Zotero.DB.queryTx('DELETE FROM betterbibtex.autoexport WHERE path = ?', [path])
+  }
+
+  public async find(type: string, ids: number[]): Promise<string[]> {
+    if (!ids.length) return []
+    const select = `SELECT path FROM betterbibtex.autoexport WHERE type = ? AND id IN (${this.paramSet(ids)}) ORDER BY path`
+    return (await Zotero.DB.columnQueryAsync(select, [type, ...ids])) as string[]
+  }
+
+  public paramSet(arr: any[]): string {
+    return Array(arr.length).fill('?').join(',')
+  }
+}
 
 class Git {
   public enabled: boolean
@@ -208,7 +295,7 @@ const queue = new class TaskQueue {
     const translator = Translators.byId[ae.translatorID]
     void Events.emit('export-progress', { pct: 0, message: `Starting ${translator.label}`, ae: path })
 
-    await Zotero.DB.queryTx("UPDATE betterbibtex.autoExport SET status = 'running' WHERE path = ?", [path])
+    await Zotero.DB.queryTx("UPDATE betterbibtex.autoexport SET status = 'running' WHERE path = ?", [path])
 
     try {
       let scope
@@ -286,7 +373,7 @@ const queue = new class TaskQueue {
       ae.error = `${err}`
     }
 
-    await Zotero.DB.queryTx("UPDATE betterbibtex.autoExport SET status = 'done', updated = ? WHERE path = ?", [Date.now(), path])
+    await Zotero.DB.queryTx("UPDATE betterbibtex.autoexport SET status = 'done', updated = ? WHERE path = ?", [Date.now(), path])
   }
 
   private getCollectionPath(coll: {name: string, parentID: number}, root: number): string[] {
@@ -300,13 +387,15 @@ const queue = new class TaskQueue {
   }
 }
 
-type Config = {
+type Job = {
+  enabled: boolean
   type: 'collection' | 'library'
   id: number
-  translatorID: 'string'
+  translatorID: string
   path: string
   recursive: boolean
   status: 'scheduled' | 'running' | 'done' | 'error'
+  updated: number
   error: string
   exportNotes: boolean
   useJournalAbbreviation: boolean
@@ -315,23 +404,7 @@ type Config = {
   DOIandURL?: boolean
   bibtexURL?: boolean
 }
-
-const columns = [
-  'type', 'id', 'translatorID',
-  'path', 'recursive',
-  'status', 'error', 'updated',
-  'exportNotes', 'useJournalAbbreviation',
-  'asciiBibLaTeX', 'biblatexExtendedNameFormat',
-  'DOIandURL', 'bibtexURL',
-]
-
-const insert = `REPLACE INTO betterbibtex.autoExport (${columns.join(',')}) VALUES (${Array(columns.length).fill('?').join(',')})`
-
-function makeRow(ae: Config): any[] {
-  const translator = Translators.byId[ae.translatorID].label
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  return columns.map(col => !(col in affects) || affects[col].includes(translator) ? ae[col] : null)
-}
+type JobSetting = keyof Job
 
 // export singleton: https://k94n.com/es6-modules-single-instance-pattern
 export const AutoExport = new class _AutoExport { // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
@@ -354,7 +427,7 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
 
         await this.initDB()
 
-        for (const path of await Zotero.DB.columnQueryAsync("SELECT path FROM betterbibtex.autoExport WHERE status <> 'done'")) {
+        for (const path of await Zotero.DB.columnQueryAsync("SELECT path FROM betterbibtex.autoexport WHERE status <> 'done'")) {
           queue.add(path)
         }
 
@@ -385,16 +458,16 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
   }
 
   private async initDB() {
-    const tables = await Zotero.DB.columnQueryAsync("SELECT name FROM betterbibtex.sqlite_master where type='table'")
+    const tables = await Zotero.DB.columnQueryAsync("SELECT LOWER(name) FROM betterbibtex.sqlite_master where type='table'")
     log.debug('mae:', tables)
 
-    if (!tables.includes('autoExport')) {
-      let ddl = require('./db/auto-export.sql')
-      for (const header of translatorHeaders) {
-        ddl = ddl.replace(new RegExp(`'${header.label}'`, 'g'), `'${header.translatorID}'`)
+    if (!tables.includes('autoexport')) {
+      for (const ddl of require('./db/auto-export.sql')) {
+        await Zotero.DB.queryAsync(ddl, [], NoParse)
       }
-      log.debug(ddl)
-      await Zotero.DB.queryAsync(ddl.replace(/\n/g, ' '))
+    }
+    for (const ddl of require('../gen/auto-export-triggers.sql')) {
+      await Zotero.DB.queryAsync(ddl, [], NoParse)
     }
     for (const db of await Zotero.DB.queryAsync("SELECT * FROM betterbibtex.sqlite_master WHERE type='table'")) {
       log.debug(db.name, db.sql)
@@ -408,13 +481,8 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
           ae.error = ae.error || ''
           ae.updated = ae.meta.updated
           ae.recursive = ae.recursive || 0
-          /*
-          for (const [k, v] of Object.entries(ae)) {
-            if (typeof v === 'boolean') ae[k] = v ? 1 : 0
-          }
-          */
           log.debug('aedb: upgrade', ae)
-          await Zotero.DB.queryTx(insert, makeRow(ae), { noParseParams: true })
+          await SQL.create(ae)
         }
 
         await Zotero.DB.queryTx('UPDATE betterbibtex."better-bibtex" SET name = ? WHERE name = ?', ['migrated.auto-export', 'better-bibtex.auto-export'])
@@ -423,25 +491,8 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
   }
 
   public async add(ae, schedule = false) {
-    const translator = schema.translator[Translators.byId[ae.translatorID].label]
-    for (const pref of translator.preferences) {
-      if (typeof ae[pref] === 'undefined' || ae[pref] === null) ae[pref] = Preference[pref]
-    }
-    for (const option of translator.displayOptions) {
-      if (typeof ae[option] === 'undefined' || ae[option] === null) ae[option] = translator.displayOptions[option]
-    }
-
-    ae.error = ae.error || ''
-    ae.updated = Date.now()
-    ae.recursive = ae.recursive || 0
-    /*
-    for (const [k, v] of Object.entries(ae)) {
-      if (typeof v === 'boolean') ae[k] = v ? 1 : 0
-    }
-    */
-    log.debug('aedb: insert', ae)
-    await Zotero.DB.queryTx(insert, makeRow(ae), { noParseParams: true })
-    log.debug('aedb: inserted, now', await Zotero.DB.valueQueryAsync('SELECT COUNT(*) FROM betterbibtex.autoExport'))
+    await SQL.create(ae)
+    log.debug('aedb: inserted, now', await Zotero.DB.valueQueryAsync('SELECT COUNT(*) FROM betterbibtex.autoexport'))
 
     try {
       const repo = await git.repo(ae.path)
@@ -452,54 +503,47 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
     }
   }
 
-  public async schedule(type: string, ids: number[]) {
+  public async find(type: 'collection' | 'library', ids: number[]): Promise<Job[]> {
+    return await Promise.all((await SQL.find(type, ids)).map(path => this.get(path)))
+  }
+
+  public async schedule(type: 'collection' | 'library', ids: number[]) {
     if (!ids.length) return
 
-    const select = `FROM betterbibtex.autoExport WHERE type = ? AND id IN (${Array(ids.length).fill('?').join(',')})`
-    for (const path of await Zotero.DB.columnQueryAsync(`SELECT path ${select}`, [type, ...ids])) {
+    for (const path of await SQL.find(type, ids)) {
       log.debug('ae.schedule: enqueueing', path)
       queue.add(path)
     }
   }
 
-  private _get(row: any): Config {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return fromPairs(columns.map((col: string) => [col, row[col]]).filter(pair => pair[1] !== null)) as Config
+  public async get(path: string): Promise<Job> {
+    return await SQL.get(path)
   }
-  public async get(path: string): Promise<Config> {
-    for (const ae of await Zotero.DB.queryAsync('SELECT * FROM betterbibtex.autoExport WHERE path = ?', path)) {
-      return this._get(ae)
-    }
+  public async all(): Promise<Job[]> {
+    return (await Zotero.DB.queryAsync('SELECT * FROM betterbibtex.autoexport ORDER BY path')).map(ae => this.get(ae)) as Job[]
   }
-  public async all(): Promise<Config[]> {
-    return (await Zotero.DB.queryAsync('SELECT * FROM betterbibtex.autoExport ORDER BY path')).map(ae => this._get(ae)) as Config[]
+
+  public async edit(path: string, setting: JobSetting, value: number | boolean | string): Promise<void> {
+    await SQL.edit(path, setting, value)
   }
 
   public async remove(path: string): Promise<void>
-  public async remove(type: string, ids: number[]): Promise<void>
+  public async remove(type: 'collection' | 'library', ids: number[]): Promise<void>
   public async remove(arg: string, ids?: number[]): Promise<void> {
-    let paths: string[]
-    if (typeof ids === 'undefined') {
-      paths = [arg]
-    }
-    else {
-      if (!ids.length) return
-      const select = `SELECT path FROM betterbibtex.autoExport WHERE type = ? AND path IN (${Array(ids.length).fill('?').join(',')})`
-      paths = await Zotero.DB.columnQueryAsync(select, [arg, ...ids])
-    }
+    const paths: string[] = (typeof ids === 'undefined') ? [ arg ] : await SQL.find(arg as 'collection' | 'library', ids)
+
+    await Zotero.DB.queryTx(`DELETE FROM betterbibtex.autoexport WHERE path IN (${Array(paths.length).fill('?').join(',')})`, paths)
 
     for (const path of paths) {
       queue.cancel(path)
       this.progress.delete(path)
     }
-
-    await Zotero.DB.queryTx(`DELETE FROM betterbibtex.autoExport WHERE path IN (${Array(paths.length).fill('?').join(',')})`, paths)
   }
 
   public async removeAll() {
     queue.clear()
     this.progress = new Map
-    await Zotero.DB.queryTx('DELETE FROM betterbibtex.autoExport')
+    await Zotero.DB.queryTx('DELETE FROM betterbibtex.autoexport')
   }
 
   public run(path: string) {
@@ -546,7 +590,7 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
     return Math.min(Math.round((100 * (cached.serialized + cached.export)) / (itemIDs.length * 2)), 100)
   }
 
-  private async itemIDs(ae: Config, id: number, itemTypeIDs: number[], itemIDs: Set<number>) {
+  private async itemIDs(ae: Job, id: number, itemTypeIDs: number[], itemIDs: Set<number>) {
     let items
     if (ae.type === 'collection') {
       const coll = await Zotero.Collections.getAsync(id)

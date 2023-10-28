@@ -1,57 +1,29 @@
-CREATE TABLE betterbibtex.autoExport (
-  type
-    CONSTRAINT type_domain CHECK (type IN ('library', 'collection')),
+CREATE TABLE IF NOT EXISTS betterbibtex.autoexport (
+  path NOT NULL PRIMARY KEY,
+  translatorID NOT NULL,
+  type NOT NULL,
   id NOT NULL,
-  path NOT NULL UNIQUE,
-  status
-    CONSTRAINT status_domain CHECK (status in ('scheduled', 'running', 'done', 'error')),
-  recursive
-    CONSTRAINT recursive_boolean CHECK (recursive IN (0, 1)),
+  recursive NOT NULL,
+  enabled NOT NULL,
+  status NOT NULL,
   error NOT NULL,
-  updated NOT NULL,
-
-  translatorID
-    CONSTRAINT translatorID_domain CHECK (
-      translatorID IN (
-        'BetterBibTeX JSON',
-        'Better CSL YAML',
-        'Better CSL JSON',
-        'Better BibTeX',
-        'Better BibLaTeX'
-      )
-    ),
-
-  exportNotes
-    CONSTRAINT exportNotes_boolean CHECK (exportNotes IN (0, 1)),
-
-  useJournalAbbreviation
-    CONSTRAINT useJournalAbbreviation_boolean CHECK (useJournalAbbreviation IN (0, 1)),
-
-  asciiBibLaTeX
-    CONSTRAINT asciiBibLaTeX_boolean CHECK (
-      ((translatorID = 'Better BibLaTeX') = (asciiBibLaTeX IS NOT NULL))
-      AND
-      COALESCE(asciiBibLaTeX, 0) IN (0, 1)
-    ),
-
-  biblatexExtendedNameFormat
-    CONSTRAINT biblatexExtendedNameFormat_boolean CHECK (
-      ((translatorID = 'Better BibLaTeX') = (biblatexExtendedNameFormat IS NOT NULL))
-      AND
-      COALESCE(biblatexExtendedNameFormat, 0) IN (0, 1)
-    ),
-
-  DOIandURL
-    CONSTRAINT DOIandURL_domain CHECK (
-      ((translatorID IN ('Better BibTeX', 'Better BibLaTeX')) = (DOIandURL IS NOT NULL))
-      AND
-      COALESCE(DOIandURL, 'both') IN ('both', 'doi', 'url')
-    ),
-
-  bibtexURL
-    CONSTRAINT bibtexURL_domain CHECK (
-      ((translatorID = 'Better BibTeX') = (bibtexURL IS NOT NULL))
-      AND
-      COALESCE(bibtexURL, 'off') IN ('off', 'note', 'note-url-ish', 'url', 'url-ish')
-    )
+  updated NOT NULL
 )
+--
+CREATE INDEX IF NOT EXISTS betterbibtex.autoexport_translatorID ON autoexport(translatorID)
+--
+CREATE INDEX IF NOT EXISTS betterbibtex.autoexport_type_id ON autoexport(type, id)
+--
+CREATE INDEX IF NOT EXISTS betterbibtex.autoexport_status ON autoexport(status)
+--
+CREATE TABLE IF NOT EXISTS betterbibtex.autoexport_setting (
+  path NOT NULL,
+  setting NOT NULL,
+  value NOT NULL,
+  PRIMARY KEY(path, setting),
+  FOREIGN KEY(path) REFERENCES autoexport(path) ON DELETE CASCADE
+)
+--
+CREATE INDEX IF NOT EXISTS betterbibtex.autoexport_setting_path ON autoexport_setting(path)
+--
+CREATE INDEX IF NOT EXISTS betterbibtex.autoexport_setting_setting ON autoexport_setting(path, setting)

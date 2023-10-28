@@ -2,10 +2,11 @@ import { XULoki as Loki, $and } from './loki'
 import { Events } from '../events'
 import { File } from './store/file'
 import { Preference } from '../prefs'
-import { affects, schema } from '../../gen/preferences/meta'
+import * as preference from '../../gen/preferences/meta'
+import { headers, byLabel } from '../../gen/translators'
 import { log } from '../logger'
 import { Cache as CacheTypes } from '../../typings/cache'
-import { clone } from '../clone'
+import { clone, fromPairs } from '../object'
 
 import { orchestrator } from '../orchestrator'
 
@@ -75,13 +76,42 @@ class Cache extends Loki {
       modified[item.itemID] = item.modified
     }
 
-    for (const [name, translator] of Object.entries(schema.translator)) {
-      if (!translator.cache) continue
+    for (const header of headers) {
+      if (!header.configOptions?.cached) continue
 
-      coll = this.schemaCollection(name, {
+      const cachedPrefs = fromPairs(
+        preference.autoExport[header.translatorID].preferences.map(pref => [
+          pref,
+          preference.options[pref] ? { enum: Object.keys(preference.options[pref]) } : { type: typeof preference.defaults[pref] },
+        ])
+      )
+
+      coll = this.schemaCollection(header.label, {
         logging: false,
-        indices: [ 'itemID', 'exportNotes', 'useJournalAbbreviation', ...(translator.preferences) ],
-        schema: translator.cache,
+        indices: [ 'itemID', 'exportNotes', 'useJournalAbbreviation', ...Object.keys(cachedPrefs) ],
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            itemID: { type: 'integer' },
+            entry: { type: 'string' },
+
+            // displayOptions
+            exportNotes: { type: 'boolean' },
+            useJournalAbbreviation: { type: 'boolean' },
+
+            // preferences
+            ...cachedPrefs,
+
+            // Optional
+            metadata: { type: 'object' },
+
+            // LokiJS
+            meta: { type: 'object' },
+            $loki: { type: 'integer' },
+          },
+          required: [ 'itemID', 'entry', 'exportNotes', 'useJournalAbbreviation', ...Object.keys(cachedPrefs) ],
+        },
         ttl,
         ttlInterval,
       })
@@ -149,13 +179,14 @@ class Cache extends Loki {
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  selector(translator: string, options: any, prefs: Partial<Preferences>) {
+  selector(translatorLabel: string, options: any, prefs: Partial<Preferences>) {
     const query = {
       exportNotes: !!options.exportNotes,
       useJournalAbbreviation: !!options.useJournalAbbreviation,
       // itemID: Array.isArray(itemID) ? {$in: itemID} : itemID,
     }
-    for (const pref of schema.translator[translator].preferences) {
+    const translatorID = byLabel[translatorLabel].translatorID
+    for (const pref of preference.autoExport[translatorID].preferences) {
       query[pref] = prefs[pref]
     }
     return query
@@ -234,7 +265,7 @@ export const DB = new Cache('cache', { // eslint-disable-line @typescript-eslint
 // the preferences influence the output way too much, no keeping track of that
 Events.on('preference-changed', async pref => {
   await Zotero.BetterBibTeX.ready
-  DB.reset(`pref ${pref} changed`, affects[pref])
+  DB.reset(`pref ${pref} changed`, preference.affects[pref])
 })
 Events.on('items-changed-prep', async ({ ids }) => {
   await Zotero.BetterBibTeX.ready

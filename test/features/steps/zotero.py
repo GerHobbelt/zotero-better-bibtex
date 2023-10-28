@@ -208,13 +208,11 @@ class Zotero:
     self.zotero = self.client == 'zotero'
     self.jurism = self.client == 'jurism'
 
-    with open(os.path.join(ROOT, 'gen/translators.json')) as f:
-      translators = json.load(f, object_hook=Munch)
-      self.translators = Munch(
-        byId = { tr.translatorID : tr for tr in translators },
-        byName = { tr.label : tr for tr in translators },
-        byLabel = { tr.label.replace(' ', '') : tr for tr in translators }
-      )
+    self.translators = Munch(byId={}, byLabel={}, bySlug={})
+    for header in glob.glob(os.path.join(ROOT, 'translators/*.json')):
+      with open(header) as f:
+        header = json.load(f, object_hook=Munch)
+        self.translators.byId[header.translatorID] = self.translators.byLabel[header.label] = self.translators.bySlug[header.label.replace(' ', '')] = header
 
     if userdata.get('kill', 'true') == 'true':
       atexit.register(self.shutdown)
@@ -421,7 +419,7 @@ class Zotero:
     if translator.startswith('id:'):
       translator = translator[len('id:'):]
     else:
-      translator = self.translators.byName[translator].translatorID
+      translator = self.translators.byLabel[translator].translatorID
 
     found = self.execute('return await Zotero.BetterBibTeX.TestSupport.exportLibrary(translatorID, displayOptions, path, collection)',
       translatorID=translator,
