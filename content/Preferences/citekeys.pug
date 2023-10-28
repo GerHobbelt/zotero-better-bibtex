@@ -31,16 +31,16 @@ hbox
 groupbox(style='margin-bottom: 10px')
   caption(label="&better-bibtex.Preferences.citekey.uniqueness;")
   // <description>&better-bibtex.Preferences.citekey.uniqueness.pin.description;</description>
-  groupbox
-    caption(bbt:preference="extensions.zotero.translators.better-bibtex.keyScope") &better-bibtex.Preferences.citekey.uniqueness.scope;
-    radiogroup(preference="extensions.zotero.translators.better-bibtex.keyScope")
-      radio(label="&better-bibtex.Preferences.citekey.uniqueness.scope.global;" value="global")
-      radio(label="&better-bibtex.Preferences.citekey.uniqueness.scope.library;" value="library")
-  groupbox
-    caption(bbt:preference="extensions.zotero.translators.better-bibtex.keyConflictPolicy") &better-bibtex.Preferences.citekey.uniqueness.conflict;
-    radiogroup(preference="extensions.zotero.translators.better-bibtex.keyConflictPolicy")
-      radio(label="&better-bibtex.Preferences.citekey.uniqueness.conflict.change;" value="change")
-      radio(label="&better-bibtex.Preferences.citekey.uniqueness.conflict.keep;" value="keep")
+  hbox
+    label(bbt:preference="extensions.zotero.translators.better-bibtex.keyScope") &better-bibtex.Preferences.citekey.uniqueness.scope;
+    html:select(preference="extensions.zotero.translators.better-bibtex.keyScope")
+      html:option(value='global') &better-bibtex.Preferences.citekey.uniqueness.scope.global;
+      html:option(value='library') &better-bibtex.Preferences.citekey.uniqueness.scope.library;
+  hbox
+    label(bbt:preference="extensions.zotero.translators.better-bibtex.keyConflictPolicy") &better-bibtex.Preferences.citekey.uniqueness.conflict;
+    html:select(preference="extensions.zotero.translators.better-bibtex.keyConflictPolicy")
+      html:option(value='change') &better-bibtex.Preferences.citekey.uniqueness.conflict.change;
+      html:option(value='keep') &better-bibtex.Preferences.citekey.uniqueness.conflict.keep;
 
 groupbox
   caption(label="&better-bibtex.Preferences.advanced.ideographs;")

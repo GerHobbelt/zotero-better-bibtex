@@ -1,24 +1,24 @@
-groupbox
-  caption(bbt:preference="extensions.zotero.translators.better-bibtex.language") &better-bibtex.Preferences.export.fields.language;
-  radiogroup(preference="extensions.zotero.translators.better-bibtex.language" preference-editable="true")
-    radio(label="&better-bibtex.Preferences.export.fields.language.langid;" value="langid")
-    radio(label="&better-bibtex.Preferences.export.fields.language.language;" value="language")
-    radio(label="&better-bibtex.Preferences.export.fields.language.both;" value="both")
-groupbox
-  caption(bbt:preference="extensions.zotero.translators.better-bibtex.DOIandURL") &better-bibtex.Preferences.export.fields.doi-and-url;
-    image(tooltip="tooltip-bibtexURL" src="chrome://zotero-better-bibtex/skin/attention.svg" width="16" height="16")
-  radiogroup(preference="extensions.zotero.translators.better-bibtex.DOIandURL" preference-editable="true")
-    radio(label="&better-bibtex.Preferences.export.fields.doi-and-url.both;" value="both")
-    radio(label="&better-bibtex.Preferences.export.fields.doi-and-url.DOI;" value="doi")
-    radio(label="&better-bibtex.Preferences.export.fields.doi-and-url.URL;" value="url")
+hbox
+  label(bbt:preference="extensions.zotero.translators.better-bibtex.language") &better-bibtex.Preferences.export.fields.language;
+  html:select(preference="extensions.zotero.translators.better-bibtex.language" preference-editable="true")
+    html:option(value='langid') &better-bibtex.Preferences.export.fields.language.langid;
+    html:option(value='language') &better-bibtex.Preferences.export.fields.language.language;
+    html:option(value='both') &better-bibtex.Preferences.export.fields.language.both;
+hbox
+  label(bbt:preference="extensions.zotero.translators.better-bibtex.DOIandURL") &better-bibtex.Preferences.export.fields.doi-and-url;
+  html:select(preference="extensions.zotero.translators.better-bibtex.DOIandURL" preference-editable="true")
+    html:option(value='both') &better-bibtex.Preferences.export.fields.doi-and-url.both;
+    html:option(value='doi') &better-bibtex.Preferences.export.fields.doi-and-url.DOI;
+    html:option(value='url') &better-bibtex.Preferences.export.fields.doi-and-url.URL;
+  image(tooltip="tooltip-bibtexURL" src="chrome://zotero-better-bibtex/skin/attention.svg" width="16" height="16")
 hbox
   label(bbt:preference="extensions.zotero.translators.better-bibtex.skipFields") &better-bibtex.Preferences.export.fields.skip;:
   textbox#id-better-bibtex-preferences-skipFields(size='30' preference='extensions.zotero.translators.better-bibtex.skipFields')
-groupbox
-  caption(bbt:preference="extensions.zotero.translators.better-bibtex.jabrefFormat") &better-bibtex.Preferences.export.jabrefFormat;
-    image(tooltip="tooltip-jabrefFormat" src="chrome://zotero-better-bibtex/skin/attention.svg" width="16" height="16")
-  radiogroup(preference="extensions.zotero.translators.better-bibtex.jabrefFormat" preference-editable="true")
-    radio(label="&better-bibtex.Preferences.export.jabrefFormat.0;" value="0")
-    radio(label="&better-bibtex.Preferences.export.jabrefFormat.3;" value="3")
-    radio(label="&better-bibtex.Preferences.export.jabrefFormat.4;" value="4")
-    radio(label="&better-bibtex.Preferences.export.jabrefFormat.5;" value="5")
+hbox
+  label(bbt:preference="extensions.zotero.translators.better-bibtex.jabrefFormat") &better-bibtex.Preferences.export.jabrefFormat;
+  html:select(preference="extensions.zotero.translators.better-bibtex.jabrefFormat" preference-editable="true")
+    html:option(value='0') &better-bibtex.Preferences.export.jabrefFormat.0;
+    html:option(value='3') &better-bibtex.Preferences.export.jabrefFormat.3;
+    html:option(value='4') &better-bibtex.Preferences.export.jabrefFormat.4;
+    html:option(value='5') &better-bibtex.Preferences.export.jabrefFormat.5;
+  image(tooltip="tooltip-jabrefFormat" src="chrome://zotero-better-bibtex/skin/attention.svg" width="16" height="16")
