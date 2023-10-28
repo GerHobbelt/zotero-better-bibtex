@@ -240,7 +240,7 @@ export class ZoteroPane {
       if (Zotero.BetterBibTeX.uninstalled) clean_pane_persist()
     }, this.patched)
 
-    if (typeof Zotero.ItemTreeView === 'undefined') this.ZoteroPane.itemsView.refreshAndMaintainSelection()
+    if (!is7) this.ZoteroPane.itemsView.refreshAndMaintainSelection()
     const selected = this.ZoteroPane.getSelectedItems(true)
     if (selected.length) Zotero.Notifier.trigger('refresh', 'item', selected)
   }
@@ -278,7 +278,7 @@ export class ZoteroPane {
 
     if (!params.url.short) return
 
-    (this.window as any).openDialog('chrome://zotero-better-bibtex/content/ServerURL.xul', '', 'chrome,dialog,centerscreen,modal', params)
+    (this.window as any).openDialog(`chrome://zotero-better-bibtex/content/ServerURL.${is7 ? 'xhtml' : 'xul'}` , '', 'chrome,dialog,centerscreen,modal', params)
   }
 
   public startAutoExport(event: Event): void {

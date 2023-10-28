@@ -1,4 +1,25 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types, no-eval, @typescript-eslint/no-unsafe-return */
+
+import fs from 'fs'
+import path from 'path'
+
+export function pugs(directory: string) {
+  let fileList: string[] = []
+
+  const files = fs.readdirSync(directory)
+  for (const file of files) {
+    const p = path.join(directory, file)
+    if (fs.statSync(p).isDirectory()) {
+      fileList = [...fileList, ...pugs(p)]
+    }
+    else if (path.extname(p) === '.pug' && fs.statSync(p).isFile()) {
+      fileList.push(p)
+    }
+  }
+
+  return fileList
+}
+
 export class ASTWalker {
   walk(node, history?) {
     if (history) history = [node, ...history]
@@ -6,6 +27,19 @@ export class ASTWalker {
     if (this[node.type]) return this[node.type](node, history)
 
     throw new Error(`No handler for ${node.type} ${Object.keys(node)}`)
+  }
+
+  tag(name: string, attrs = {}, nodes = []) {
+    return {
+      type: 'Tag',
+      name,
+      block: {
+        type: 'Block',
+        nodes,
+      },
+      attrs: Object.entries(attrs).map(([k, v]) => ({ name: k, val: JSON.stringify(v), mustEscape: false })),
+      attributeBlocks: [],
+    }
   }
 
   attr(node, name: string, required=false): string {
@@ -58,6 +92,18 @@ export class SelfClosing extends ASTWalker {
   Tag(tag) {
     this.walk(tag.block)
     if (!tag.block.nodes.length) tag.selfClosing = true
+    return tag
+  }
+}
+
+export class Lint extends ASTWalker {
+  Tag(tag) {
+    switch (tag.name) {
+      case 'menulist':
+        if (tag.attrs.find(a => a.name === 'onchange')) throw new Error('menulist with onchange')
+        break
+    }
+    this.walk(tag.block)
     return tag
   }
 }

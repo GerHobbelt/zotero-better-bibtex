@@ -9,7 +9,7 @@ import * as glob from 'glob-promise'
 import * as peggy from 'peggy'
 import * as matter from 'gray-matter'
 import * as _ from 'lodash'
-import { walk, SelfClosing, ASTWalker as BaseASTWalker } from './pug-ast-walker'
+import { walk, Lint, SelfClosing, ASTWalker as BaseASTWalker } from './pug-ast-walker'
 
 import { Eta } from 'eta'
 const eta = new Eta
@@ -291,22 +291,6 @@ class Docs extends ASTWalker {
     this.pages[this.page].content += `${'#'.repeat(level)} ${label}\n\n`
   }
 
-  Conditional(node, history) {
-    // only walk non-7 for docs
-    switch (node.test) {
-      case 'is7':
-        this.walk(node.alternate, history)
-        break
-      case '!is7':
-        this.walk(node.consequent, history)
-        break
-      default:
-        throw new Error(`Unexpected conditional test ${node.test}`)
-    }
-
-    return node
-  }
-
   Tag(node, history) {
     let bbt, pref, id, label, page
 
@@ -502,19 +486,6 @@ class XHTML extends BaseASTWalker {
     return id
   }
 
-  tag(name, attrs = {}, nodes = []) {
-    return {
-      type: 'Tag',
-      name,
-      block: {
-        type: 'Block',
-        nodes,
-      },
-      attrs: Object.entries(attrs).map(([k, v]) => ({ name: k, val: JSON.stringify(v), mustEscape: false })),
-      attributeBlocks: [],
-    }
-  }
-
   tabbox(node, indent) {
     const tabs = node.block.nodes.find(n => n.name === 'tabs').block.nodes
     const tabpanels = node.block.nodes.find(n => n.name === 'tabpanels').block.nodes
@@ -526,7 +497,7 @@ class XHTML extends BaseASTWalker {
       const label = this.attr(tab, 'label', true)
       const l10n = label.includes('&') ? { 'data-l10n-id': label.replace(/&([^;.]+).label;/, '$1') }: {}
       const style = indent
-        ? 'margin-left: 1em; box-shadow: -3px -3px 4px rgba(0,0,0,.1);'
+        ? 'margin-left: 1em; padding-left: 1em; padding-bottom: 1em; box-shadow: -3px -3px 4px rgba(0,0,0,.1);'
         : 'border-top: 3px double black'
 
       nodes.push(this.tag('groupbox', { style }, [
@@ -553,6 +524,28 @@ class XHTML extends BaseASTWalker {
           node.name = 'html:input'
           node.attrs.push({ name: 'type', val: '"text"', mustEscape: false })
         }
+        break
+      case 'checkbox':
+      case 'radio':
+      case 'menulist':
+        node.attrs.push({ name: 'native', val: '"true"', mustEscape: false })
+        break
+      case 'groupbox':
+        node.block.nodes = node.block.nodes.map(child => {
+          if (child.name === 'caption') {
+            if (!node.attrs.find(a => a.name === 'style')) {
+              node.attrs.push({
+                name: 'style',
+                val: JSON.stringify('margin-left: 1em; padding-left: 1em; padding-bottom: 1em; box-shadow: -3px -3px 4px rgba(0,0,0,.1);'),
+                mustEscape: false,
+              })
+            }
+            return this.tag('label', {}, [ {...child, name: 'html:h2' }])
+          }
+          else {
+            return child
+          }
+        })
         break
     }
 
@@ -642,6 +635,7 @@ render('content/Preferences/xul.pug', 'build/content/preferences.xul', {
       walk(StripConfig, ast)
       walk(Flex, ast)
       walk(SelfClosing, ast)
+      walk(Lint, ast)
 
       return ast
     },
@@ -656,6 +650,7 @@ render('content/Preferences/xhtml.pug', 'build/content/preferences.xhtml', {
       walk(StripConfig, ast)
       walk(XHTML, ast)
       walk(SelfClosing, ast)
+      walk(Lint, ast)
 
       return ast
     },
