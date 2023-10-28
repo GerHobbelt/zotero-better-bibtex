@@ -4,19 +4,20 @@ declare const FileUtils: any
 import { log } from './logger'
 
 import { Events } from './events'
-import { DB, scrubAutoExport } from './db/main'
 import { DB as Cache } from './db/cache'
 import { $and } from './db/loki'
 import { Translators, ExportJob } from './translators'
+import * as translatorHeaders from '../gen/translators.json'
 import { Preference } from './prefs'
-import { Preferences, schema, affectedBy } from '../gen/preferences/meta'
+import { Preferences, schema, affects, affectedBy } from '../gen/preferences/meta'
 import * as ini from 'ini'
 import fold2ascii from 'fold-to-ascii'
-import { pathSearch } from './path-search'
+import { findBinary } from './path-search'
 import { Scheduler } from './scheduler'
 import { flash } from './flash'
 import * as l10n from './l10n'
 import { orchestrator } from './orchestrator'
+import { fromPairs } from 'lodash'
 
 class Git {
   public enabled: boolean
@@ -34,7 +35,7 @@ class Git {
   }
 
   public async init() {
-    this.git = await pathSearch('git')
+    this.git = await findBinary('git')
 
     return this
   }
@@ -134,7 +135,7 @@ class Git {
 
   private async exec(exe: string, args?: string[]): Promise<boolean> { // eslint-disable-line @typescript-eslint/require-await
     // args = ['/K', exe].concat(args || [])
-    // exe = await pathSearch('CMD')
+    // exe = await findBinary('CMD')
 
     const cmd = new FileUtils.File(exe)
 
@@ -171,15 +172,10 @@ const git = new Git()
 if (Preference.autoExportDelay < 1) Preference.autoExportDelay = 1
 if (Preference.autoExportIdleWait < 1) Preference.autoExportIdleWait = 1
 const queue = new class TaskQueue {
-  private scheduler = new Scheduler('autoExportDelay', 1000)
-  private autoexports: any
+  private scheduler = new Scheduler<string>('autoExportDelay', 1000)
 
   constructor() {
     this.pause('startup')
-  }
-
-  public init(autoexports) {
-    this.autoexports = autoexports
   }
 
   public pause(_reason: 'startup' | 'end-of-idle' | 'preference-change') {
@@ -190,32 +186,29 @@ const queue = new class TaskQueue {
     this.scheduler.paused = false
   }
 
-  public add(ae) {
-    const $loki = (typeof ae === 'number' ? ae : ae.$loki)
-    log.error('add-ae:', { ae, $loki })
-    void Events.emit('export-progress', { pct: 0, message: `Scheduled ${Translators.byId[ae.translatorID].label}`, ae: $loki })
-    this.scheduler.schedule($loki, this.run.bind(this, $loki))
+  public add(path: string) {
+    log.debug('auth-export: scheduled', path)
+    this.scheduler.schedule(path, this.run.bind(this, path))
   }
 
-  public cancel(ae) {
-    const $loki = (typeof ae === 'number' ? ae : ae.$loki)
-    this.scheduler.cancel($loki)
+  public cancel(path: string) {
+    this.scheduler.cancel(path)
   }
 
-  public run($loki: number) {
-    this.runAsync($loki).catch(err => log.error('autoexport failed:', {$loki}, err))
+  public run(path: string) {
+    this.runAsync(path).catch(err => log.error('autoexport failed:', {path}, err))
   }
-  public async runAsync($loki: number) {
+  public async runAsync(path: string) {
     await Zotero.BetterBibTeX.ready
 
-    const ae = this.autoexports.get($loki)
-    if (!ae) throw new Error(`AutoExport ${$loki} does not exist`)
+    const ae = await AutoExport.get(path)
+    log.debug('ae.schedule: running', ae)
+    if (!ae) throw new Error(`AutoExport for ${JSON.stringify(path)} does not exist`)
 
     const translator = Translators.byId[ae.translatorID]
-    void Events.emit('export-progress', { pct: 0, message: `Starting ${translator.label}`, ae: $loki })
+    void Events.emit('export-progress', { pct: 0, message: `Starting ${translator.label}`, ae: path })
 
-    ae.status = 'running'
-    this.autoexports.update(scrubAutoExport(ae))
+    await Zotero.DB.queryTx("UPDATE betterbibtex.autoExport SET status = 'running' WHERE path = ?", [path])
 
     try {
       let scope
@@ -230,22 +223,21 @@ const queue = new class TaskQueue {
           throw new Error(`Unexpected auto-export scope ${ae.type}`)
       }
 
-      const repo = await git.repo(ae.path)
+      const repo = await git.repo(path)
       await repo.pull()
       const displayOptions: any = {
         exportNotes: ae.exportNotes,
         useJournalAbbreviation: ae.useJournalAbbreviation,
-        worker: true,
       }
 
       const jobs: ExportJob[] = [{
         translatorID: ae.translatorID,
-        autoExport: ae.$loki,
+        autoExport: path,
         displayOptions,
         scope,
-        path: ae.path,
+        path,
         preferences: affectedBy[translator.label].reduce((acc: any, k: string): any => {
-          if (k in ae) acc[k] = ae[k]
+          if (k in ae && ae[k] !== null) acc[k] = ae[k]
           return acc
         }, {} as any) as Partial<Preferences>,
       }]
@@ -260,22 +252,25 @@ const queue = new class TaskQueue {
         const dir = OS.Path.dirname(ae.path)
         const base = OS.Path.basename(ae.path).replace(new RegExp(`${ext.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`), '')
 
-        const autoExportPathReplaceDiacritics: boolean = Preference.autoExportPathReplaceDiacritics
-        const autoExportPathReplaceDirSep: string = Preference.autoExportPathReplaceDirSep
-        const autoExportPathReplaceSpace: string = Preference.autoExportPathReplaceSpace
+        const autoExportPathReplace = {
+          diacritics: Preference.autoExportPathReplaceDiacritics,
+          dirSep: Preference.autoExportPathReplaceDirSep,
+          space: Preference.autoExportPathReplaceSpace,
+        }
+
         for (const collection of collections) {
-          const path = OS.Path.join(dir, [base]
+          const output = OS.Path.join(dir, [base]
             .concat(this.getCollectionPath(collection, root))
             // eslint-disable-next-line no-control-regex
             .map((p: string) => p.replace(/[<>:'"/\\|?*\u0000-\u001F]/g, ''))
-            .map((p: string) => p.replace(/ +/g, autoExportPathReplaceSpace || ''))
-            .map((p: string) => autoExportPathReplaceDiacritics ? (fold2ascii.foldMaintaining(p) as string) : p)
-            .join(autoExportPathReplaceDirSep || '-') + ext
+            .map((p: string) => p.replace(/ +/g, autoExportPathReplace.space || ''))
+            .map((p: string) => autoExportPathReplace.diacritics ? (fold2ascii.foldMaintaining(p) as string) : p)
+            .join(autoExportPathReplace.dirSep || '-') + ext
           )
           jobs.push({
             ...jobs[0],
             scope: { type: 'collection', collection: collection.id },
-            path,
+            path: output,
           })
         }
       }
@@ -291,8 +286,7 @@ const queue = new class TaskQueue {
       ae.error = `${err}`
     }
 
-    ae.status = 'done'
-    this.autoexports.update(scrubAutoExport(ae))
+    await Zotero.DB.queryTx("UPDATE betterbibtex.autoExport SET status = 'done', updated = ? WHERE path = ?", [Date.now(), path])
   }
 
   private getCollectionPath(coll: {name: string, parentID: number}, root: number): string[] {
@@ -300,41 +294,69 @@ const queue = new class TaskQueue {
     if (coll.parentID && coll.parentID !== root) path = this.getCollectionPath(Zotero.Collections.get(coll.parentID), root).concat(path)
     return path
   }
+
+  public clear() {
+    this.scheduler.clear()
+  }
+}
+
+type Config = {
+  type: 'collection' | 'library'
+  id: number
+  translatorID: 'string'
+  path: string
+  recursive: boolean
+  status: 'scheduled' | 'running' | 'done' | 'error'
+  error: string
+  exportNotes: boolean
+  useJournalAbbreviation: boolean
+  asciiBibLaTeX?: boolean
+  biblatexExtendedNameFormat?: boolean
+  DOIandURL?: boolean
+  bibtexURL?: boolean
+}
+
+const columns = [
+  'type', 'id', 'translatorID',
+  'path', 'recursive',
+  'status', 'error', 'updated',
+  'exportNotes', 'useJournalAbbreviation',
+  'asciiBibLaTeX', 'biblatexExtendedNameFormat',
+  'DOIandURL', 'bibtexURL',
+]
+
+const insert = `REPLACE INTO betterbibtex.autoExport (${columns.join(',')}) VALUES (${Array(columns.length).fill('?').join(',')})`
+
+function makeRow(ae: Config): any[] {
+  const translator = Translators.byId[ae.translatorID].label
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return columns.map(col => !(col in affects) || affects[col].includes(translator) ? ae[col] : null)
 }
 
 // export singleton: https://k94n.com/es6-modules-single-instance-pattern
 export const AutoExport = new class _AutoExport { // eslint-disable-line @typescript-eslint/naming-convention,no-underscore-dangle,id-blacklist,id-match
-  public db: any
-  public progress: Map<number, number>
+  public progress: Map<string, number> = new Map
 
   constructor() {
-    this.progress = new Map
-
     Events.on('libraries-changed', ids => this.schedule('library', ids))
     Events.on('libraries-removed', ids => this.remove('library', ids))
     Events.on('collections-changed', ids => this.schedule('collection', ids))
     Events.on('collections-removed', ids => this.remove('collection', ids))
     Events.on('export-progress', ({ pct, ae }) => {
-      if (typeof ae === 'number') this.progress.set(ae, pct)
+      if (typeof ae === 'string') this.progress.set(ae, pct)
     })
 
     orchestrator.add('auto-export', {
       description: 'auto-export',
-      needs: ['database', 'cache', 'translators'],
-      startup: () => {
+      needs: ['sqlite', 'cache', 'translators'],
+      startup: async () => {
         void git.init()
 
-        this.db = DB.getCollection('autoexport')
-        queue.init(this.db)
+        await this.initDB()
 
-        for (const ae of this.db.find({ status: { $ne: 'done' } })) {
-          queue.add(ae)
+        for (const path of await Zotero.DB.columnQueryAsync("SELECT path FROM betterbibtex.autoExport WHERE status <> 'done'")) {
+          queue.add(path)
         }
-
-        this.db.on(['delete'], ae => {
-          queue.cancel(ae)
-          this.progress.delete(ae.$loki)
-        })
 
         if (Preference.autoExport === 'immediate') queue.resume('startup')
         Events.addIdleListener('auto-export', Preference.autoExportIdleWait)
@@ -354,7 +376,7 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
               break
 
             default:
-              log.error('idle: nexpected idle state', state)
+              log.error('idle: unexpected idle state', state)
               break
           }
         })
@@ -362,51 +384,132 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
     })
   }
 
-  public add(ae, schedule = false) {
+  private async initDB() {
+    const tables = await Zotero.DB.columnQueryAsync("SELECT name FROM betterbibtex.sqlite_master where type='table'")
+    log.debug('mae:', tables)
+
+    if (!tables.includes('autoExport')) {
+      let ddl = require('./db/auto-export.sql')
+      for (const header of translatorHeaders) {
+        ddl = ddl.replace(new RegExp(`'${header.label}'`, 'g'), `'${header.translatorID}'`)
+      }
+      log.debug(ddl)
+      await Zotero.DB.queryAsync(ddl.replace(/\n/g, ' '))
+    }
+    for (const db of await Zotero.DB.queryAsync("SELECT * FROM betterbibtex.sqlite_master WHERE type='table'")) {
+      log.debug(db.name, db.sql)
+    }
+
+    // migration
+    if (tables.includes('better-bibtex')) {
+      const data = await Zotero.DB.valueQueryAsync('SELECT data FROM betterbibtex."better-bibtex" WHERE name=?', ['better-bibtex.auto-export'])
+      if (data) {
+        for (const ae of JSON.parse(data).data) {
+          ae.error = ae.error || ''
+          ae.updated = ae.meta.updated
+          ae.recursive = ae.recursive || 0
+          /*
+          for (const [k, v] of Object.entries(ae)) {
+            if (typeof v === 'boolean') ae[k] = v ? 1 : 0
+          }
+          */
+          log.debug('aedb: upgrade', ae)
+          await Zotero.DB.queryTx(insert, makeRow(ae), { noParseParams: true })
+        }
+
+        await Zotero.DB.queryTx('UPDATE betterbibtex."better-bibtex" SET name = ? WHERE name = ?', ['migrated.auto-export', 'better-bibtex.auto-export'])
+      }
+    }
+  }
+
+  public async add(ae, schedule = false) {
     const translator = schema.translator[Translators.byId[ae.translatorID].label]
     for (const pref of translator.preferences) {
-      ae[pref] = Preference[pref]
+      if (typeof ae[pref] === 'undefined' || ae[pref] === null) ae[pref] = Preference[pref]
     }
     for (const option of translator.displayOptions) {
-      if (typeof ae[option] === 'undefined') ae[option] = translator.displayOptions[option]
+      if (typeof ae[option] === 'undefined' || ae[option] === null) ae[option] = translator.displayOptions[option]
     }
 
-    this.db.insert(scrubAutoExport(ae))
+    ae.error = ae.error || ''
+    ae.updated = Date.now()
+    ae.recursive = ae.recursive || 0
+    /*
+    for (const [k, v] of Object.entries(ae)) {
+      if (typeof v === 'boolean') ae[k] = v ? 1 : 0
+    }
+    */
+    log.debug('aedb: insert', ae)
+    await Zotero.DB.queryTx(insert, makeRow(ae), { noParseParams: true })
+    log.debug('aedb: inserted, now', await Zotero.DB.valueQueryAsync('SELECT COUNT(*) FROM betterbibtex.autoExport'))
 
-    git.repo(ae.path).then(repo => {
-      if (repo.enabled || schedule) this.schedule(ae.type, [ae.id]) // causes initial push to overleaf at the cost of a unnecesary extra export
-    }).catch(err => {
+    try {
+      const repo = await git.repo(ae.path)
+      if (repo.enabled || schedule) await this.schedule(ae.type, [ae.id]) // causes initial push to overleaf at the cost of a unnecesary extra export
+    }
+    catch(err) {
       log.error('AutoExport.add:', err)
-    })
-  }
-
-  public schedule(type, ids) {
-    for (const ae of this.db.find({$and: [{ type: {$eq: type} }, {id: { $in: ids } }] })) {
-      log.debug('emit: schedule', ae)
-      queue.add(ae)
     }
   }
 
-  public remove(type, ids) {
-    for (const ae of this.db.find({$and: [{ type: {$eq: type} }, {id: { $in: ids } }] })) {
-      this.db.remove(ae)
+  public async schedule(type: string, ids: number[]) {
+    if (!ids.length) return
+
+    const select = `FROM betterbibtex.autoExport WHERE type = ? AND id IN (${Array(ids.length).fill('?').join(',')})`
+    for (const path of await Zotero.DB.columnQueryAsync(`SELECT path ${select}`, [type, ...ids])) {
+      log.debug('ae.schedule: enqueueing', path)
+      queue.add(path)
     }
   }
 
-  public removeAll() {
-    for (const ae of this.db.data) {
-      this.db.remove(ae)
+  private _get(row: any): Config {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return fromPairs(columns.map((col: string) => [col, row[col]]).filter(pair => pair[1] !== null)) as Config
+  }
+  public async get(path: string): Promise<Config> {
+    for (const ae of await Zotero.DB.queryAsync('SELECT * FROM betterbibtex.autoExport WHERE path = ?', path)) {
+      return this._get(ae)
     }
   }
-
-  public run(id) {
-    queue.run(id)
+  public async all(): Promise<Config[]> {
+    return (await Zotero.DB.queryAsync('SELECT * FROM betterbibtex.autoExport ORDER BY path')).map(ae => this._get(ae)) as Config[]
   }
 
-  public async cached($loki) {
+  public async remove(path: string): Promise<void>
+  public async remove(type: string, ids: number[]): Promise<void>
+  public async remove(arg: string, ids?: number[]): Promise<void> {
+    let paths: string[]
+    if (typeof ids === 'undefined') {
+      paths = [arg]
+    }
+    else {
+      if (!ids.length) return
+      const select = `SELECT path FROM betterbibtex.autoExport WHERE type = ? AND path IN (${Array(ids.length).fill('?').join(',')})`
+      paths = await Zotero.DB.columnQueryAsync(select, [arg, ...ids])
+    }
+
+    for (const path of paths) {
+      queue.cancel(path)
+      this.progress.delete(path)
+    }
+
+    await Zotero.DB.queryTx(`DELETE FROM betterbibtex.autoExport WHERE path IN (${Array(paths.length).fill('?').join(',')})`, paths)
+  }
+
+  public async removeAll() {
+    queue.clear()
+    this.progress = new Map
+    await Zotero.DB.queryTx('DELETE FROM betterbibtex.autoExport')
+  }
+
+  public run(path: string) {
+    queue.run(path)
+  }
+
+  public async cached(path: string) {
     if (!Preference.cache) return 0
 
-    const ae = this.db.get($loki)
+    const ae = await this.get(path)
 
     const itemTypeIDs: number[] = ['attachment', 'note', 'annotation'].map(type => {
       try {
@@ -443,7 +546,7 @@ export const AutoExport = new class _AutoExport { // eslint-disable-line @typesc
     return Math.min(Math.round((100 * (cached.serialized + cached.export)) / (itemIDs.length * 2)), 100)
   }
 
-  private async itemIDs(ae, id: number, itemTypeIDs: number[], itemIDs: Set<number>) {
+  private async itemIDs(ae: Config, id: number, itemTypeIDs: number[], itemIDs: Set<number>) {
     let items
     if (ae.type === 'collection') {
       const coll = await Zotero.Collections.getAsync(id)

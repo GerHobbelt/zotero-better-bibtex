@@ -9,7 +9,6 @@ import { AutoExport } from './auto-export'
 import { flash } from './flash'
 import { sentenceCase } from './text'
 import * as CAYW from './cayw'
-import { $and } from './db/loki'
 import * as Extra from './extra'
 import * as DateParser from './dateparser'
 import * as l10n from './l10n'
@@ -219,25 +218,24 @@ class ZoteroPane {
         }
 
         let auto_exports = []
-        if (Preference.autoExport !== 'immediate') {
-          if (isCollection) {
-            auto_exports = AutoExport.db.find($and({ type: 'collection', id: treeRow.ref.id }))
-          }
-          else if (isLibrary) {
-            auto_exports = AutoExport.db.find($and({ type: 'library', id: treeRow.ref.libraryID }))
-          }
+        const type = isCollection ? 'collection' : isLibrary ? 'library' : ''
+        if (Preference.autoExport !== 'immediate' && type) {
+          auto_exports = await Zotero.DB.querySync('SELECT * from betterbibtex.autoExport WHERE type = ? AND id = ? ORDER BY path', [ type, treeRow.ref.id ])
+          log.debug('mae:', auto_exports)
         }
-        auto_exports = [...auto_exports].sort((a: { path: string }, b: { path: string }) => a.path.localeCompare(b.path))
 
         const menulist: XUL.Menulist = doc.getElementById('zotero-collectionmenu-bbt-autoexport') as XUL.Menulist
-        menulist.hidden = auto_exports.length === 0
-        log.debug('2578 auto-exports should be hidden:', menulist.hidden, auto_exports.length === 0)
-
-        if (auto_exports.length !== 0) {
-          menulist.removeAllItems()
-          auto_exports.forEach(ae => {
-            menulist.appendItem(ae.path, `${ae.$loki}`).addEventListener('command', () => AutoExport.run(ae.$loki))
-          })
+        if (!(menulist.hidden = auto_exports.length === 0)) {
+          const menupopup = doc.querySelector<HTMLElement>('#zotero-collectionmenu-bbt-autoexport menupopup')
+          while (menupopup.firstChild) menupopup.firstChild.remove()
+          log.debug('mae: reconstructing menu:', auto_exports.length, 'items')
+          for (const ae of auto_exports) {
+            log.debug('mae:', ae.path)
+            menupopup.appendChild(elements.create('menuitem', {
+              label: ae.path,
+              oncommand: () => AutoExport.run(ae.$loki),
+            }))
+          }
         }
       }
       catch (err) {

@@ -65,12 +65,13 @@ const patcher = module.exports.patcher = new class {
   }
 }
 
-module.exports.bib = {
-  name: 'bib',
+module.exports.text = {
+  name: 'text',
   setup(build) {
-    build.onLoad({ filter: /\.bib$/ }, async (args) => {
+    build.onLoad({ filter: /[.](bib|sql)$/i }, async (args) => {
+      let text = await fs.promises.readFile(args.path, 'utf-8')
       return {
-        contents: await fs.promises.readFile(args.path, 'utf-8'),
+        contents: text,
         loader: 'text'
       }
     })

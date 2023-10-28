@@ -47,7 +47,7 @@ export const KeyManager = new class _KeyManager {
       annotation?: number
     }
   }
-  public autopin: Scheduler = new Scheduler('autoPinDelay', 1000)
+  public autopin: Scheduler<number> = new Scheduler<number>('autoPinDelay', 1000)
 
   private regenerate: number[]
   private started = false
