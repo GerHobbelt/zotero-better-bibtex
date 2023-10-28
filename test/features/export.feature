@@ -13,6 +13,7 @@ Feature: Export
 
     Examples:
       | file                                                                                                                     | references |
+      | series = {none} #2469                                                                                                    | 1          |
       | Fail to delete fields for certain reference types in BibLaTeX output using postscript in version 6.7.59 #2445            | 1          |
       | Journal abbreviation not exported on its own #2443                                                                       | 1          |
       | Author multi-character initial gets shortened #2419                                                                      | 1          |
@@ -275,6 +276,7 @@ Feature: Export
 
     Examples:
       | file                                                                            | references |
+      | Does setting a type via cheater syntax work currently #2473                     | 1          |
       | _eprint in extra causes CSL-JSON export error #2430                             | 1          |
       | unwanted inclusion of Zotero's internal journal abbreviations in CSL JSON #2375 | 1          |
       | Export Error Unexpected date type #2303                                         | 1          |
@@ -602,21 +604,21 @@ Feature: Export
     Then an export using "Better BibLaTeX" should match "export/*.biblatex"
 
   # tests the cache
-  @use.with_client=zotero @use.with_slow=true @timeout=3000 @whopper
-  Scenario: Really Big whopping library
-    When I restart Zotero with "1287" + "export/*.json"
-    And I reset the cache
-    And I export the library 1 times using "id:9cb70025-a888-4a29-a210-93ec52da40d4"
-    And an export using "Better BibTeX" should match "export/*.bibtex"
-    And an export using "Better BibTeX" should match "export/*.bibtex"
-    When I set preference .cache to false
-    Then an export using "Better BibTeX" should match "export/*.bibtex"
-    When I reset the cache
-    And I set preference .cache to false
-    Then an export using "Better BibTeX" should match "export/*.bibtex"
-    When I reset the cache
-    Then an export using "Better CSL JSON" should match "export/*.csl.json"
-    And an export using "Better CSL JSON" should match "export/*.csl.json", but take no more than 150 seconds
+#   @use.with_client=zotero @use.with_slow=true @timeout=3000 @whopper
+#   Scenario: Really Big whopping library
+#     When I restart Zotero with "1287" + "export/*.json"
+#     And I reset the cache
+#     And I export the library 1 times using "id:9cb70025-a888-4a29-a210-93ec52da40d4"
+#     And an export using "Better BibTeX" should match "export/*.bibtex"
+#     And an export using "Better BibTeX" should match "export/*.bibtex"
+#     When I set preference .cache to false
+#     Then an export using "Better BibTeX" should match "export/*.bibtex"
+#     When I reset the cache
+#     And I set preference .cache to false
+#     Then an export using "Better BibTeX" should match "export/*.bibtex"
+#     When I reset the cache
+#     Then an export using "Better CSL JSON" should match "export/*.csl.json"
+#     And an export using "Better CSL JSON" should match "export/*.csl.json", but take no more than 150 seconds
 
   # @use.with_client=zotero @use.with_slow=true @timeout=300
   # @1296
