@@ -765,6 +765,7 @@ export class Entry {
     }
 
     this.add({ name: 'annotation', value: this.item.extra?.replace(/\n+/g, newlines => (newlines.length > 1 ? '\n\n' : ' ')).trim() })
+
     if (this.translation.options.exportNotes) {
       // if bibtexURL === 'note' is active, the note field will have been filled with an URL. In all other cases, if this is attempting to overwrite the 'note' field, I want the test suite to throw an error
       if (!(this.translation.BetterBibTeX && this.translation.preferences.bibtexURL === 'note')) this.add({ name: 'note', value: this.item.notes?.map((note: { note: string }) => note.note).join('</p><p>'), html: true })
@@ -914,7 +915,8 @@ export class Entry {
       return (f.value || '').replace(/([#\\%&{}])/g, '\\$1') // or maybe enc_latex?
     }
     else if (this.translation.BetterBibTeX && this.translation.preferences.bibtexURL === 'note') {
-      return `\\url{${this.enc_verbatim(f)}}`
+      // https://github.com/retorquere/zotero-better-bibtex/issues/2617
+      return `\\url{${this.enc_verbatim(f).replace(/([\\%#])/g, '\\$1')}}`
     }
     else {
       return this.enc_verbatim(f)
