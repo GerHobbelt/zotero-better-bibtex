@@ -95,7 +95,7 @@ const config: Config = {
       document           : 'misc',
       email              : 'letter',
       encyclopediaArticle: 'inreference',
-      film               : 'movie',
+      film               : 'video',
       forumPost          : 'online',
       gazette            : 'jurisdiction',
       hearing            : 'jurisdiction',
@@ -569,6 +569,17 @@ export function generateBibLaTeX(translation: Translation): void {
     }
 
     if (item.arXiv && !entry.has.journaltitle && entry.entrytype === 'article') entry.entrytype = 'unpublished'
+
+    switch (item.itemType) {
+      case 'film':
+        entry.add({ name: 'entrysubtype', value: 'film' })
+        break
+      case 'tvBroadcast':
+        entry.add({ name: 'entrysubtype', value: 'tvbroadcast' })
+        break
+      case 'videoRecording':
+        break
+    }
 
     entry.complete()
   }
