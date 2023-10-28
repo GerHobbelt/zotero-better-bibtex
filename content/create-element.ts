@@ -1,3 +1,5 @@
+import { is7 } from './client'
+
 export const NAMESPACE = {
   XUL: 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul',
   HTML: 'http://www.w3.org/1999/xhtml',
@@ -6,12 +8,12 @@ export const NAMESPACE = {
 type Handler = (event?: any) => void | Promise<void>
 
 export class Elements {
-  static all: Set<HTMLElement> = new Set
+  static all: Set<WeakRef<HTMLElement>> = new Set
 
   static removeAll(): void {
-    for (const elt of Array.from(this.all)) {
+    for (const eltRef of this.all) {
       try {
-        elt.remove()
+        eltRef.deref()?.remove()
       }
       catch (err) {}
     }
@@ -24,7 +26,9 @@ export class Elements {
   }
 
   create(name: string, attrs: Record<string, string | Handler> = {}, namespace = NAMESPACE.XUL): HTMLElement {
-    const elt: HTMLElement = this.document.createElementNS(namespace, name) as HTMLElement
+    const elt: HTMLElement = is7
+      ? this.document[ namespace === NAMESPACE.XUL ? 'createXULElement' : 'createElement'](name) as HTMLElement
+      : this.document.createElementNS(namespace, name) as HTMLElement
     attrs.class = `${this.className} ${attrs.class || ''}`.trim()
     for (const [a, v] of Object.entries(attrs)) {
       if (typeof v === 'string') {
@@ -37,14 +41,13 @@ export class Elements {
         throw new Error(`unexpected attribute ${a}`)
       }
     }
-    Elements.all.add(elt)
+    if (is7) Elements.all.add(new WeakRef(elt))
 
     return elt
   }
 
   remove(): void {
     for (const elt of Array.from(this.document.getElementsByClassName(this.className))) {
-      Elements.all.delete(elt as HTMLElement)
       elt.remove()
     }
   }

@@ -11,7 +11,6 @@ declare const FileUtils: any
 declare const __estrace: any // eslint-disable-line no-underscore-dangle
 
 import type { XUL } from '../typings/xul'
-
 import { DebugLog as DebugLogSender } from 'zotero-plugin/debug-log'
 
 import { icons } from './icons'
@@ -265,23 +264,23 @@ $patch$(Zotero.ItemFields, 'isFieldOfBase', original => function Zotero_ItemFiel
 // because the zotero item editor does not check whether a textbox is read-only. *sigh*
 $patch$(Zotero.Item.prototype, 'setField', original => function Zotero_Item_prototype_setField(field: string, value: string | undefined, _loadIn: any) {
   if (field === 'citationKey') {
-    const bbt = Zotero.BetterBibTeX // eslint-disable-line @typescript-eslint/no-use-before-define
-    if (bbt.ready.isPending()) return false
+    if (Zotero.BetterBibTeX.ready.isPending()) return false
 
-    const citekey = bbt.KeyManager.get(this.id)
+    const citekey = Zotero.BetterBibTeX.KeyManager.get(this.id)
     if (citekey.retry) return false
 
     if (typeof value !== 'string') value = ''
     if (!value) {
       this.setField('extra', Extra.get(this.getField('extra') as string, 'zotero', { citationKey: true }).extra)
-      bbt.KeyManager.update(this)
+      Zotero.BetterBibTeX.KeyManager.update(this)
+      Zotero.Notifier.trigger('modify', 'item', [this.id])
       return true
     }
     else if (value !== citekey.citekey) {
       this.setField('extra', Extra.set(this.getField('extra'), { citationKey: value }))
-      citekey.pinned = true
-      citekey.citekey = value
-      bbt.KeyManager.keys.update(citekey)
+      // citekey.pinned = true
+      // citekey.citekey = value
+      // Zotero.BetterBibTeX.KeyManager.keys.update(citekey)
       return true
     }
     else {
@@ -678,13 +677,14 @@ export class BetterBibTeX {
       startup: async () => {
         // https://groups.google.com/d/msg/zotero-dev/QYNGxqTSpaQ/uvGObVNlCgAJ
         // this is what really takes long
+        const before = Date.now()
         await Zotero.initializationPromise
+        log.debug('startup: Zotero.initializationPromise took', (Date.now() - before)/1000, 'seconds')
 
         this.dir = OS.Path.join(Zotero.DataDirectory.dir, 'better-bibtex')
         await OS.File.makeDir(this.dir, { ignoreExisting: true })
         await Preference.startup(this.dir)
         Events.startup()
-        DebugLogSender.register('BBT', [])
       },
     })
 
@@ -704,6 +704,7 @@ export class BetterBibTeX {
       startup: async () => {
         this.deferred.resolve(true)
         await this.load(Zotero.getMainWindow())
+        DebugLogSender.unregister('Better BibTeX')
 
         if (is7) {
           await Zotero.ItemTreeManager.registerColumns({
@@ -730,7 +731,7 @@ export class BetterBibTeX {
     })
 
     await orchestrator.startup(reason, (phase: string, name: string, done: number, total: number, message: string): void => {
-      if (phase === 'startup') this.setProgress(done * 100 / total, message || `${phase}: ${name}`)
+      this.setProgress(done * 100 / total, message || name)
     })
     this.setProgress(100, 'finished')
   }
