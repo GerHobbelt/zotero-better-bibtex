@@ -72,6 +72,7 @@ g = Github(os.environ['GITHUB_TOKEN'])
 repo = g.get_repo('retorquere/zotero-better-bibtex')
 issue = repo.get_issue(int(args.issue))
 args.title = re.sub(r'^\[[^\]]+\]\s*:', '', issue.title).strip()
+args.title = re.sub(r'^(Bug|Feature)\s*:', '', issue.title, re.IGNORECASE).strip()
 args.title = sanitize_filename(f'{args.title} #{issue.number}'.strip())
 
 # clean lib before putting it in place
@@ -80,7 +81,10 @@ if args.prefs: cleanlib.append('--prefs')
 if args.attachments: cleanlib.append('--attachments')
 assert call(cleanlib, cwd=root) == 0, 'clean failed'
 with open(args.data) as f:
-  args.n = len(json.load(f)['items'])
+  data = json.load(f)
+  args.n = len(data['items'])
+  if not args.attachments and any(['attachment' in item for item in data['items']]):
+    print('*** WARNING ***:', args.data, 'has attachments')
 
 # insert example
 parser = Parser()
