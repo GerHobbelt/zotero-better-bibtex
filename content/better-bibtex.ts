@@ -17,7 +17,7 @@ import type { XUL } from '../typings/xul'
 import { prompt } from './prompt'
 import { is7 } from './client'
 import { Elements } from './create-element'
-import { ZoteroPane } from './ZoteroPane'
+import { newZoteroPane } from './ZoteroPane'
 import { newZoteroItemPane } from './ZoteroItemPane'
 import { ExportOptions } from './ExportOptions'
 import { PrefPane } from './Preferences'
@@ -507,7 +507,7 @@ $patch$(Zotero.Translate.Export.prototype, 'translate', original => function Zot
         this.saveQueue = []
         this._savingAttachments = []
 
-        return Translators.exportItemsByWorker({ translatorID, displayOptions, translate: this, scope: { ...this._export, getter: this._itemGetter }, path })
+        return Translators.queueJob({ translatorID, displayOptions, translate: this, scope: { ...this._export, getter: this._itemGetter }, path })
           .then(result => {
             // eslint-disable-next-line id-blacklist
             this.string = result
@@ -953,8 +953,8 @@ export class BetterBibTeX {
     $window = win
 
     try {
-      new ZoteroPane($window, document)
-      await newZoteroItemPane($window, document)
+      await newZoteroPane($window)
+      await newZoteroItemPane($window)
     }
     catch (err) {
       log.debug('loadUI error:', err)

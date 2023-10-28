@@ -13,8 +13,16 @@ import * as DateParser from './dateparser'
 import * as l10n from './l10n'
 import { Elements } from './create-element'
 import { is7 } from './client'
+import { busyWait } from './busy-wait'
 
-export class ZoteroPane {
+export async function newZoteroPane(win: Window): Promise<void> {
+  const zp = (win as any).ZoteroPane
+  await busyWait(() => typeof zp.itemsView.waitForLoad === 'function')
+  await zp.itemsView.waitForLoad()
+  await (new ZoteroPane).load(win)
+}
+
+class ZoteroPane {
   private patched: Trampoline[] = []
   private elements: Elements
   private ZoteroPane: any
@@ -25,7 +33,8 @@ export class ZoteroPane {
     this.elements.remove()
   }
 
-  constructor(win: Window, doc: Document) {
+  public async load(win: Window) {
+    const doc = win.document
     const elements = this.elements = new Elements(doc)
     this.window = win
     this.ZoteroPane = (this.window as any).ZoteroPane
@@ -240,9 +249,13 @@ export class ZoteroPane {
       if (Zotero.BetterBibTeX.uninstalled) clean_pane_persist()
     }, this.patched)
 
-    if (!is7) this.ZoteroPane.itemsView.refreshAndMaintainSelection()
+    if (!is7) {
+      await busyWait(() => !!this.ZoteroPane.itemsView.collectionTreeRow)
+      await this.ZoteroPane.itemsView.refreshAndMaintainSelection()
+    }
+
     const selected = this.ZoteroPane.getSelectedItems(true)
-    if (selected.length) Zotero.Notifier.trigger('refresh', 'item', selected)
+    if (selected.length === 1) Zotero.Notifier.trigger('refresh', 'item', selected)
   }
 
   public pullExport(): void {

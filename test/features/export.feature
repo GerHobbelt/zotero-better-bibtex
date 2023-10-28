@@ -13,6 +13,7 @@ Feature: Export
 
     Examples:
       | file                                                                                                                     | references |
+      | Length filter double-counting characters #2525                                                                           | 1          |
       | booksubtitle and friends should be case-converted #2507                                                                  | 1          |
       | Add support for new Zotero item types #2496                                                                              | 2          |
       | Film references do not export properly for APA formating #2494                                                           | 4          |
@@ -183,6 +184,8 @@ Feature: Export
       | URL-DOI exclusive export broken for item types with no dedicated DOI field #1331                                         | 1          |
       | date ranges #747+#746                                                                                                    | 5          |
       | preserve @strings between import-export #1162                                                                            | 1          |
+      | inspireHep fetching broken #2201 | 1 |
+      | fetch inspire-hep key #1879      | 1 |
 
   @bibtex
   Scenario Outline: Export <references> references for BibTeX to <file>
@@ -271,16 +274,6 @@ Feature: Export
     @use.with_client=zotero
     Examples:
       | BibTeX export is incompatible with Zotero 6 Preprint item type. #2080 | 1 |
-
-  @inspire
-  Scenario Outline: Export <references> references for BibLaTeX to <file>
-    When I import <references> references from "export/<file>.json"
-    Then an export using "Better BibLaTeX" should match "export/*.biblatex"
-
-    Examples:
-      | file                             | references |
-      | inspireHep fetching broken #2201 | 1          |
-      | fetch inspire-hep key #1879      | 1          |
 
   @csl @timeout=3000
   Scenario Outline: Export <references> references for CSL-JSON to <file>
@@ -580,6 +573,22 @@ Feature: Export
     And I wait 15 seconds
     Then "~/autoexport.bib" should match "export/*.after.biblatex"
     And "~/autoexport.coll.bib" should match "export/*.after.coll.biblatex"
+
+  Scenario: Auto-Export ignores DOIURL settings #2573
+    Given I import 1 reference from "export/*.json"
+    And I set preference .autoExport to "immediate"
+    Then an auto-export to "~/autoexport.bib" using "Better BibTeX" should match "export/*.before.bibtex"
+    When I change DOIandURL to "url" on the auto-export
+    And I wait 15 seconds
+    Then "~/autoexport.bib" should match "export/*.after.bibtex"
+
+  Scenario: Export unicode as plain-text latex-commands is ignored in auto-exports #2578
+    Given I import 1 reference from "export/*.json"
+    And I set preference .autoExport to "immediate"
+    Then an auto-export to "~/autoexport.bib" using "Better BibLaTeX" should match "export/*.before.biblatex"
+    When I change asciiBibLaTeX to true on the auto-export
+    And I wait 15 seconds
+    Then "~/autoexport.bib" should match "export/*.after.biblatex"
 
   Scenario: Choose fields to exclude for each exported file #1827
     Given I import 1 reference from "export/*.json"
