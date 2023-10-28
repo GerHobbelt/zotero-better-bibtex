@@ -20,8 +20,11 @@ import { flash } from './flash'
 var window: Window & { sizeToContent(): void } // eslint-disable-line no-var
 Events.on('window-loaded', ({ win, href }: {win: Window, href: string}) => {
   switch (href) {
-    case 'chrome://zotero/content/preferences/preferences.xul':
+    case 'chrome://zotero/content/preferences/preferences.xul': // Z6
       new ZoteroPreferences(win)
+      break
+
+    case 'chrome://zotero/content/preferences/preferences.xhtml': // Z7
       break
 
     case 'chrome://zotero-better-bibtex/content/Preferences.xul':
@@ -248,7 +251,7 @@ class AutoExportPane {
   }
 
   public remove(node) {
-    if (!Services.prompt.confirm(null, l10n.localize('AutoExport.delete'), l10n.localize('AutoExport.delete.confirm'))) return
+    if (!Services.prompt.confirm(null, l10n.localize('better-bibtex_auto-export_delete'), l10n.localize('better-bibtex_auto-export_delete_confirm'))) return
 
     const ae = AutoExport.db.get(parseInt(node.getAttribute('data-ae-id')))
     Cache.getCollection(Translators.byId[ae.translatorID].label)?.removeDataOnly()
@@ -523,7 +526,7 @@ export class PrefPane {
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     for (const state of (Array.from(window.document.getElementsByClassName('better-bibtex-preferences-worker-state')) as unknown[] as XUL.Textbox[])) {
-      state.value = l10n.localize('BetterBibTeX.workers.status', {
+      state.value = l10n.localize('better-bibtex_workers_status', {
         total: Translators.workers.total,
         running: Translators.workers.running.size,
       })

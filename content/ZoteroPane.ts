@@ -12,6 +12,7 @@ import * as Extra from './extra'
 import * as DateParser from './dateparser'
 import * as l10n from './l10n'
 import { Elements } from './create-element'
+import { is7 } from './client'
 
 export class ZoteroPane {
   private patched: Trampoline[] = []
@@ -38,7 +39,7 @@ export class ZoteroPane {
           id: 'better-bibtex-tools-menu',
           label: l10n.localize('better-bibtex.BetterBibTeX'),
           class: 'menu-iconic',
-          image: 'chrome://zotero-better-bibtex/skin/bibtex-menu.svg',
+          image: 'chrome://zotero-better-bibtex/content/skin/bibtex-menu.svg',
         }))
         .appendChild(elements.create('menupopup'))
       menupopup.appendChild(elements.create('menuitem', {
@@ -73,7 +74,7 @@ export class ZoteroPane {
           id,
           label: l10n.localize('better-bibtex.BetterBibTeX'),
           class: 'menu-iconic',
-          image: 'chrome://zotero-better-bibtex/skin/bibtex-menu.svg',
+          image: 'chrome://zotero-better-bibtex/content/skin/bibtex-menu.svg',
         }))
         .appendChild(elements.create('menupopup'))
 
@@ -139,7 +140,7 @@ export class ZoteroPane {
         collectionmenu
           .appendChild(elements.create('menu', {
             class: 'zotero-collectionmenu-bbt-autoexport',
-            label: l10n.localize('better-bibtex.Preferences.tab.auto-export'),
+            label: l10n.localize('better-bibtex_preferences_tab_auto-export_label'),
           }))
           .appendChild(elements.create('menupopup', {
             id: 'zotero-collectionmenu-bbt-autoexport-menupopup',
@@ -153,7 +154,7 @@ export class ZoteroPane {
           label: l10n.localize('better-bibtex.BetterBibTeX.show-collection-key'),
           oncommand: event => { event.stopPropagation(); bbt_zotero_pane_helper.pullExport() },
           class: 'menuitem-iconic',
-          image: 'chrome://zotero-better-bibtex/skin/bibtex-menu.svg',
+          image: 'chrome://zotero-better-bibtex/content/skin/bibtex-menu.svg',
         }))
 
         collectionmenu.appendChild(elements.create('menuitem', {
@@ -161,7 +162,7 @@ export class ZoteroPane {
           label: l10n.localize('better-bibtex.BetterBibTeX.auxScanner'),
           oncommand: async event => { event.stopPropagation(); await Zotero.BetterBibTeX.scanAUX('collection') },
           class: 'menuitem-iconic',
-          image: 'chrome://zotero-better-bibtex/skin/bibtex-menu.svg',
+          image: 'chrome://zotero-better-bibtex/content/skin/bibtex-menu.svg',
         }))
 
         collectionmenu.appendChild(elements.create('menuitem', {
@@ -379,10 +380,12 @@ export class ZoteroPane {
         break
     }
 
-    const params = {wrappedJSObject: { scope }}
-
-    const ww = Components.classes['@mozilla.org/embedcomp/window-watcher;1'].getService(Components.interfaces.nsIWindowWatcher)
-    ww.openWindow(null, 'chrome://zotero-better-bibtex/content/ErrorReport.xul', 'better-bibtex-error-report', 'chrome,centerscreen,modal', params)
+    (this.window as any).openDialog(
+      `chrome://zotero-better-bibtex/content/ErrorReport.${ is7 ? 'xhtml' : 'xul'}`,
+      'better-bibtex-error-report',
+      'chrome,centerscreen,modal',
+      { wrappedJSObject: { scope } }
+    )
   }
 
   public async sentenceCase(): Promise<void> {

@@ -9,6 +9,7 @@ import * as glob from 'glob-promise'
 import * as peggy from 'peggy'
 import * as matter from 'gray-matter'
 import * as _ from 'lodash'
+import { ASTWalker as BaseASTWalker } from './pug-ast-walker'
 
 import { Eta } from 'eta'
 const eta = new Eta
@@ -46,21 +47,7 @@ const l10n = new class {
   }
 }
 
-class ASTWalker {
-  walk(node, history?) {
-    if (history) history = [node, ...history]
-
-    if (this[node.type]) return this[node.type](node, history)
-
-    error('No handler for', node.type)
-  }
-
-  attr(node, name: string, required=false): string {
-    const attr = node.attrs.find(attr => attr.name === name)
-    if (!attr && required) error(`could not find ${node.name}.${name} in`, node.attrs.map(a => a.name))
-    return attr ? l10n.tr(eval(attr.val)) : null
-  }
-
+class ASTWalker extends BaseASTWalker {
   text(node) {
     switch (node.type) {
       case 'Text': return l10n.tr(node.val)
@@ -70,19 +57,18 @@ class ASTWalker {
     }
   }
 
-  Block(node, history) {
-    for (const sub of node.nodes) {
-      this.walk(sub, history)
+  attr(node, name: string, required=false): string {
+    const val = super.attr(node, name, required)
+    switch (typeof val) {
+      case 'object':
+        return null
+      case 'string':
+        return l10n.tr(val)
+      case 'number':
+        return val
+      default:
+        error('unexpected type', typeof val)
     }
-  }
-
-  Text(_node) {
-  }
-
-  Comment(_node) {
-  }
-
-  BlockComment(_node) {
   }
 }
 
@@ -149,26 +135,28 @@ class Flex extends ASTWalker {
       case 'html:input':
       case 'html:select':
       case 'html:option':
+      case 'html:linkset':
+      case 'html:link':
         if (flex) throw new Error(`${node.name} has flex ${flex}`)
         break
       default:
         throw `no flex on ${node.name}` // eslint-disable-line no-throw-literal
     }
-    this.walk(node.block)
+    node.block = this.walk(node.block)
+    return node
   }
 }
 
 class StripConfig extends ASTWalker {
   Tag(node) {
     node.attrs = node.attrs.filter(attr => !attr.name.startsWith('bbt:'))
-    this.walk(node.block)
+    node.block = this.walk(node.block)
+    return node
   }
 
   Block(node) {
-    node.nodes = node.nodes.filter(n => !n.name || !n.name.startsWith('bbt:'))
-    for (const n of node.nodes) {
-      this.walk(n)
-    }
+    node.nodes = node.nodes.filter(n => !n.name || !n.name.startsWith('bbt:')).map(n => this.walk(n)).filter(n => n)
+    return node
   }
 }
 
@@ -345,7 +333,7 @@ class Docs extends ASTWalker {
         break
 
       case 'script':
-        return
+        return node
 
       case 'preference':
         this.register(node)
@@ -410,6 +398,7 @@ class Docs extends ASTWalker {
     }
 
     this.walk(node.block, history)
+    return node
   }
 
   savePages(dir) {
@@ -483,8 +472,7 @@ The Better BibTeX hidden preferences are preceded by “extensions.zotero.transl
   }
 }
 
-/*
-class Convert extends ASTWalker {
+class XHTML extends ASTWalker {
   children(node) {
     if (node.block.nodes.find(node => node.type !== 'Tag')) error('unexpected', node.block.nodes.find(node => node.type !== 'Tag').type)
     return node.block.nodes.map(node => node.name).join(',')
@@ -511,15 +499,24 @@ class Convert extends ASTWalker {
     }
 
     this.walk(node.block, history)
+    return node
+  }
+
+  Text(node) {
+    if (node.val.startsWith('<?xml')) node.val = ''
+    if (node.val.startsWith('<!DOCTYPE')) node.val = ''
+    return node
   }
 }
-*/
+
+const build = path.dirname(tgt)
+if (!fs.existsSync(build)) fs.mkdirSync(build, { recursive: true })
 
 function walk(cls, ast) {
   (new cls).walk(ast)
 }
 
-const options = {
+let options = {
   pretty: true,
   plugins: [{
     preCodeGen(ast, _options) { // eslint-disable-line prefer-arrow/prefer-arrow-functions
@@ -537,11 +534,23 @@ const options = {
     },
   }],
 }
-
-const xul = pug.renderFile(src, options)
-const build = path.dirname(tgt)
-if (!fs.existsSync(build)) fs.mkdirSync(build, { recursive: true })
+let xul = pug.renderFile(src, options)
 fs.writeFileSync(tgt, xul.replace(/&amp;/g, '&').trim())
+
+options = {
+  pretty: true,
+  plugins: [{
+    preCodeGen(ast, _options) { // eslint-disable-line prefer-arrow/prefer-arrow-functions
+      walk(StripConfig, ast)
+      walk(Flex, ast)
+      walk(XHTML, ast)
+
+      return ast
+    },
+  }],
+}
+xul = pug.renderFile(src, options)
+fs.writeFileSync(tgt.replace(/[^/]+[.]xul$/, 'preferences.xhtml'), xul.replace(/&amp;/g, '&').trim())
 
 for (const xul of glob.sync('content/*.xul')) {
   const source = fs.readFileSync(xul, 'utf-8')
