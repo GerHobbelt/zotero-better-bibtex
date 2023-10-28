@@ -18,12 +18,12 @@ const pugs = [
   'content/zotero-preferences.pug',
 ]
 
+const bulk_mod: Record<string, string> = {}
+const l10nKeys: Set<string> = new Set
 const valid = {
   text: /^[-a-z0-9_]+$/,
   attr: /^[-a-z0-9_]+[.][a-z0-9]+$/,
 }
-
-const bulk_mod: Record<string, string> = {}
 function correction(ist, attr = '') {
   let soll = ist
     .replace(/[.]/g, '_')
@@ -32,13 +32,12 @@ function correction(ist, attr = '') {
     .replace(/([a-z])([A-Z]+)/g, (m, pre, post) => `${pre}-${post.toLowerCase()}`)
   soll += attr
   const prefix = 'better-bibtex_'
-  if (!soll.startsWith(prefix)) soll = prefix + soll
+  if (!soll.startsWith(prefix)) soll = `${prefix}${soll}`
   if (attr && !soll.match(valid.attr)) throw new Error(soll)
   if (!attr && !soll.match(valid.text)) throw new Error(soll)
   if (soll !== ist) bulk_mod[ist] = soll
 }
 
-// const attributes: Set<string> = new Set
 class WizardDetector extends ASTWalker {
   public foundWizard = false
 
@@ -46,11 +45,20 @@ class WizardDetector extends ASTWalker {
     if (node.name === 'wizard') this.foundWizard = true
 
     for (const attr of node.attrs) {
+      let prefix = ''
       attr.val.replace(/&([^;]+);/g, (m, id) => {
+        l10nKeys.add(id)
         if (!id.match(valid.attr) || !id.endsWith(`.${attr.name}`)) {
           correction(id, `.${attr.name}`)
         }
-        // attributes.add(id)
+        else {
+          if (!prefix) {
+            prefix = id.split('.')[0]
+          }
+          else if (id.split('.')[0] !== prefix) {
+            throw new Error(`${id} should start with ${prefix}`)
+          }
+        }
       })
     }
 
@@ -60,10 +68,12 @@ class WizardDetector extends ASTWalker {
 
   Text(node) {
     node.val.replace(/&([^;]+);/g, (m, id) => {
+      l10nKeys.add(id)
       if (!id.match(valid.text)) {
         correction(id)
       }
     })
+    return node
   }
 }
 
@@ -109,7 +119,8 @@ for (const src of pugs) {
     pretty: true,
     plugins: [{
       preCodeGen(ast) {
-        return wizardDetector.walk(ast)
+        wizardDetector.walk(ast)
+        return ast
       },
     }],
   }))
@@ -129,5 +140,5 @@ for (const src of pugs) {
   }
 }
 
-// fs.writeFileSync('attributes.json', JSON.stringify([...attributes], null, 2))
+fs.writeFileSync('l10nkeys-static.json', JSON.stringify([...l10nKeys], null, 2))
 fs.writeFileSync('bulk-mod.json', fast_safe_stringify.stable(bulk_mod, null, 2))
