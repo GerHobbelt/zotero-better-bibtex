@@ -523,10 +523,11 @@
   "config": {
     "id": "36a3b0b5-bad0-4a04-b79b-441c7cef77db",
     "label": "BetterBibTeX JSON",
-    "localeDateOrder": "dmy",
-    "options": {},
+    "options": {
+      "exportNotes": true
+    },
     "preferences": {
-      "citekeyFormat": "[auth][year]"
+      "citekeyFormat": "auth + year"
     }
   },
   "items": [
@@ -3099,7 +3100,7 @@
         "Includes bibliographical references.; ID: 01UA<sub>A</sub>LMA51544570200003843"
       ],
       "publisher": "Philadelphia : Temple University Press",
-      "title": "Crossroads, directions and A new critical race theory"
+      "title": "Crossroads, directions and a new critical race theory"
     },
     {
       "abstractNote": "Leland et al focus on books that have the power to engage students in \"critical\" conversations about issues of power and social justice.",
@@ -6829,7 +6830,7 @@
       "itemID": 200,
       "itemType": "webpage",
       "publicationTitle": "Slate Magazine",
-      "title": "Kosoko jackson\u2019s A place for wolves book scandal suggests YA twitter is getting uglier.",
+      "title": "Kosoko jackson\u2019s a place for wolves book scandal suggests YA twitter is getting uglier.",
       "url": "https://slate.com/culture/2019/03/ya-book-scandal-kosoko-jackson-a-place-for-wolves-explained.html"
     },
     {
@@ -8494,7 +8495,7 @@
       "itemID": 266,
       "itemType": "webpage",
       "publicationTitle": "Book Riot",
-      "title": "A response to claims of racism in naomi novik's A DEADLY EDUCATION",
+      "title": "A response to claims of racism in naomi novik's a DEADLY EDUCATION",
       "url": "https://bookriot.com/racism-in-naomi-noviks-a-deadly-education/"
     },
     {
@@ -8748,21 +8749,21 @@
       "title": "Sticks and stones : the troublesome success of children's literature from Slovenly Peter to Harry Potter"
     },
     {
-      "citationKey": "zotero-undefined",
+      "citationKey": "zotero-2314",
       "itemID": 276,
       "itemType": "film",
       "title": "Canceling | ContraPoints - YouTube",
       "url": "https://www.youtube.com/watch?v=OjMPJVmXxV8"
     },
     {
-      "citationKey": "zotero-undefineda",
+      "citationKey": "zotero-2487",
       "itemID": 277,
       "itemType": "webpage",
       "title": "Where is the diversity in publishing? The 2019 diversity baseline survey results | lee & low blog",
       "url": "https://blog.leeandlow.com/2020/01/28/2019diversitybaselinesurvey/"
     },
     {
-      "citationKey": "zotero-undefinedb",
+      "citationKey": "zotero-2516",
       "itemID": 278,
       "itemType": "webpage",
       "title": "Dr. Jennifer on Twitter: \"6 months after leaving the TT job hunt, I still find myself thinking about the research studies/articles I wrote that never got in a journal. Can you still publish as a non-academic? Is anyone out there an \"independent scholar?\"\" / Twitter",
