@@ -840,8 +840,7 @@ export class BetterBibTeX {
 
     log.debug('Loading Better BibTeX: starting...')
 
-    orchestrator.add({
-      id: 'start',
+    orchestrator.add('start', {
       description: 'zotero',
       startup: async () => {
         // https://groups.google.com/d/msg/zotero-dev/QYNGxqTSpaQ/uvGObVNlCgAJ
@@ -863,9 +862,7 @@ export class BetterBibTeX {
       },
     })
 
-    orchestrator.add({
-      id: 'databases',
-      description: 'databases',
+    orchestrator.add('sqlite', {
       needs: ['start'],
       startup: async () => {
         await Zotero.DB.queryAsync('ATTACH DATABASE ? AS betterbibtex', [OS.Path.join(Zotero.DataDirectory.dir, 'better-bibtex.sqlite')])
@@ -877,8 +874,7 @@ export class BetterBibTeX {
       },
     })
 
-    orchestrator.add({
-      id: 'done',
+    orchestrator.add('done', {
       description: 'user interface',
       startup: async () => {
         this.deferred.resolve(true)

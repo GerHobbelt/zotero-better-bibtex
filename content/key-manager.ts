@@ -172,10 +172,9 @@ export const KeyManager = new class _KeyManager {
   }
 
   constructor() {
-    orchestrator.add({
-      id: 'keymanager',
+    orchestrator.add('keymanager', {
       description: 'keymanager',
-      needs: ['databases', 'maindb'],
+      needs: ['sqlite', 'database'],
       startup: async () => {
         log.debug('keymanager.init: kuroshiro/jieba')
         await kuroshiro.init()

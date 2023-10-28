@@ -21,10 +21,9 @@ class Cache extends Loki {
   constructor(name: string, options) {
     super(name, options)
 
-    orchestrator.add({
-      id: 'cache',
+    orchestrator.add('cache', {
       description: 'cache',
-      needs: ['start', 'databases'],
+      needs: ['sqlite'],
       startup: async () => {
         await this.init()
         return 'cache load ready'

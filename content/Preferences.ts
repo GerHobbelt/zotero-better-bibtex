@@ -16,6 +16,7 @@ import { Events } from './events'
 import { pick } from './file-picker'
 import { flash } from './flash'
 import { is7 } from './client'
+import { icons } from './icons'
 
 // safe to keep "global" since only one pref pane will be loaded at any one time
 let $window: Window & { sizeToContent(): void } // eslint-disable-line no-var
@@ -98,14 +99,14 @@ class ZoteroPreferences {
 }
 
 class AutoExportPane {
-  private label: { [key: string]: string }
+  private status: { [key: string]: string }
   private cacherate: Record<number, number> = {}
 
   public load() {
-    if (!this.label) {
-      this.label = {}
+    if (!this.status) {
+      this.status = {}
       for (const status of ['scheduled', 'running', 'done', 'error', 'preparing']) {
-        this.label[status] = l10n.localize(`better-bibtex_preferences_auto-export_status_${status}`)
+        this.status[status] = l10n.localize(`better-bibtex_preferences_auto-export_status_${status}`)
       }
     }
 
@@ -113,98 +114,81 @@ class AutoExportPane {
 
     Events.on('export-progress', ( { pct, ae }) => {
       if (pct >= 100 && typeof ae === 'number') {
-        this.refreshCacheRate(ae).catch(err => log.error('failed to refresh cacherate for completed auto-export', ae, err))
+        this.refresh()
       }
     })
   }
 
+  private label(ae) {
+    let label: string = { library: icons.computer, collection: icons.folder }[ae.type]
+    label += ` ${this.name(ae, 'short')}`
+    label += ` (${Translators.byId[ae.translatorID].label})`
+    const path = ae.path.startsWith(OS.Constants.Path.homeDir) ? ae.path.replace(OS.Constants.Path.homeDir, '~') : ae.path
+    label += ` ${path}`
+    return label
+  }
+
   public refresh() {
-    if (!$window || Zotero.BetterBibTeX.ready.isPending()) return null
+    if (!$window) return
     const doc = $window.document
 
-    const menulist: XUL.Menulist = doc.querySelector('#better-bibtex-prefs-auto-export-select') as unknown as XUL.Menulist
-    const menupopup = doc.querySelector('#better-bibtex-prefs-auto-export-select menupopup')
-    const deck = doc.getElementById('better-bibtex-prefs-auto-export-deck')
-    const menuitems = Array.from(menupopup.children).map((node: Element) => ({ updated: parseInt(node.getAttribute('data-ae-updated')), id: parseInt(node.getAttribute('data-ae-id')) }))
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    const auto_exports = AutoExport.db.find().map(ae => ({ ...ae, updated: ae.meta.updated || ae.meta.created, id: ae.$loki }))
+    const auto_exports = [...AutoExport.db.find()].sort((a: { path: string }, b: { path: string }) => a.path.localeCompare(b.path))
+    const details = doc.querySelector<HTMLElement>('#bbt-prefs-auto-exports')
+    details.style.display = auto_exports.length ? 'grid' : 'none'
+    if (!auto_exports.length) return null
 
-    const hidden = !auto_exports.length
-    doc.getElementById('better-bibtex-prefs-auto-exports').setAttribute('hidden', `${hidden}`)
-    if (hidden) return null
+    const menulist: XUL.Menulist = doc.querySelector<HTMLElement>('#bbt-prefs-auto-export-select') as XUL.Menulist
+    const menupopup = doc.querySelector('#bbt-prefs-auto-export-select menupopup')
+    let selected
+    if (menulist.selectedItem) {
+      const $loki = parseInt(menulist.selectedItem.value)
+      selected = auto_exports.find(ae => ae.$loki === $loki)
+    }
 
-    const rebuild = auto_exports.lenght !== menuitems.length || auto_exports.find((ae, i) => ae.id !== menuitems[i].id || ae.updated !== menuitems[i].updated)
-    if (!rebuild) return null
+    // list changed
+    if (Array.from(menupopup.children).map(ae => (ae as unknown as XUL.Menuitem).value).join('/') !== auto_exports.map(ae => `${ae.$loki}`).join('/')) {
+      menulist.removeAllItems()
+      for (const ae of auto_exports) {
+        const menuitem = menulist.appendItem(this.label(ae), `${ae.$loki}`)
+        if (selected && ae.$loki === selected.$loki) menulist.selectedItem = menuitem
+      }
+    }
+    if (!selected || !menulist.selectedItem) {
+      selected = auto_exports[0]
+      menulist.selectedIndex = 0
+    }
 
-    const selected = menulist.selectedItem?.getAttribute('data-ae-id')
-    let selectedIndex = 0
+    if (details.getAttribute('data-ae-id') !== `${selected.$loki}` || details.getAttribute('data-ae-updated') !== `${selected.meta.updated || selected.meta.created}`) {
+      details.setAttribute('data-ae-id', `${selected.$loki}`)
+      details.setAttribute('data-ae-updated', `${selected.meta.updated || selected.meta.created}`)
 
-    while (menupopup.children.length) menupopup.removeChild(menupopup.firstChild)
-    while (deck.children.length > 1) deck.removeChild(deck.firstChild)
-
-    auto_exports.forEach((ae, index) => {
-      const menuitem: XUL.Menuitem = menupopup.appendChild(doc.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'menuitem')) as unknown as XUL.Menuitem
-      const id = `${ae.$loki}`
-      menuitem.setAttribute('value', id)
-      menuitem.setAttribute('data-ae-id', id)
-      if (selected === id) selectedIndex = index
-
-      menuitem.setAttribute('data-ae-updated', `${ae.meta.updated || ae.meta.created}`)
-
-      const pane: Element = (index === 0 ? deck.firstChild : deck.appendChild(deck.firstChild.cloneNode(true))) as unknown as Element
-
-      // set IDs on clone
-      for (const node of Array.from(pane.querySelectorAll('*[data-ae-id]'))) {
-        node.setAttribute('data-ae-id', `${ae.$loki}`)
+      const displayed = `bbt-autoexport-${Translators.byId[selected.translatorID].label.replace(/ /g, '')}`
+      for (const node of (Array.from(details.getElementsByClassName('bbt-autoexport-options')) as unknown[] as XUL.Element[])) {
+        node.style.display = node.classList.contains(displayed) ? 'initial' : 'none'
       }
 
-      const enabled = `autoexport-${Translators.byId[ae.translatorID].label.replace(/ /g, '')}`
-      // eslint is wrong here. tsc complains that hidden is not present on element, and I think tsc is correct here
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-      for (const node of (Array.from(pane.getElementsByClassName('autoexport-options')) as unknown[] as XUL.Element[])) {
-        node.hidden = !node.classList.contains(enabled)
-      }
-
-      const path = ae.path.startsWith(OS.Constants.Path.homeDir) ? ae.path.replace(OS.Constants.Path.homeDir, '~') : ae.path
-      menuitem.label = `${{ library: '\ud83d\udcbb', collection: '\ud83d\udcc2' }[ae.type]} ${this.name(ae, 'short')} (${Translators.byId[ae.translatorID].label}) ${path}`
-
-      const progress = AutoExport.progress.get(ae.$loki)
-      for (const node of Array.from(pane.querySelectorAll('*[data-ae-field]'))) {
+      for (const node of Array.from(details.querySelectorAll('*[data-ae-field]'))) {
         const field = node.getAttribute('data-ae-field')
 
         switch (field) {
           case 'type':
-            (node as unknown as XUL.Textbox).value = `${l10n.localize(`better-bibtex_preferences_auto-export_type_${ae.type}`)}:`
+            (node as unknown as XUL.Textbox).value = `${l10n.localize(`better-bibtex_preferences_auto-export_type_${selected.type}`)}:`
             break
 
           case 'name':
-            (node as unknown as XUL.Textbox).value = this.name(ae, 'long')
-            break
-
-          case 'status':
-            if (ae.status === 'running' && typeof progress === 'number') {
-              (node as unknown as XUL.Textbox).value = progress < 0 ? `${this.label?.preparing || 'preparing'} ${-progress}%` : `${progress}%`
-            }
-            else {
-              (node as unknown as XUL.Textbox).value = this.label?.[ae.status] || ae.status
-            }
+            (node as unknown as XUL.Textbox).value = this.name(selected, 'long')
             break
 
           case 'updated':
-            (node as unknown as XUL.Textbox).value = `${new Date(ae.meta.updated || ae.meta.created)}`
+            (node as unknown as XUL.Textbox).value = `${new Date(selected.meta.updated || selected.meta.created)}`
             break
 
           case 'translator':
-            (node as unknown as XUL.Textbox).value = Translators.byId[ae.translatorID].label
+            (node as unknown as XUL.Textbox).value = Translators.byId[selected.translatorID].label
             break
 
           case 'path':
-            (node as unknown as XUL.Textbox).value = ae[field]
-            break
-
-          case 'error':
-            (node.parentElement as unknown as XUL.Element).hidden = !ae[field];
-            (node as unknown as XUL.Textbox).value = ae[field]
+            (node as unknown as XUL.Textbox).value = selected[field]
             break
 
           case 'exportNotes':
@@ -214,62 +198,77 @@ class AutoExportPane {
           case 'asciiBibLaTeX':
           case 'biblatexExtendedNameFormat':
           case 'recursive':
-            (node as unknown as XUL.Checkbox).checked = ae[field]
+            (node as unknown as XUL.Checkbox).checked = selected[field]
             break
 
           case 'DOIandURL':
           case 'bibtexURL':
-            (node as unknown as XUL.Menulist).value = ae[field]
+            log.debug('2522 setting', field, 'to', selected[field]);
+            (node as unknown as XUL.Menulist).value = selected[field]
             break
 
           case 'cacherate':
-            (node as unknown as XUL.Textbox).value = typeof this.cacherate[ae.$loki] === 'number' ? `${this.cacherate[ae.$loki]}%`: '? %'
+          case 'status':
+            // always set below on refresh
             break
 
           default:
             throw new Error(`Unexpected field in auto-export refresh: ${field}`)
         }
       }
-    })
+    }
 
-    menulist.selectedIndex = selectedIndex
+    const status = details.querySelector("*[data-ae-field='status']") as unknown as XUL.Textbox
+    const progress = AutoExport.progress.get(selected.$loki)
+    if (selected.status === 'running' && typeof progress === 'number') {
+      status.value = progress < 0 ? `${icons.running} ${this.status?.preparing || 'preparing'} ${-progress}%` : `${icons.running} ${progress}%`
+    }
+    else {
+      const icon: string = {
+        running: icons.running,
+        done: icons.check,
+        scheduled: icons.waiting,
+        error: icons.error,
+        preparing: `${icons.running}${icons.waiting}`,
+      }[selected.status] || selected.status
+
+      status.value = `${icon} ${selected.error || ''}`.trim()
+    }
+
+    const cacherate = details.querySelector("*[data-ae-field='cacherate']") as unknown as XUL.Textbox
+    cacherate.value = typeof this.cacherate[selected.$loki] === 'number' ? `${this.cacherate[selected.$loki]}%`: '? %'
   }
 
-  public remove(node) {
+  public remove() {
+    const menulist: XUL.Menulist = $window.document.querySelector('#bbt-prefs-auto-export-select') as unknown as XUL.Menulist
+    if (!menulist.selectedItem) return
+
     if (!Services.prompt.confirm(null, l10n.localize('better-bibtex_auto-export_delete'), l10n.localize('better-bibtex_auto-export_delete_confirm'))) return
 
-    const ae = AutoExport.db.get(parseInt(node.getAttribute('data-ae-id')))
+    const ae = AutoExport.db.get(parseInt(menulist.selectedItem.getAttribute('value')))
     Cache.getCollection(Translators.byId[ae.translatorID].label)?.removeDataOnly()
     AutoExport.db.remove(ae)
     this.refresh()
   }
 
-  public run(node) {
-    AutoExport.run(parseInt(node.getAttribute('data-ae-id')))
-    this.refresh()
-  }
+  public run() {
+    const menulist: XUL.Menulist = $window.document.querySelector('#bbt-prefs-auto-export-select') as unknown as XUL.Menulist
+    if (!menulist.selectedItem) return
 
-  public async refreshCacheRate(ae: Element | number) {
-    if (typeof ae !== 'number') ae = parseInt(ae.getAttribute('data-ae-id'))
-
-    if (typeof ae !== 'number') {
-      log.error('refresh cacherate on unknown ae?', typeof ae)
-    }
-    else {
-      try {
-        this.cacherate[ae] = await AutoExport.cached(ae)
-      }
-      catch (err) {
-        log.error('could not refresh cacherate for', ae, err)
-        delete this.cacherate[ae]
-      }
-    }
+    AutoExport.run(parseInt(menulist.selectedItem.getAttribute('value')))
     this.refresh()
   }
 
   public edit(node) {
+    let id: string
+    // add data-ae-id check for testing
+    if (!(id = node.getAttribute('data-ae-id'))) {
+      const menulist: XUL.Menulist = $window.document.querySelector('#bbt-prefs-auto-export-select') as unknown as XUL.Menulist
+      id = menulist.selectedItem.getAttribute('value')
+    }
+    const ae = AutoExport.db.get(parseInt(id))
+
     const field = node.getAttribute('data-ae-field')
-    const ae = AutoExport.db.get(parseInt(node.getAttribute('data-ae-id')))
     Cache.getCollection(Translators.byId[ae.translatorID].label).removeDataOnly()
 
     log.debug('edit autoexport:', field)
@@ -395,18 +394,18 @@ export class PrefPane {
     const error = Formatter.update([Preference.citekeyFormatEditing, Preference.citekeyFormat])
     const style = error ? '-moz-appearance: none !important; background-color: DarkOrange' : ''
 
-    const editing = $window.document.getElementById('id-better-bibtex-preferences-citekeyFormatEditing')
+    const editing = $window.document.getElementById('bbt-preferences-citekeyFormatEditing')
     editing.setAttribute('style', style)
     editing.setAttribute('tooltiptext', error)
 
-    const msg = $window.document.getElementById('better-bibtex-citekeyFormat-error') as HTMLInputElement
+    const msg = $window.document.getElementById('bbt-citekeyFormat-error') as HTMLInputElement
     msg.value = error
     msg.setAttribute('style', style)
-    msg.style.display = error ? 'block' : 'none'
+    msg.style.display = error ? 'initial' : 'none'
 
-    const active = $window.document.getElementById('id-better-bibtex-preferences-citekeyFormat')
-    const label = $window.document.getElementById('id-better-bibtex-label-citekeyFormat')
-    active.style.display = label.style.display = Preference.citekeyFormat === Preference.citekeyFormatEditing ? 'none' : 'block'
+    const active = $window.document.getElementById('bbt-preferences-citekeyFormat')
+    const label = $window.document.getElementById('bbt-label-citekeyFormat')
+    active.style.display = label.style.display = Preference.citekeyFormat === Preference.citekeyFormatEditing ? 'none' : 'initial'
   }
 
   public checkPostscript(): void {
@@ -425,10 +424,10 @@ export class PrefPane {
       error = `${err}`
     }
 
-    const postscript = $window.document.getElementById('zotero-better-bibtex-postscript')
+    const postscript = $window.document.getElementById('bbt-postscript')
     postscript.setAttribute('style', (error ? '-moz-appearance: none !important; background-color: DarkOrange' : ''))
     postscript.setAttribute('tooltiptext', error)
-    $window.document.getElementById('better-bibtex-cache-warn-postscript').setAttribute('hidden', `${!Preference.postscript.includes('Translator.options.exportPath')}`)
+    $window.document.getElementById('bbt-cache-warn-postscript').setAttribute('hidden', `${!Preference.postscript.includes('Translator.options.exportPath')}`)
   }
 
   public async rescanCitekeys(): Promise<void> {
@@ -450,7 +449,7 @@ export class PrefPane {
       })
 
       if (!is7) {
-        const deck = $window.document.getElementById('better-bibtex-prefs-deck') as unknown as XUL.Deck
+        const deck = $window.document.getElementById('bbt-prefs-deck') as unknown as XUL.Deck
         deck.selectedIndex = 0
 
         await Zotero.BetterBibTeX.ready
@@ -463,8 +462,7 @@ export class PrefPane {
         deck.selectedIndex = 1
       }
 
-      $window.document.getElementById('rescan-citekeys').hidden = !Zotero.Debug.enabled
-
+      $window.document.getElementById('bbt-rescan-citekeys').hidden = !Zotero.Debug.enabled
 
       this.autoexport.load()
 
@@ -488,19 +486,19 @@ export class PrefPane {
   public refresh(): void {
     if (!$window) return
 
-    const pane = $window.document.getElementById('zotero-prefpane-better-bibtex')
+    const pane = $window.document.getElementById('bbt-zotero-prefpane')
     // unloaded
     if (!pane) {
       this.unload()
       return
     }
 
-    const quickCopyDetails: XUL.Deck = $window.document.getElementById('quickCopyDetails') as unknown as XUL.Deck
-    const quickCopyId = `better-bibtex-preferences-quickcopy-${Preference.quickCopyMode}`
+    const quickCopyDetails: XUL.Deck = $window.document.getElementById('bbt-quick-copy-details') as unknown as XUL.Deck
+    const quickCopyId = `bbt-preferences-quickcopy-${Preference.quickCopyMode}`
     quickCopyDetails.selectedIndex = Array.from(quickCopyDetails.children).findIndex(details => details.id === quickCopyId)
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-    for (const node of (Array.from($window.document.getElementsByClassName('jurism')) as unknown[] as XUL.Element[])) {
+    for (const node of (Array.from($window.document.getElementsByClassName('bbt-jurism')) as unknown[] as XUL.Element[])) {
       node.hidden = client !== 'jurism'
     }
 
@@ -508,7 +506,7 @@ export class PrefPane {
       Zotero.Styles.init().then(() => {
         const styles = Zotero.Styles.getVisible().filter((style: { usesAbbreviation: boolean }) => style.usesAbbreviation)
 
-        const stylebox = $window.document.getElementById('better-bibtex-abbrev-style-popup') as unknown as XUL.Menulist
+        const stylebox = $window.document.getElementById('bbt-abbrev-style') as unknown as XUL.Menulist
         const refill = stylebox.children.length === 0
         const selectedStyle = Preference.autoAbbrevStyle
         let selectedIndex = -1
@@ -532,12 +530,11 @@ export class PrefPane {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-    for (const state of (Array.from($window.document.getElementsByClassName('better-bibtex-preferences-worker-state')) as unknown[] as XUL.Textbox[])) {
+    for (const state of (Array.from($window.document.getElementsByClassName('bbt-preferences-worker-state')) as unknown[] as XUL.Textbox[])) {
       state.value = l10n.localize('better-bibtex_workers_status', {
         total: Translators.workers.total,
         running: Translators.workers.running.size,
       })
-      state.classList.remove('textbox-emph')
     }
 
     if (this.autoexport) this.autoexport.refresh()
@@ -546,7 +543,7 @@ export class PrefPane {
   private styleChanged(index) {
     if (client !== 'jurism') return null
 
-    const stylebox = $window.document.getElementById('better-bibtex-abbrev-style-popup') as unknown as XUL.Menulist
+    const stylebox = $window.document.getElementById('bbt-abbrev-style') as unknown as XUL.Menulist
     const selectedItem: XUL.Element = typeof index !== 'undefined' ? stylebox.getItemAtIndex(index) : stylebox.selectedItem
     const styleID = selectedItem.getAttribute('value')
     Preference.autoAbbrevStyle = styleID

@@ -25,10 +25,9 @@ class Main extends Loki {
   constructor(name, options) {
     super(name, options)
 
-    orchestrator.add({
-      id: 'maindb',
+    orchestrator.add('database', {
       description: 'citekey database',
-      needs: ['databases'],
+      needs: ['sqlite'],
       startup: async () => { await this.init() },
       shutdown: async () => {
         const store = this.persistenceAdapter?.constructor?.name || 'Unknown'
