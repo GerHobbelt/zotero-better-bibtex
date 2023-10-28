@@ -2,11 +2,10 @@
 
 import Emittery from 'emittery'
 
-import { Preference } from './prefs'
 import { log } from './logger'
 import { is7 } from './client'
 
-type IdleState = 'back' | 'active' | 'idle'
+type IdleState = 'active' | 'idle'
 type Action = 'modify' | 'delete' | 'add'
 
 type IdleObserver = {
@@ -17,6 +16,9 @@ type IdleService = {
   addIdleObserver: (observer: IdleObserver, time: number) => void
   removeIdleObserver: (observer: IdleObserver, time: number) => void
 }
+type IdleTopic = 'auto-export' | 'save-database'
+
+const idleService: IdleService = Components.classes[`@mozilla.org/widget/${is7 ? 'user' : ''}idleservice;1`].getService(Components.interfaces[is7 ? 'nsIUserIdleService' : 'nsIIdleService'])
 
 class Emitter extends Emittery<{
   'collections-changed': number[]
@@ -29,23 +31,23 @@ class Emitter extends Emittery<{
   'loaded': undefined
   'preference-changed': string
   'window-loaded': { win: Window, href: string }
-  'idle-autoexport': IdleState
-  'idle-savedb': IdleState
+  'idle': { state: IdleState, topic: IdleTopic }
 }> {
 
-  public idleService: IdleService = Components.classes[`@mozilla.org/widget/${is7 ? 'user' : ''}idleservice;1`].getService(Components.interfaces[is7 ? 'nsIUserIdleService' : 'nsIIdleService'])
   private listeners: any[] = []
+  public idle: Partial<Record<IdleTopic, IdleState>> = {}
 
   public startup(): void {
-    log.debug('events.startup:', typeof this.idleService, typeof this.idleService.addIdleObserver)
-    this.listeners.push(new IdleListener('idle-savedb', 5))
-    this.listeners.push(new IdleListener('idle-autoexport', (Preference.autoExportIdleWait = Math.max(1, Preference.autoExportIdleWait))))
     this.listeners.push(new WindowListener)
     this.listeners.push(new ItemListener)
     this.listeners.push(new TagListener)
     this.listeners.push(new CollectionListener)
     this.listeners.push(new MemberListener)
     this.listeners.push(new GroupListener)
+  }
+
+  public addIdleListener(topic: IdleTopic, delay: number): void {
+    this.listeners.push(new IdleListener(topic, delay))
   }
 
   public shutdown(): void {
@@ -92,16 +94,25 @@ class WindowListener {
 }
 
 class IdleListener {
-  constructor(private event: 'idle-autoexport' | 'idle-savedb', private delay: number) {
-    Events.idleService.addIdleObserver(this, this.delay)
+  constructor(private topic: IdleTopic, private delay: number) {
+    if (this.delay <= 0) throw new Error('idle listener: only positive times are allowed')
+    if (Events.idle[topic]) throw new Error(`idle topic ${topic} already registered`)
+
+    Events.idle[topic] = (idleService.idleTime / 1000) > this.delay ? 'idle' : 'active'
+    log.debug('adding idle notifier', topic, 'on a', this.delay, 'second delay')
+    idleService.addIdleObserver(this, this.delay)
   }
 
   observe(_subject: string, topic: IdleState, _data: any) {
-    void Events.emit(this.event, topic)
+    if ((topic as any) === 'back') topic = 'active'
+    log.debug(`idle: ${new Date}, ${this.topic} ${topic}`)
+    Events.idle[this.topic] = topic
+    void Events.emit('idle', { state: topic, topic: this.topic })
   }
 
   unregister() {
-    Events.idleService.removeIdleObserver(this, this.delay)
+    delete Events.idle[this.topic]
+    idleService.removeIdleObserver(this, this.delay)
   }
 }
 
