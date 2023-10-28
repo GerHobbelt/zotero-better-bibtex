@@ -31,9 +31,16 @@ const tgt = process.argv[3] || 'build/content/Preferences.xul'
 const l10n = new class {
   private strings = peggy.generate(fs.readFileSync('setup/dtd-file.peggy', 'utf-8')).parse(fs.readFileSync('locale/en-US/zotero-better-bibtex.dtd', 'utf-8')) as Record<string, string>
 
+  private find(id: string): string {
+    if (id.startsWith('zotero.general.')) return `&${id};`
+    if (id.startsWith('zotero.errorReport.')) return `&${id};`
+    if (this.strings[id]) return this.strings[id]
+    error(id, 'not in dtd')
+    return ''
+  }
   tr(txt: string): string {
     if (!txt) return txt
-    return txt.replace(/&([^;]+);/g, (entity, id) => this.strings[id] || (error(id, 'not in dtd')) as unknown as string)
+    return txt.replace(/&([^;]+);/g, (entity, id) => this.find(id))
   }
 }
 
@@ -92,6 +99,62 @@ class Swap extends ASTWalker {
   }
 }
 */
+
+class Flex extends ASTWalker {
+  flex(node): string {
+    const flex = node.attrs.find(attr => attr.name === 'flex')
+    if (!flex) return ''
+    if (typeof flex.val === 'number') return `${flex.val}`
+    return flex.mustEscape ? flex.val : eval(flex.val)
+  }
+
+  Tag(node) {
+    const flex = this.flex(node)
+    switch (node.name) {
+      case 'vbox':
+      case 'hbox':
+      case 'grid':
+      case 'columns':
+      case 'column':
+      case 'rows':
+      case 'row':
+      case 'radiogroup':
+      case 'groupbox':
+      case 'textbox':
+      case 'tabbox':
+      case 'tabpanels':
+      case 'tabpanel':
+      case 'deck':
+      case 'prefpane':
+        if (!flex) node.attrs.push({ name: 'flex', val: "'1'", mustEscape: false })
+        break
+      case 'prefwindow':
+      case 'tabs':
+      case 'tab':
+      case 'caption':
+      case 'preferences':
+      case 'preference':
+      case 'popupset':
+      case 'tooltip':
+      case 'description':
+      case 'label':
+      case 'checkbox':
+      case 'radio':
+      case 'button':
+      case 'image':
+      case 'separator':
+      case 'script':
+      case 'html:input':
+      case 'html:select':
+      case 'html:option':
+        if (flex) throw new Error(`${node.name} has flex ${flex}`)
+        break
+      default:
+        throw `no flex on ${node.name}` // eslint-disable-line no-throw-literal
+    }
+    this.walk(node.block)
+  }
+}
 
 class StripConfig extends ASTWalker {
   Tag(node) {
@@ -466,7 +529,7 @@ const options = {
       walker.saveTypescript()
 
       walk(StripConfig, ast)
-      // walk(Convert, ast)
+      walk(Flex, ast)
 
       return ast
     },
@@ -477,3 +540,8 @@ const xul = pug.renderFile(src, options)
 const build = path.dirname(tgt)
 if (!fs.existsSync(build)) fs.mkdirSync(build, { recursive: true })
 fs.writeFileSync(tgt, xul.replace(/&amp;/g, '&').trim())
+
+for (const xul of glob.sync('content/*.xul')) {
+  const source = fs.readFileSync(xul, 'utf-8')
+  l10n.tr(source)
+}

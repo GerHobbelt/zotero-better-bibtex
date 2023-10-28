@@ -448,18 +448,6 @@ export class PrefPane {
     this.timer = typeof this.timer === 'number' ? this.timer : currentWin.setInterval(this.refresh.bind(this), 500)  // eslint-disable-line no-magic-numbers
   }
 
-  public resize(): void {
-    // https://stackoverflow.com/questions/4707712/prefwindow-sizing-itself-to-the-wrong-tab-when-browser-preferences-animatefade
-    Zotero.Prefs.set('browser.preferences.animateFadeIn', false, true)
-
-    // https://stackoverflow.com/questions/5762023/xul-prefwindow-size-problems
-    currentWin.sizeToContent()
-    const tabbox = currentWin.document.getElementById('better-bibtex-prefs-tabbox') as unknown as XUL.Tabbox
-    tabbox.height = tabbox.boxObject.height
-    tabbox.width = tabbox.boxObject.width
-    currentWin.sizeToContent()
-  }
-
   private unload() {
     if (typeof this.timer === 'number') {
       currentWin.clearInterval(this.timer)
