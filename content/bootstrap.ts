@@ -5,10 +5,6 @@ declare const ChromeUtils: any
 declare const Components: any
 declare const dump: (msg: string) => void
 
-import { flash } from './flash'
-import * as supported from '../schema/supported.json'
-import { clean_pane_persist } from './clean_pane_persist'
-
 /*
 type Deferred = Promise<void> & { resolve: () => void, reject: (err: Error) => void }
 const defer = (): Deferred => {
@@ -39,13 +35,6 @@ const BOOTSTRAP_REASONS = {
 } as const
 type ReasonId = keyof typeof BOOTSTRAP_REASONS
 export type Reason = typeof BOOTSTRAP_REASONS[ReasonId]
-
-function approxVersion(v: string): string {
-  return v
-    .replace(/m|-beta/, '.')
-    // https://github.com/retorquere/zotero-better-bibtex/issues/2093#issuecomment-1082885183
-    .replace(/\.SOURCE.*/, `.${Number.MAX_SAFE_INTEGER}`.slice(0, -1))
-}
 
 function log(msg) {
   msg = `{better-bibtex} bootstrap: ${msg}`
@@ -133,24 +122,11 @@ function setDefaultPrefs(rootURI) {
 
 export async function install(_data: any, reason: ReasonId) {
   await waitForZotero()
-  await Zotero.BetterBibTeX.orchestrator.startup(BOOTSTRAP_REASONS[reason])
+  await Zotero.BetterBibTeX.startup(BOOTSTRAP_REASONS[reason])
 }
 
 export async function startup({ resourceURI, rootURI = resourceURI.spec }, reason: ReasonId) {
   await waitForZotero()
-
-  const client = Zotero.clientName.toLowerCase().replace('-', '')
-  const versionCompare = Components.classes['@mozilla.org/xpcom/version-comparator;1'].getService(Components.interfaces.nsIVersionComparator)
-  if (versionCompare.compare(approxVersion(Zotero.version), approxVersion(supported[client])) < 0) {
-    clean_pane_persist()
-
-    log(`Unsupported ${client} ${Zotero.version}, not starting`)
-
-    // eslint-disable-next-line no-magic-numbers
-    flash(`OUTDATED ${client.toUpperCase()} VERSION ${Zotero.version}`, `Better BibTeX has been disabled\nNeed at least ${client} ${supported[client]}, found ${Zotero.version}, please upgrade.`, 30)
-
-    return
-  }
 
   if (Zotero.BetterBibTeX) throw new Error('Better BibTeX is already started')
 
@@ -171,19 +147,19 @@ export async function startup({ resourceURI, rootURI = resourceURI.spec }, reaso
     clearInterval: Zotero.clearInterval,
   }, 'utf-8')
 
-  await Zotero.BetterBibTeX.orchestrator.startup(BOOTSTRAP_REASONS[reason])
+  await Zotero.BetterBibTeX.startup(BOOTSTRAP_REASONS[reason])
 }
 
 export async function shutdown(data: any, reason: ReasonId) {
   if (Zotero.BetterBibTeX) {
-    await Zotero.BetterBibTeX.orchestrator.shutdown(BOOTSTRAP_REASONS[reason])
+    await Zotero.BetterBibTeX.shutdown(BOOTSTRAP_REASONS[reason])
     delete Zotero.BetterBibTeX
   }
 }
 
 export async function uninstall(data: any, reason: ReasonId) {
   if (Zotero.BetterBibTeX) {
-    await Zotero.BetterBibTeX.orchestrator.shutdown(BOOTSTRAP_REASONS[reason])
+    await Zotero.BetterBibTeX.shutdown(BOOTSTRAP_REASONS[reason])
     delete Zotero.BetterBibTeX
   }
 }

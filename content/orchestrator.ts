@@ -27,7 +27,7 @@ export class Orchestrator {
     this.tasks[task.id] = task
   }
 
-  private async run(phase: Phase, reason?: Reason, progress?: Progress): Promise<void> {
+  private async run(phase: Phase, reason: Reason, progress?: Progress): Promise<void> {
     const total = Object.keys(this.tasks).length
     let ran = 0
 
@@ -60,7 +60,7 @@ export class Orchestrator {
     await Promise.all(Object.keys(this.tasks).map(run))
   }
 
-  public async startup(progress?: Progress): Promise<void> {
+  public async startup(reason: Reason, progress?: Progress): Promise<void> {
     if (this.tasks[this.start]) {
       for (const [id, task] of Object.entries(this.tasks)) {
         if (id === this.start) continue
@@ -89,7 +89,7 @@ export class Orchestrator {
       }
     }
 
-    await this.run('startup', undefined, progress)
+    await this.run('startup', reason, progress)
     progress?.('startup', 'ready', 100, 100, 'ready')
   }
 
@@ -99,17 +99,3 @@ export class Orchestrator {
 }
 
 export const orchestrator = new Orchestrator
-/*
-for (const [id, task] of Object.entries(batch)) {
-  orchestrator.add({ id, ...task })
-}
-
-async function main() {
-  const progress = (phase, name, done, total) => { console.log(phase, name, done, '/', total) }
-  await orchestrator.startup(progress)
-  await orchestrator.startup(progress)
-  await orchestrator.shutdown(progress)
-  await orchestrator.shutdown(progress)
-}
-main()
-*/

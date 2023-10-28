@@ -5,15 +5,16 @@ import { Exporter as BibTeXExporter } from './exporter'
 import { parse as arXiv } from '../../content/arXiv'
 import { validItem } from '../../content/ajv'
 import { valid, label } from '../../gen/items/items'
-import wordsToNumbers from 'words-to-numbers'
+import { wordsToNumbers } from 'words-to-numbers'
+import { toOrdinal } from 'number-to-words'
+
 import { parse as parseDate, strToISO as strToISODate } from '../../content/dateparser'
 
 import { parseBuffer as parsePList } from 'bplist-parser'
 
-const toWordsOrdinal = require('number-to-words/src/toWordsOrdinal')
 function edition(n: string | number): string {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  if (typeof n === 'number' || (typeof n === 'string' && n.match(/^[0-9]+$/))) return toWordsOrdinal(n).replace(/^\w/, (c: string) => c.toUpperCase())
+  if (typeof n === 'number' || (typeof n === 'string' && n.match(/^[0-9]+$/))) return toOrdinal(n).replace(/^\w/, (c: string) => c.toUpperCase())
   return n
 }
 
@@ -330,12 +331,11 @@ export function generateBibTeX(translation: Translation): void {
     }
 
     const doi = item.DOI || item.extraFields.kv.DOI
-    let urlfield = null
     if (translation.preferences.DOIandURL === 'both' || !doi) {
       switch (translation.preferences.bibtexURL) {
         case 'url':
         case 'url-ish':
-          urlfield = ref.add({
+          ref.add({
             name: 'url',
             value: item.url || item.extraFields.kv.url,
             enc: translation.preferences.bibtexURL === 'url' && translation.isVerbatimField('url') ? 'url' : 'latex',
@@ -344,7 +344,7 @@ export function generateBibTeX(translation: Translation): void {
 
         case 'note':
         case 'note-url-ish':
-          urlfield = ref.add({
+          ref.add({
             name: (['misc', 'booklet'].includes(ref.entrytype) && !ref.has.howpublished ? 'howpublished' : 'note'),
             value: item.url || item.extraFields.kv.url,
             enc: translation.preferences.bibtexURL === 'note' ? 'url': 'latex',
@@ -353,12 +353,12 @@ export function generateBibTeX(translation: Translation): void {
 
         default:
           if (['csl.webpage', 'zotero.webpage', 'csl.post', 'csl.post-weblog'].includes(ref.entrytype_source)) {
-            urlfield = ref.add({ name: 'howpublished', value: item.url || item.extraFields.kv.url })
+            ref.add({ name: 'howpublished', value: item.url || item.extraFields.kv.url })
           }
           break
       }
     }
-    if (translation.preferences.DOIandURL === 'both' || !urlfield) ref.add({ name: 'doi', value: (doi || '').replace(/^https?:\/\/doi.org\//i, '') })
+    // if (translation.preferences.DOIandURL === 'both' || !urlfield) ref.add({ name: 'doi', value: (doi || '').replace(/^https?:\/\/doi.org\//i, '') })
 
     if (ref.entrytype_source.split('.')[1] === 'thesis') {
       const thesistype = ref.thesistype(item.type, 'phdthesis', 'mastersthesis')
@@ -643,9 +643,9 @@ export class ZoteroItem {
 
   protected $edition(value: string | number): boolean {
     if (typeof value === 'string') {
-      value = value.replace(/^([0-9]+)(nd|th)$/, '$1')
+      value = value.replace(/^([0-9]+)(st|nd|th)$/, '$1')
       const numbers = wordsToNumbers(value)
-      if (typeof numbers === 'number' || (typeof numbers === 'string' && numbers && !numbers.match(/\w/))) value = numbers
+      if (typeof numbers === 'number' || (typeof numbers === 'string' && numbers.match(/^[0-9]+$/))) value = numbers
     }
     return this.set('edition', value)
   }
