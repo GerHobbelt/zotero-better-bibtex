@@ -17,11 +17,13 @@ jobs:
           label.awaiting: awaiting-user-feedback
           label.log-required: needs-debug-log
           label.reopened: reopened
-          log-id: "[A-Z0-9]{8}(-refs)?-(apse|euc)"
+          log-id: "([A-Z0-9]{8}(-refs)?-(apse|euc))|([^-]+-[A-Z0-9]{8})"
           message.log-required: |
             You did not submit a debug log. A longer explanation follows, but please just submit a debug log. It takes less time to submit a debug log than to argue its necessity.
 
             If you did try to submit a debug log, but the ID looked like `D<number>`, that is a Zotero debug report, which I cannot access. Please re-submit a BBT debug log by one of the methods below.
+
+            If Better BibTeX failed to start, and the regular debug log options do not work, choose "Send debug log to file.io" from the Help menu.
 
             **The debug log is much more likely than not required to address your question, @{{username}}, _even if you think it unlikely_**. Debug logs are useful for both analysis and for enhancement requests, and the first response from `@retorquere` will usually be "please send a debug log".
 

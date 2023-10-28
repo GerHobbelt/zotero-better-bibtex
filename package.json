@@ -1,6 +1,6 @@
 {
   "name": "zotero-better-bibtex",
-  "version": "6.7.96",
+  "version": "6.7.98",
   "description": "Make Zotero useful for us LaTeX holdouts.",
   "homepage": "https://retorque.re/zotero-better-bibtex",
   "license": "ISC",
@@ -104,14 +104,14 @@
     "transliteration": "^2.3.5",
     "words-to-numbers": "^1.5.1",
     "xregexp": "^5.1.1",
-    "zotero-plugin": "^2.0.0"
+    "zotero-plugin": "^2.0.2"
   },
   "devDependencies": {
     "@retorquere/bibtex-parser": "^6.4.14",
     "@retorquere/zotero-sync": "^1.0.23",
     "@types/bluebird": "^3.5.38",
     "@types/lokijs": "^1.5.8",
-    "@types/node": "^20.4.5",
+    "@types/node": "^20.4.6",
     "@xmldom/xmldom": "^0.8.10",
     "ajv-keywords": "^5.1.0",
     "archiver": "^5.3.1",

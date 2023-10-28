@@ -395,16 +395,14 @@ export class PrefPane {
     if (!$window || Zotero.BetterBibTeX.ready.isPending()) return // itemTypes not available yet
 
     const error = Formatter.update([Preference.citekeyFormatEditing, Preference.citekeyFormat])
-    const style = error ? '-moz-appearance: none !important; background-color: DarkOrange' : ''
 
     const editing = $window.document.getElementById('bbt-preferences-citekeyFormatEditing')
-    editing.setAttribute('style', style)
+    editing.classList[error ? 'add' : 'remove']('bbt-prefs-error')
     editing.setAttribute(is7 ? 'title' : 'tooltiptext', error)
     if (is7) editing.setAttribute('tooltip', 'html-tooltip')
 
     const msg = $window.document.getElementById('bbt-citekeyFormat-error') as HTMLInputElement
     msg.value = error
-    msg.setAttribute('style', style)
     msg.style.display = error ? 'initial' : 'none'
 
     const active = $window.document.getElementById('bbt-preferences-citekeyFormat')
@@ -471,6 +469,9 @@ export class PrefPane {
 
       this.autoexport.load()
 
+      this.quickCopy()
+      $window.document.getElementById('bbt-preferences-quickcopy').addEventListener('command', () => this.quickCopy())
+
       this.checkCitekeyFormat()
       this.checkPostscript()
       this.refresh()
@@ -478,6 +479,14 @@ export class PrefPane {
     }
     catch (err) {
       log.debug('error loading preferences:', err)
+    }
+  }
+
+  private quickCopy() {
+    const quickcopy = 'bbt-preferences-quickcopy-details'
+    const selected = `${quickcopy}-${Zotero.Prefs.get('translators.better-bibtex.quickCopyMode')}`
+    for (const details of ([...$window.document.querySelectorAll(`.${quickcopy}`)] as HTMLElement[])) {
+      details.style.display = details.id === selected ? 'initial' : 'none'
     }
   }
 
@@ -497,10 +506,6 @@ export class PrefPane {
       this.unload()
       return
     }
-
-    const quickCopyDetails: XUL.Deck = $window.document.getElementById('bbt-quick-copy-details') as unknown as XUL.Deck
-    const quickCopyId = `bbt-preferences-quickcopy-${Preference.quickCopyMode}`
-    quickCopyDetails.selectedIndex = Array.from(quickCopyDetails.children).findIndex(details => details.id === quickCopyId)
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     for (const node of (Array.from($window.document.getElementsByClassName('bbt-jurism')) as unknown[] as XUL.Element[])) {

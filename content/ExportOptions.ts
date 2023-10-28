@@ -3,6 +3,7 @@ import * as l10n from './l10n'
 import { Elements } from './create-element'
 import { Events } from './events'
 import { log } from './logger'
+import type { XUL } from '../typings/xul'
 
 type XULWindow = Window & { Zotero_File_Interface_Export?: any, arguments?: any[], sizeToContent?: () => void }
 // safe to keep these global as only one export window will ever be open at any one time
@@ -109,24 +110,38 @@ export class ExportOptions {
 
   mutex(e?: Event): void {
     const doc = $window.document
-    const exportFileData = doc.getElementById('export-option-exportFileData') as HTMLInputElement
-    const keepUpdated = doc.getElementById('export-option-keepUpdated') as HTMLInputElement
-    const worker = doc.getElementById('export-option-worker') as HTMLInputElement
-    const target = e ? e.target as Element : exportFileData
-
-    log.debug('export-options.mutex:', { exportFileData: !!exportFileData, keepUpdated: !!keepUpdated, worker: !!worker })
+    const exportFileData = doc.getElementById('export-option-exportFileData') as XUL.Checkbox
+    const keepUpdated = doc.getElementById('export-option-keepUpdated') as XUL.Checkbox
+    const worker = doc.getElementById('export-option-worker') as XUL.Checkbox
 
     if (!exportFileData || !keepUpdated) return null
 
-    if (target.id === exportFileData.id && exportFileData.checked) {
-      keepUpdated.checked = false
-    }
-    else if (target.id === keepUpdated.id && keepUpdated.checked) {
-      exportFileData.checked = false
-      worker.checked = true
-    }
+    log.debug('export-options.mutex: start:', {
+      exportFileData: exportFileData ? exportFileData.checked : null,
+      keepUpdated: keepUpdated ? keepUpdated.checked : null,
+      worker: worker ? worker.checked : null,
+    })
 
-    keepUpdated.disabled = exportFileData.checked
+    if (!e) keepUpdated.checked = false
+
+    const target = e ? e.target as Element : exportFileData
+    switch (target.id) {
+      case exportFileData.id:
+        if (exportFileData.checked) keepUpdated.checked = false
+        break
+      case keepUpdated.id:
+        if (keepUpdated.checked) {
+          exportFileData.checked = false
+          worker.checked = true
+        }
+        break
+    }
     worker.disabled = keepUpdated.checked
+
+    log.debug('export-options.mutex: done:', {
+      exportFileData: exportFileData ? exportFileData.checked : null,
+      keepUpdated: keepUpdated ? keepUpdated.checked : null,
+      worker: worker ? worker.checked : null,
+    })
   }
 }

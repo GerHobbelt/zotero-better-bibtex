@@ -506,11 +506,7 @@ class XHTML extends BaseASTWalker {
 
       const label = this.attr(tab, 'label', true)
       const l10n = label.includes('&') ? { 'data-l10n-id': label.replace(/&([^;.]+).label;/, '$1') }: {}
-      const style = indent
-        ? 'margin-left: 1em; padding-left: 1em; padding-bottom: 1em; box-shadow: -3px -3px 4px rgba(0,0,0,.1);'
-        : 'border-top: 3px double black'
-
-      nodes.push(this.tag('groupbox', { style }, [
+      nodes.push(this.tag('groupbox', { class: indent ? 'bbt-prefs-group-main' : 'bbt-prefs-group-sub' }, [
         this.tag('label', {}, [
           this.tag('html:h2', l10n, label.includes('&') ? [] : [ { type: 'Text', val: label } ]),
         ]),
@@ -521,12 +517,25 @@ class XHTML extends BaseASTWalker {
   }
 
   Tag(node, history) {
+    const cls = this.attr(node, 'class')
+    if (cls && cls.split(' ').includes('bbt-prefs-2col-span')) {
+      const pcls = this.attr(history.slice(1).find(n => n.type === 'Tag'), 'class')
+      if (! pcls?.includes('bbt-prefs-2col')) throw new Error('2-col span not in a 2-col parent')
+    }
+    if (node.name === 'script') throw new Error("scripts don't work in preference panes")
+
     switch (node.name) {
       case 'textbox':
+        node.attrs = node.attrs.filter(a => a.name !== 'flex')
+
         if (node.attrs.find(a => a.name === 'multiline')) {
           node.name = 'html:textarea'
+          node.attrs.forEach(a => {
+            if (a.name === 'size') a.name = 'cols'
+          })
+          node.attrs = node.attrs.filter(a => a.name !== 'multiline')
           // arbitrary size
-          for (const [name, val] of Object.entries({ cols: '40', rows: '5' })) {
+          for (const [name, val] of Object.entries({ cols: '80', rows: '5' })) {
             if (!node.attrs.find(a => a.name === name)) node.attrs.push({ name, val: JSON.stringify(val), mustEscape: false })
           }
         }
@@ -534,6 +543,7 @@ class XHTML extends BaseASTWalker {
           node.name = 'html:input'
           node.attrs.push({ name: 'type', val: '"text"', mustEscape: false })
         }
+
         break
       case 'checkbox':
       case 'radio':
@@ -543,10 +553,10 @@ class XHTML extends BaseASTWalker {
       case 'groupbox':
         node.block.nodes = node.block.nodes.map(child => {
           if (child.name === 'caption') {
-            if (!node.attrs.find(a => a.name === 'style')) {
+            if (!node.attrs.find(a => a.name === 'class')) {
               node.attrs.push({
-                name: 'style',
-                val: JSON.stringify('margin-left: 1em; padding-left: 1em; padding-bottom: 1em; box-shadow: -3px -3px 4px rgba(0,0,0,.1);'),
+                name: 'class',
+                val: JSON.stringify('bbt-prefs-group-main'),
                 mustEscape: false,
               })
             }
@@ -596,7 +606,7 @@ class XHTML extends BaseASTWalker {
       }
 
       if (node.type === 'Tag' && node.name === 'tabbox') {
-        const indent = history.filter(n => n.name === 'groupbox' && n.attrs.find(a => a.name === 'style')).length
+        const indent = history.filter(n => n.name === 'groupbox' && n.attrs.find(a => a.name === 'class')).length
         nodes = [...nodes, ...(this.tabbox(node, indent).map(n => this.walk(n, history))) ]
       }
       else {

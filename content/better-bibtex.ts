@@ -3,6 +3,8 @@ import type BluebirdPromise from 'bluebird'
 
 import { is7 } from './client'
 
+if (is7) Components.utils.importGlobalProperties(['FormData'])
+
 let $window: Window
 
 Components.utils.import('resource://gre/modules/FileUtils.jsm')
@@ -11,7 +13,7 @@ declare const FileUtils: any
 declare const __estrace: any // eslint-disable-line no-underscore-dangle
 
 import type { XUL } from '../typings/xul'
-import { DebugLog as DebugLogSender } from 'zotero-plugin/debug-log'
+import { unregister as debugLogUnregister } from 'zotero-plugin/debug-log'
 
 import { icons } from './icons'
 import { prompt } from './prompt'
@@ -704,7 +706,7 @@ export class BetterBibTeX {
       startup: async () => {
         this.deferred.resolve(true)
         await this.load(Zotero.getMainWindow())
-        DebugLogSender.unregister('Better BibTeX')
+        debugLogUnregister('XBetter BibTeX')
 
         if (is7) {
           await Zotero.ItemTreeManager.registerColumns({
