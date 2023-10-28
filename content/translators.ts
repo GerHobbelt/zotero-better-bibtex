@@ -24,7 +24,7 @@ import { Events } from './events'
 import { Pinger } from './ping'
 import Puqeue from 'puqeue'
 import { is7 } from './client'
-import { orchestrator, Task } from './orchestrator'
+import { orchestrator } from './orchestrator'
 import type { Reason } from './bootstrap'
 
 class Queue extends Puqeue {
@@ -62,12 +62,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   public ready: BluebirdPromise<boolean>
   private deferred = new Deferred<boolean>()
 
-  public workers: { total: number, running: Set<number>, startup: number } = {
-    total: 0,
-    running: new Set,
-    startup: 0,
-  }
-
   constructor() {
     Object.assign(this, translatorMetadata)
     this.ready = this.deferred.promise
@@ -75,9 +69,8 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     orchestrator.add('translators', {
       description: 'translators',
       needs: ['database'],
-      startup: async (_reason: string, task: Task) => {
+      startup: async () => {
         await this.start()
-        task.milestones.set(Date.now(), 'worker start')
 
         this.itemType = {
           note: Zotero.ItemTypes.getID('note'),
@@ -89,44 +82,10 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
         this.uninstall('Better BibTeX Quick Copy')
         this.uninstall('\u672B BetterBibTeX JSON (for debugging)')
         this.uninstall('BetterBibTeX JSON (for debugging)')
-        task.milestones.set(Date.now(), 'cleanup')
 
-        const before = Date.now()
-        await Zotero.Translators.init()
-        log.debug('startup: Zotero.Translators.init() took', (Date.now() - before)/1000, 'seconds')
-        task.milestones.set(Date.now(), 'zotero translators init')
-
-        const reinit: { header: Translator.Header, code: string }[] = []
-        let header: Translator.Header
-        let code: string
-        // fetch from resource because that has the hash
-        const headers: Translator.Header[] = Object.keys(this.byName)
-          .map(name => JSON.parse(Zotero.File.getContentsFromURL(`chrome://zotero-better-bibtex/content/resource/${name}.json`)))
-        for (header of headers) {
-          // workaround for mem limitations on Windows
-          if (!is7 && typeof header.displayOptions?.worker === 'boolean') header.displayOptions.worker = !!Zotero.isWin
-          if (code = await this.install(header)) reinit.push({ header, code })
-        }
-        task.milestones.set(Date.now(), 'translators installed')
-
-        if (reinit.length) {
-          await Zotero.Translators.reinit()
-          task.milestones.set(Date.now(), 'zotero translators reinit')
-
-          for ({ header, code } of reinit) {
-            if (Zotero.Translators.getCodeForTranslator) {
-              const translator = Zotero.Translators.get(header.translatorID)
-              translator.cacheCode = true
-              await Zotero.Translators.getCodeForTranslator(translator)
-            }
-            else {
-              new Zotero.Translator({...header, cacheCode: true, code })
-            }
-          }
-          task.milestones.set(Date.now(), 'code cached')
-        }
-
-        this.deferred.resolve(true)
+        this.lateInit().catch(err => {
+          log.debug('translators startup failure', err)
+        })
       },
       shutdown: async (reason: Reason) => {
         switch (reason) {
@@ -150,6 +109,39 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
         await Zotero.Translators.reinit()
       },
     })
+  }
+
+  private async lateInit() {
+    await Zotero.Translators.init()
+
+    const reinit: { header: Translator.Header, code: string }[] = []
+    let header: Translator.Header
+    let code: string
+    // fetch from resource because that has the hash
+    const headers: Translator.Header[] = Object.keys(this.byName)
+      .map(name => JSON.parse(Zotero.File.getContentsFromURL(`chrome://zotero-better-bibtex/content/resource/${name}.json`)))
+    for (header of headers) {
+      // workaround for mem limitations on Windows
+      if (!is7 && typeof header.displayOptions?.worker === 'boolean') header.displayOptions.worker = !!Zotero.isWin
+      if (code = await this.install(header)) reinit.push({ header, code })
+    }
+
+    if (reinit.length) {
+      await Zotero.Translators.reinit()
+
+      for ({ header, code } of reinit) {
+        if (Zotero.Translators.getCodeForTranslator) {
+          const translator = Zotero.Translators.get(header.translatorID)
+          translator.cacheCode = true
+          await Zotero.Translators.getCodeForTranslator(translator)
+        }
+        else {
+          new Zotero.Translator({...header, cacheCode: true, code })
+        }
+      }
+    }
+
+    this.deferred.resolve(true)
   }
 
   public getTranslatorId(name: string): string {
@@ -184,6 +176,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   }
 
   public async importString(str) {
+    await this.ready
     const translation = new Zotero.Translate.Import()
     translation.setString(str)
 
@@ -273,10 +266,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       || preferences.relativeFilePaths
     ) && Cache.getCollection(translator.label)
 
-    this.workers.total += 1
-    const id = this.workers.total
-    this.workers.running.add(id)
-
     const deferred = new Deferred<string>()
 
     const config: Translator.Worker.Job = {
@@ -292,7 +281,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       translator: translator.label,
       output: job.path || '',
       debugEnabled: !!Zotero.Debug.enabled,
-      job: id,
     }
 
     let items: any[] = []
@@ -302,7 +290,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
           log.status({error: true}, 'QBW failed:', Date.now() - start, e.data)
           job.translate?._runHandler('error', e.data) // eslint-disable-line no-underscore-dangle
           deferred.reject(e.data.message)
-          this.workers.running.delete(id)
           break
 
         case 'debug':
@@ -317,7 +304,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
         case 'done':
           void Events.emit('export-progress', { pct: 100, message: translator.label, ae: job.autoExport })
           deferred.resolve(typeof e.data.output === 'boolean' ? '' : e.data.output)
-          this.workers.running.delete(id)
           break
 
         case 'cache':
@@ -342,7 +328,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
       log.status({error: true}, 'QBW: failed:', Date.now() - start, 'message:', e)
       job.translate?._runHandler('error', e) // eslint-disable-line no-underscore-dangle
       deferred.reject(e.message)
-      this.workers.running.delete(id)
     }
 
     const scope = this.exportScope(job.scope)
@@ -428,13 +413,6 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
 
     prepare.done()
 
-    // if the average startup time is greater than the autoExportDelay, bump up the delay to prevent stall-cascades
-    this.workers.startup += Math.ceil((Date.now() - start) / 1000) // eslint-disable-line no-magic-numbers
-    // eslint-disable-next-line no-magic-numbers
-    if (this.workers.total > 5 && (this.workers.startup / this.workers.total) > Preference.autoExportDelay) {
-      Preference.autoExportDelay = Math.ceil(this.workers.startup / this.workers.total)
-    }
-
     const enc = new TextEncoder()
     // stringify gets around 'object could not be cloned', and arraybuffers can be passed zero-copy. win-win
     const abconfig = enc.encode(JSON.stringify(config)).buffer
@@ -456,6 +434,8 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
   // public async exportItems(translatorID: string, displayOptions: any, scope: ExportScope, path: string = null): Promise<string> {
   public async exportItems(job: ExportJob): Promise<string> {
     await Zotero.BetterBibTeX.ready
+    await this.ready
+
     const displayOptions = this.displayOptions(job.translatorID, job.displayOptions)
 
     const start = Date.now()
@@ -557,9 +537,19 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
 
     // importing AutoExports would be circular, so access DB directly
     const autoexports = DB.getCollection('autoexport')
-    for (const ae of autoexports.find({ $and: [ { translatorID: { $eq: header.translatorID } }, { status: { $ne: 'scheduled' } } ] })) {
-      ae.status = 'scheduled'
-      autoexports.update(ae)
+    if (autoexports) {
+      for (const ae of autoexports.find({ $and: [ { translatorID: { $eq: header.translatorID } }, { status: { $ne: 'scheduled' } } ] })) {
+        ae.status = 'scheduled'
+        autoexports.update(ae)
+      }
+    }
+    else { // THIS SHOULD NOT BE POSSIBLE! HOW DOES THIS KEEP HAPPENING?
+      log.error('translator upgrade error: could not get autoexport collection while installing', header.label)
+      flash(
+        'Failed to schedule auto-export',
+        `Failed to schedule auto-exports after ${installed ? 'upgrade' : 'installation'} of ${header.label}, please report this on the Better BibTeX github project`,
+        15 // eslint-disable-line no-magic-numbers
+      )
     }
 
     try {

@@ -1,52 +1,32 @@
 import { patch as $patch$ } from './monkey-patch'
 import { sentenceCase } from './text'
-import * as client from './client'
 import * as l10n from './l10n'
 import { log } from './logger'
 import { Elements } from './create-element'
 import { busyWait } from './busy-wait'
 import { icons } from './icons'
+import { is7 } from './client'
 
-/**
- * TODO: work with textboxes too // FROM ZOTERO
- */
-async function textTransformField(label) {
+async function title_sentenceCase(label) {
   const val = this._getFieldValue(label)
   const newVal = sentenceCase(val)
   this._setFieldValue(label, newVal)
   const fieldName = label.getAttribute('fieldname')
   this._modifyField(fieldName, newVal)
-
-  // If this is a title field, convert the Short Title too
   const isTitle = Zotero.ItemFields.getBaseIDFromTypeAndField(this.item.itemTypeID, fieldName) === Zotero.ItemFields.getID('title')
   const shortTitleVal = this.item.getField('shortTitle')
   if (isTitle && newVal.toLowerCase().startsWith(shortTitleVal.toLowerCase())) {
     this._modifyField('shortTitle', newVal.substr(0, shortTitleVal.length))
   }
-
   if (this.saveOnEdit) {
-    // If a field is open, blur it, which will trigger a save and cause
-    // the saveTx() to be a no-op
     await this.blurOpenField()
     await this.item.saveTx()
   }
 }
 
-function canTextTransformField(label) {
-  if (!this.item) return false
-  const val = this._getFieldValue(label)
-  return sentenceCase(val) !== val
-}
-
 export async function newZoteroItemPane(win: Window): Promise<void> {
   let itemBoxInstance: HTMLElement
-  if (client.is7) {
-    const ItemBox = win.customElements.get('item-box')
-    itemBoxInstance = new ItemBox
-  }
-  else {
-    await busyWait(() => { itemBoxInstance = win.document.querySelector('#zotero-editpane-item-box'); return !!itemBoxInstance })
-  }
+  await busyWait(() => { itemBoxInstance = win.document.querySelector(is7 ? 'item-box' : '#zotero-editpane-item-box'); return !!itemBoxInstance })
   new ZoteroItemPane(win, itemBoxInstance)
 }
 
@@ -62,27 +42,58 @@ export class ZoteroItemPane {
   constructor(win: Window, private itemBoxInstance: any) { // eslint-disable-line @typescript-eslint/explicit-module-boundary-types
     this.document = win.document
     const elements = this.elements = new Elements(this.document)
-    const itemPane = (win as any).ZoteroItemPane
-    itemPane.BetterBibTeX = this
+    // const itemPane = (win as any).ZoteroItemPane
+    // itemPane.BetterBibTeX = this
 
-    const transform_menupopup: any = this.document.getElementById('zotero-field-transform-menu')
-    const bbt_sentencecase_id = 'better-bibtex-transform-sentence-case'
-    transform_menupopup.addEventListener('popupshowing', () => {
-      Zotero.debug('popup showing: running')
-      let bbt_sentencecase: any = this.document.getElementById(bbt_sentencecase_id)
-      if (!bbt_sentencecase) {
-        bbt_sentencecase = transform_menupopup .appendChild(
-          this.elements.create('menuitem', {
-            label: 'BBT sentence-case',
-            id: bbt_sentencecase_id,
-            class: 'menuitem-non-iconic',
-            oncommand: () => { textTransformField.call(this.itemBoxInstance, (this.document as any).popupNode) },
-          })
-        )
+    if (!is7) {
+      const menuid = 'zotero-field-transform-menu-better-sentencecase'
+      let menuitem = this.document.getElementById(menuid)
+      const menu = this.document.getElementById('zotero-field-transform-menu')
+      if (menu && !menuitem) {
+        menuitem = menu.appendChild(elements.create('menuitem', {
+          id: menuid,
+          label: 'BBT sentence case',
+          oncommand: () => {
+            title_sentenceCase.call((this.document as any).getBindingParent(this), (this.document as any).popupNode)
+          },
+        }))
       }
 
-      bbt_sentencecase.disabled = !canTextTransformField.call(this.itemBoxInstance, (this.document as any).popupNode)
-    })
+      if (!this.document.getElementById('better-bibtex-editpane-item-box')) {
+        itemBoxInstance.parentNode.appendChild(elements.create('vbox', { flex: 1, style: 'margin: 0; padding: 0', $: [
+
+          elements.create('grid', { id: 'better-bibtex-editpane-item-box', $: [
+            elements.create('columns', { $: [
+              elements.create('column'),
+              elements.create('column'),
+              // elements.create('column', { flex: 100 }),
+            ]}),
+            elements.create('rows', { id: 'better-bibtex-fields', flex: 1, $: [
+              elements.create('row', { class: 'zotero-item-first-row', $: [
+                elements.create('label', { id: 'better-bibtex-citekey-label', style: 'width: 9em; text-align: right; color: #7F7F7F', value: '' }),
+                elements.create('textbox', { id: 'better-bibtex-citekey-display', class: 'plain', readonly: 'true', value: '' }),
+                // elements.create('label', { id: 'better-bibtex-citekey-pin', value: icons.pin }),
+              ]}),
+            ]}),
+          ]}),
+
+          itemBoxInstance,
+        ]}))
+      }
+    }
+    else {
+      if (!this.document.getElementById('better-bibtex-editpane-item-box')) {
+        itemBoxInstance.parentNode.appendChild(elements.create('html:div', { style: 'display: flex; flex-direction: column;' , $: [
+
+          elements.create('html:div', { id: 'better-bibtex-editpane-item-box', style: 'display: flex; flex-direction: row', $: [
+            elements.create('label', { id: 'better-bibtex-citekey-label', style: 'flex: 0 0 auto; width: 9em; text-align: right; color: #7F7F7F', value: '' }),
+            elements.create('html:input', { id: 'better-bibtex-citekey-display', type: 'text', style: 'flex: 0 0 auto', readonly: 'true', value: '' }),
+          ]}),
+
+          itemBoxInstance,
+        ]}))
+      }
+    }
 
     this.observer = Zotero.BetterBibTeX.KeyManager.keys.on(['update', 'insert'], () => {
       this.refresh()
@@ -102,33 +113,15 @@ export class ZoteroItemPane {
         return
       }
 
-      const citekey = Zotero.BetterBibTeX.KeyManager.get(this.item.itemID)
-      if (!citekey) return
+      const { citekey, pinned } = Zotero.BetterBibTeX.KeyManager.get(this.item.id)
+      const label = this.parentNode.querySelector('#better-bibtex-citekey-label')
+      const value = this.parentNode.querySelector('#better-bibtex-citekey-display')
+      if (!value) return // merge pane uses itembox
 
-      const headerContent = `${l10n.localize('better-bibtex_item-pane_citekey')}${citekey.pinned ? ` ${icons.pin}` : ''}`
-      const header = client.is7
+      label.hidden = value.hidden = !citekey
 
-        ? elements
-          .create('th', {
-            onclick: ev => { ev.currentTarget.nextElementSibling?.querySelector('input, textarea')?.blur() },
-            fieldname: 'citationKey',
-          })
-          .appendChild(elements.create('label', { class: 'key', value: headerContent }))
-          .parentElement
-
-        : elements
-          .create('label', {
-            onclick: ev => { ((ev.currentTarget as HTMLElement).nextElementSibling as any)?.inputField?.blur() },
-            value: headerContent,
-            fieldname: 'citationKey',
-          })
-
-      const table = client.is7 ? this._infoTable : this._dynamicFields // eslint-disable-line no-underscore-dangle
-      const beforeRow = table.children[1] // item type must be first
-      if (beforeRow) this._beforeRow = beforeRow
-
-      const value = this.createValueElement(citekey.citekey, 'citationKey', 1099) // eslint-disable-line no-magic-numbers
-      this.addDynamicRow(header, value, beforeRow)
+      label.value = `${pinned ? icons.pin : ''}${l10n.localize('better-bibtex_item-pane_citekey')}`
+      value.value = citekey
     })
   }
 

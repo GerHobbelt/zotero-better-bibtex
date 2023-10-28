@@ -137,7 +137,7 @@ export class Orchestrator {
     const time = ts => (new Date(ts)).toISOString()
     const line = (name: string, event: string, timestamp: number) => { // eslint-disable-line arrow-body-style
       // eslint-disable-next-line no-magic-numbers
-      return `orchestrator: [${name.padEnd(50, ' ')}] ${phase.padEnd(10, ' ')} ${event.padEnd(15, ' ')} at ${time(timestamp)} running [${running()}]`
+      return `better-bibtex orchestrator: [${name.padEnd(50, ' ')}] ${phase.padEnd(10, ' ')} ${event.padEnd(15, ' ')} at ${time(timestamp)} running [${running()}]`
     }
 
     const report = (name: string) => {
@@ -157,12 +157,28 @@ export class Orchestrator {
       if (promise != null) return promise
 
       const task = taskmap[name]
-      let { action, needs } = task
-      if (!action) action = async () => `nothing to do for ${name}.${phase} ${reason || ''}` // eslint-disable-line @typescript-eslint/require-await
+      const { action, needs } = task
+      if (!action) {
+        promises[name] = Promise.resolve()
+        return
+      }
 
       const needed = async () => {
         await Promise.all(needs.map(run))
         // for (const dep of needs) await run(dep)
+      }
+
+      const perform = async (): Promise<void | string> => {
+        print(`better-bibtex orchestrator: task ${phase}.${name} starting`)
+        try {
+          const res = await action(reason, task) as Promise<void | string>
+          print(`better-bibtex orchestrator: task ${phase}.${name} finished`)
+          return res
+        }
+        catch (err) {
+          print(`better-bibtex orchestrator: error: task ${phase}.${name} failed: ${err}\n${err.stack}`)
+          throw err
+        }
       }
 
       promises[name] = circular
@@ -174,14 +190,8 @@ export class Orchestrator {
           report(name)
 
           try {
-            return await action(reason, task) as Promise<void | string>
+            return await perform()
           }
-
-          catch (err) {
-            print(`orchestrator error: ${phase}.${name} failed: ${err}\n${err.stack}`)
-            throw err
-          }
-
           finally {
             task.finished = Date.now()
             report(name)
@@ -189,7 +199,7 @@ export class Orchestrator {
         })
 
         .catch(err => {
-          print(`better-bibtex orchestrator: ${name}.${phase} ${reason || ''} error: ${err}`)
+          print(`better-bibtex better-bibtex orchestrator: ${name}.${phase} ${reason || ''} error: ${err}`)
           throw err
         })
     }
