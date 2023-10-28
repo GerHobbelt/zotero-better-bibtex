@@ -21,6 +21,7 @@ import { $and, Query } from './db/loki'
 import { Events } from './events'
 import { Pinger } from './ping'
 import Puqeue from 'puqeue'
+import { is7 } from './client'
 
 class Queue extends Puqeue {
   get queued() {
@@ -170,6 +171,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
         platform: Preference.platform,
         locale: Zotero.locale,
         clientName: Zotero.clientName,
+        is7,
       }).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
 
       this.worker = new ChromeWorker(`chrome://zotero-better-bibtex/content/worker/zotero.js?${environment}`)
@@ -264,7 +266,7 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
     this.worker.onmessage = (e: { data: Translator.Worker.Message }) => {
       switch (e.data?.kind) {
         case 'error':
-          log.status({error: true, translator: translator.label, worker: id}, 'QBW failed:', Date.now() - start, e.data)
+          log.status({error: true}, 'QBW failed:', Date.now() - start, e.data)
           job.translate?._runHandler('error', e.data) // eslint-disable-line no-underscore-dangle
           deferred.reject(e.data.message)
           this.workers.running.delete(id)
@@ -297,14 +299,14 @@ export const Translators = new class { // eslint-disable-line @typescript-eslint
 
         default:
           if (JSON.stringify(e) !== '{"isTrusted":true}') { // why are we getting this?
-            log.status({translator: translator.label, worker: id}, 'enexpected message from worker', e)
+            log.status({error: true}, 'unexpected message from worker', e)
           }
           break
       }
     }
 
     this.worker.onerror = e => {
-      log.status({error: true, translator: translator.label, worker: id}, 'QBW: failed:', Date.now() - start, 'message:', e)
+      log.status({error: true}, 'QBW: failed:', Date.now() - start, 'message:', e)
       job.translate?._runHandler('error', e) // eslint-disable-line no-underscore-dangle
       deferred.reject(e.message)
       this.workers.running.delete(id)
