@@ -38,12 +38,18 @@ function correction(ist, attr = '') {
   if (soll !== ist) bulk_mod[ist] = soll
 }
 
-class WizardDetector extends ASTWalker {
-  public foundWizard = false
+class Z7Detector extends ASTWalker {
+  public is7 = false
+
+  Conditional(node) {
+    if (node.test === 'is7') this.is7 = true
+
+    this.walk(node.consequent)
+    this.walk(node.alternate)
+    return node
+  }
 
   Tag(node) {
-    if (node.name === 'wizard') this.foundWizard = true
-
     for (const attr of node.attrs) {
       let prefix = ''
       attr.val.replace(/&([^;]+);/g, (m, id) => {
@@ -77,35 +83,6 @@ class WizardDetector extends ASTWalker {
   }
 }
 
-class Z7Wizard extends ASTWalker {
-  Tag(node) {
-    if (node.name === 'wizard') {
-      return {
-        type: 'Tag',
-        name: 'window',
-        attrs: node.attrs.filter(a => a.name.startsWith('xmlns')),
-        attributeBlocks: [],
-        block: {
-          type: 'Block',
-          nodes: [
-            {
-              type: 'Tag',
-              name: 'script',
-              selfClosing: true,
-              block: { type: 'Block', nodes: [] },
-              attrs: [ { name: 'src', val: '"chrome://global/content/customElements.js"', mustEscape: true } ],
-              attributeBlocks: [],
-            },
-            { ...node, attrs: node.attrs.filter(a => !a.name.startsWith('xmlns')) },
-          ],
-        },
-      }
-    }
-
-    return node
-  }
-}
-
 function render(src, options) {
   return pug.renderFile(src, options).replace(/&amp;/g, '&').trim()
 }
@@ -114,29 +91,19 @@ for (const src of pugs) {
   console.log(' ', src)
   const tgt = `build/${src.replace(/pug$/, 'xul')}`
 
-  const wizardDetector = new WizardDetector
+  const detector = new Z7Detector
   fs.writeFileSync(tgt, render(src, {
     pretty: true,
     plugins: [{
       preCodeGen(ast) {
-        wizardDetector.walk(ast)
+        detector.walk(ast)
         return ast
       },
     }],
   }))
 
-  if (wizardDetector.foundWizard) {
-    fs.writeFileSync(
-      tgt.replace('.xul', '.xhtml'),
-      render(src, {
-        pretty: true,
-        plugins: [{
-          preCodeGen(ast) {
-            return (new Z7Wizard).walk(ast)
-          },
-        }],
-      })
-    )
+  if (detector.is7) {
+    fs.writeFileSync(tgt.replace('.xul', '.xhtml'), render(src, { pretty: true, is7: true }))
   }
 }
 
